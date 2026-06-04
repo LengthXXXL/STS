@@ -1,3 +1,10 @@
+import pytest
+from sqlalchemy.exc import IntegrityError
+
+from app.schemas.auth import RegisterRequest
+from app.services.auth_service import register_user
+
+
 def test_register_creates_user_and_returns_token(client):
     response = client.post(
         "/api/auth/register",
@@ -31,6 +38,54 @@ def test_register_rejects_duplicate_email(client):
 
     assert response.status_code == 409
     assert response.json()["detail"] == "Email already registered"
+
+
+def test_register_rejects_duplicate_username(client):
+    user = {
+        "username": "alice",
+        "email": "alice@example.com",
+        "password": "StrongerPass123",
+    }
+    assert client.post("/api/auth/register", json=user).status_code == 201
+
+    response = client.post(
+        "/api/auth/register",
+        json={**user, "email": "alice2@example.com"},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == "Username already registered"
+
+
+def test_register_rolls_back_and_translates_integrity_error(db_session, monkeypatch):
+    original_rollback = db_session.rollback
+    rollback_called = False
+
+    def raise_integrity_error():
+        raise IntegrityError(
+            "INSERT INTO users",
+            {},
+            Exception("UNIQUE constraint failed: users.username"),
+        )
+
+    def track_rollback():
+        nonlocal rollback_called
+        rollback_called = True
+        original_rollback()
+
+    monkeypatch.setattr(db_session, "commit", raise_integrity_error)
+    monkeypatch.setattr(db_session, "rollback", track_rollback)
+
+    request = RegisterRequest(
+        username="alice",
+        email="alice@example.com",
+        password="StrongerPass123",
+    )
+    with pytest.raises(ValueError) as exc_info:
+        register_user(db_session, request)
+
+    assert rollback_called
+    assert str(exc_info.value) == "Username already registered"
 
 
 def test_login_returns_token_for_valid_credentials(client):
