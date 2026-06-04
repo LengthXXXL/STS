@@ -1,0 +1,147 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #f7f2ff;
+  background: #07070b;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 10px;
+  background: #050508;
+  border-right: 1px solid #24202e;
+  color: #fff;
+}
+
+.brand {
+  font-weight: 800;
+  text-align: center;
+  margin-bottom: 18px;
+}
+
+.side-nav a {
+  color: #cfc7dc;
+  text-decoration: none;
+  text-align: center;
+  padding: 10px 6px;
+  border-radius: 8px;
+}
+
+.side-nav a.router-link-active {
+  background: #6d3df2;
+  color: #fff;
+  box-shadow: 0 0 24px rgba(109, 61, 242, 0.24);
+}
+
+.main-shell {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-bar {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  background: #0d0b12;
+  border-bottom: 1px solid #24202e;
+}
+
+.section-title {
+  font-weight: 700;
+}
+
+.account-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.account-actions a {
+  color: #b89cff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.content-grid {
+  min-height: calc(100vh - 64px);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 16px;
+  padding: 16px;
+}
+
+.block-library,
+.page-panel,
+.work-surface {
+  background: #111019;
+  border: 1px solid #292437;
+  border-radius: 8px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.32);
+}
+
+.work-surface,
+.page-panel {
+  padding: 18px;
+}
+
+.toolbar-panel {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.toolbar-panel button,
+.block-library button {
+  border: 1px solid #3a3150;
+  background: #191522;
+  color: #f7f2ff;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.canvas-placeholder {
+  min-height: 360px;
+  border: 1px dashed #5e4f7a;
+  border-radius: 8px;
+  padding: 24px;
+  background: #0b0a10;
+}
+
+.block-library {
+  padding: 16px;
+}
+
+.block-library input {
+  width: 100%;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 10px;
+  margin-bottom: 14px;
+  color: #f7f2ff;
+  background: #09080d;
+}
+
+.block-library nav {
+  display: grid;
+  gap: 8px;
+}
