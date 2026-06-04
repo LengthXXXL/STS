@@ -49,7 +49,10 @@ def require_role(role_name: str) -> Callable[[User], User]:
     def dependency(current_user: User = Depends(get_current_user)) -> User:
         role_names = {role.name for role in current_user.roles}
         if role_name not in role_names:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient role")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient role",
+            )
         return current_user
 
     return dependency
