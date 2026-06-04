@@ -1,0 +1,103 @@
+<h2>B 和 C 的核心区别</h2>
+<p class="subtitle">B 是“完整学习型平台”，目标是让用户能搭建、回测、保存、分享和搜索积木。C 是“平台型系统”，目标是让系统能长期运营、治理内容、个性化推荐并支撑更复杂的交易生态。</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">B. 完整学习型平台</div>
+    <div class="mockup-body">
+      <div class="placeholder" style="min-height:88px;">
+        <strong>定位</strong><br>
+        面向小白学习与策略实验，强调低门槛、闭环可用。
+      </div>
+      <div class="placeholder" style="min-height:88px;">
+        <strong>核心闭环</strong><br>
+        拖拽搭建策略 -> 保存 -> 回测 -> 查看结果 -> 分享积木。
+      </div>
+      <div class="placeholder" style="min-height:88px;">
+        <strong>推荐算法</strong><br>
+        先做热门、相似标签、收藏下载量、用户兴趣标签等轻量推荐。
+      </div>
+      <div class="placeholder" style="min-height:88px;">
+        <strong>管理后台</strong><br>
+        用户、角色、内容基础审核、积木分类、文件管理。
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">C. 平台型版本</div>
+    <div class="mockup-body">
+      <div class="placeholder" style="min-height:88px;">
+        <strong>定位</strong><br>
+        面向社区运营与策略生态，强调规模化、治理、增长和扩展。
+      </div>
+      <div class="placeholder" style="min-height:88px;">
+        <strong>核心闭环</strong><br>
+        搭建/回测/分享之外，还要有策略排行、版本、审核、举报和治理。
+      </div>
+      <div class="placeholder" style="min-height:88px;">
+        <strong>推荐算法</strong><br>
+        从规则推荐升级为个性化推荐、协同过滤、内容召回和排序模型。
+      </div>
+      <div class="placeholder" style="min-height:88px;">
+        <strong>管理后台</strong><br>
+        需要运营看板、风控规则、内容审核流、权限矩阵、推荐干预。
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>C 比 B 主要多出的复杂度</h3>
+  <div class="options">
+    <div class="option" data-choice="scope" onclick="toggleSelect(this)">
+      <div class="letter">1</div>
+      <div class="content">
+        <h3>策略引擎更复杂</h3>
+        <p>B 可以先支持条件、指标、买入、卖出、仓位这些基础积木；C 通常要考虑多资产、多周期、多策略组合、策略版本和回测队列。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="community" onclick="toggleSelect(this)">
+      <div class="letter">2</div>
+      <div class="content">
+        <h3>社区从“能发”变成“能管”</h3>
+        <p>B 有论坛、评论、收藏、搜索即可；C 需要举报、审核流、封禁、内容质量评分、热榜、精选、反作弊和运营配置。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="recommendation" onclick="toggleSelect(this)">
+      <div class="letter">3</div>
+      <div class="content">
+        <h3>推荐从规则变成系统</h3>
+        <p>B 的推荐算法可以用标签、热度、相似度；C 要设计用户画像、行为日志、召回、排序、冷启动、效果指标和人工干预。</p>
+      </div>
+    </div>
+    <div class="option" data-choice="ops" onclick="toggleSelect(this)">
+      <div class="letter">4</div>
+      <div class="content">
+        <h3>后台和权限显著加重</h3>
+        <p>B 的角色权限覆盖普通用户、管理员即可；C 可能拆成用户、作者、版主、审核员、运营、超级管理员等多角色。</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros">
+    <h4>我更推荐 B 的情况</h4>
+    <ul>
+      <li>希望尽快开始开发并做出可演示网站</li>
+      <li>项目周期是 1-3 个月</li>
+      <li>重点是前后端分离、CRUD、JWT、权限、上传下载和推荐算法覆盖</li>
+      <li>希望 PRD 后续能直接变成开发计划</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>我更推荐 C 的情况</h4>
+    <ul>
+      <li>你想把 PRD 写成完整商业平台蓝图</li>
+      <li>愿意接受更长开发周期和更多非核心模块</li>
+      <li>推荐算法、社区治理、策略生态是项目亮点</li>
+      <li>后续会持续迭代，而不是只交付第一版</li>
+    </ul>
+  </div>
+</div>

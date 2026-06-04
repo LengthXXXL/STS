@@ -1,0 +1,97 @@
+<h2>STS V1 页面信息架构</h2>
+<p class="subtitle">打开网站直接进入“搭建积木”。右侧固定导航用于切换四个主页面，主工作区始终优先服务策略搭建和回测。</p>
+
+<div class="mockup">
+  <div class="mockup-header">第一屏布局：策略搭建优先</div>
+  <div class="mockup-body">
+    <div style="display:grid; grid-template-columns:220px minmax(0,1fr) 88px; gap:12px; min-height:360px;">
+      <div class="mock-sidebar">
+        <strong>积木库</strong><br><br>
+        条件<br>
+        指标<br>
+        动作<br>
+        风控<br>
+        自定义<br><br>
+        <input class="mock-input" placeholder="搜索积木">
+      </div>
+      <div class="mock-content">
+        <div style="display:flex; justify-content:space-between; gap:12px; margin-bottom:12px;">
+          <button class="mock-button">保存策略</button>
+          <button class="mock-button">运行回测</button>
+          <button class="mock-button">发布积木</button>
+        </div>
+        <div class="placeholder" style="min-height:170px;">
+          <strong>积木搭建画布</strong><br><br>
+          如果 RSI &lt; 30 且 当前仓位 &lt; 50%<br>
+          则 买入到目标仓位 50%<br><br>
+          如果 持仓收益率 &gt;= 5%<br>
+          则 卖出 50%
+        </div>
+        <div class="placeholder" style="min-height:90px; margin-top:12px;">
+          <strong>回测结果预览</strong><br>
+          收益率、最大回撤、交易记录、买卖点走势图
+        </div>
+      </div>
+      <div class="mock-sidebar" style="text-align:center;">
+        <strong>导航</strong><br><br>
+        搭建<br><br>
+        空间<br><br>
+        论坛<br><br>
+        分享
+      </div>
+    </div>
+  </div>
+</div>
+
+<h3>四个主页面职责</h3>
+<div class="options" data-multiselect>
+  <div class="option" data-choice="builder" onclick="toggleSelect(this)">
+    <div class="letter">1</div>
+    <div class="content">
+      <h3>搭建积木</h3>
+      <p>默认首页。包含积木库、画布、策略保存、回测设置、回测结果、买卖点走势图。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="space" onclick="toggleSelect(this)">
+    <div class="letter">2</div>
+    <div class="content">
+      <h3>个人空间</h3>
+      <p>管理我的策略、我的自定义积木、模拟账户、回测记录、收藏内容、上传/下载文件。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="forum" onclick="toggleSelect(this)">
+    <div class="letter">3</div>
+    <div class="content">
+      <h3>论坛</h3>
+      <p>发帖、评论、点赞、收藏，讨论策略思路和回测结果。重点是交流，不直接作为积木市场。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="share" onclick="toggleSelect(this)">
+    <div class="letter">4</div>
+    <div class="content">
+      <h3>积木分享</h3>
+      <p>搜索、筛选、预览、收藏、导入别人公开发布的自定义积木，承载推荐算法入口。</p>
+    </div>
+  </div>
+</div>
+
+<div class="pros-cons">
+  <div class="pros">
+    <h4>推荐的内容流转</h4>
+    <ul>
+      <li>搭建页创建策略和自定义积木</li>
+      <li>个人空间保存和版本管理</li>
+      <li>积木分享发布可复用积木</li>
+      <li>论坛分享思路、截图和回测结果</li>
+    </ul>
+  </div>
+  <div class="cons">
+    <h4>第一版刻意不做</h4>
+    <ul>
+      <li>不做多股票组合策略主流程</li>
+      <li>不做实时自动交易运行中心</li>
+      <li>不做复杂内容治理后台</li>
+      <li>不把论坛和积木市场混在一起</li>
+    </ul>
+  </div>
+</div>
