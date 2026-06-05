@@ -2,6 +2,21 @@ import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const routeMock = vi.hoisted(() => ({
+  name: 'builder',
+  path: '/'
+}))
+
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+
+  return {
+    ...actual,
+    useRoute: () => routeMock
+  }
+})
+
 import App from '../src/App.vue'
 import { useAuthStore } from '../src/stores/auth'
 
@@ -10,6 +25,8 @@ enableAutoUnmount(afterEach)
 describe('app shell', () => {
   beforeEach(() => {
     localStorage.clear()
+    routeMock.name = 'builder'
+    routeMock.path = '/'
   })
 
   it('shows logged-out and logged-in account states', async () => {
@@ -118,5 +135,25 @@ describe('app shell', () => {
     expect(receivedActions).toEqual(['save', 'backtest', 'publish'])
 
     window.removeEventListener('sts:builder-action', listener)
+  })
+
+  it('hides builder actions outside the builder route', () => {
+    routeMock.name = 'space'
+    routeMock.path = '/space'
+
+    const wrapper = mount(App, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          RouterView: { template: '<main />' }
+        }
+      }
+    })
+
+    expect(wrapper.find('.section-title').text()).toBe('个人空间')
+    expect(wrapper.find('[data-builder-action="save"]').exists()).toBe(false)
+    expect(wrapper.find('[data-builder-action="backtest"]').exists()).toBe(false)
+    expect(wrapper.find('[data-builder-action="publish"]').exists()).toBe(false)
   })
 })

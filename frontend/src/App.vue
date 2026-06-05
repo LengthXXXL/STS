@@ -1,13 +1,30 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import AuthModal from './components/AuthModal.vue'
 import { useAuthStore } from './stores/auth'
 
 type AuthMode = 'login' | 'register'
 
 const authStore = useAuthStore()
+const route = useRoute()
 const isAuthModalOpen = ref(false)
 const authModalMode = ref<AuthMode>('login')
+
+const routeSectionTitles: Record<string, string> = {
+  builder: '策略工作台',
+  space: '个人空间',
+  forum: '论坛',
+  'shared-blocks': '积木分享',
+  login: '登录',
+  register: '注册'
+}
+
+const routeName = computed(() => (typeof route.name === 'string' ? route.name : ''))
+const isBuilderRoute = computed(() => routeName.value === 'builder' || route.path === '/')
+const currentSectionTitle = computed(
+  () => routeSectionTitles[routeName.value] ?? (isBuilderRoute.value ? '策略工作台' : 'STS')
+)
 
 const displayedUsername = computed(() => {
   const username = authStore.user?.username ?? ''
@@ -49,28 +66,30 @@ onBeforeUnmount(() => {
     <main class="main-shell">
       <header class="top-bar">
         <div class="top-actions">
-          <span class="section-title">策略工作台</span>
-          <button
-            type="button"
-            data-builder-action="save"
-            @click="dispatchBuilderAction('save')"
-          >
-            保存策略
-          </button>
-          <button
-            type="button"
-            data-builder-action="backtest"
-            @click="dispatchBuilderAction('backtest')"
-          >
-            运行回测
-          </button>
-          <button
-            type="button"
-            data-builder-action="publish"
-            @click="dispatchBuilderAction('publish')"
-          >
-            发布
-          </button>
+          <span class="section-title">{{ currentSectionTitle }}</span>
+          <template v-if="isBuilderRoute">
+            <button
+              type="button"
+              data-builder-action="save"
+              @click="dispatchBuilderAction('save')"
+            >
+              保存策略
+            </button>
+            <button
+              type="button"
+              data-builder-action="backtest"
+              @click="dispatchBuilderAction('backtest')"
+            >
+              运行回测
+            </button>
+            <button
+              type="button"
+              data-builder-action="publish"
+              @click="dispatchBuilderAction('publish')"
+            >
+              发布
+            </button>
+          </template>
         </div>
         <div class="account-actions">
           <template v-if="authStore.isAuthenticated && authStore.user">
