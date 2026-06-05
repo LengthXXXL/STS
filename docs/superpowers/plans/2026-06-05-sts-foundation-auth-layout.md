@@ -2153,3 +2153,12 @@ Plan complete and saved to `docs/superpowers/plans/2026-06-05-sts-foundation-aut
 **2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
 
 Which approach?
+
+## Execution Notes (2026-06-05)
+
+- Subagent-driven implementation was used until a Task 6 review subagent hit the account usage limit. The controller continued with local review and verification to avoid blocking the milestone.
+- Backend dependency installation is blocked by PyPI SSL/TLS failures while fetching build dependencies such as `setuptools`; the local backend virtualenv therefore lacks `pytest` and `uvicorn`. Backend pytest and server smoke could not run in this environment.
+- Backend source syntax was checked with `python -m compileall -q app tests`.
+- Frontend tests and production build were run with `npm test` and `npm run build`.
+- Browser smoke verified `http://127.0.0.1:5173/`: default builder page, left navigation, right block library, top-left strategy actions, top-right login/register links, and login/register routes.
+- Logged-in account bar behavior is covered by `frontend/tests/app-shell.test.ts` because backend service startup is blocked until dependencies can be installed.
