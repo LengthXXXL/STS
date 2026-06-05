@@ -1068,31 +1068,10 @@ button {
   cursor: pointer;
 }
 
-.auth-modal-tabs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin: 18px 0;
-}
-
-.auth-modal-tabs button {
-  border: 1px solid #3a3150;
-  border-radius: 6px;
-  padding: 9px 10px;
-  color: #d9d1e8;
-  background: #191522;
-  cursor: pointer;
-}
-
-.auth-modal-tabs button[aria-pressed="true"] {
-  border-color: rgba(124, 77, 255, 0.68);
-  color: #fff;
-  background: #302157;
-}
-
 .auth-modal form {
   display: grid;
   gap: 14px;
+  margin-top: 18px;
 }
 
 .auth-modal label {
@@ -1116,6 +1095,26 @@ button {
   color: #fff;
   background: #6d3df2;
   cursor: pointer;
+}
+
+.auth-mode-switch {
+  margin: -2px 0 0;
+  color: #a89bc1;
+  font-size: 12px;
+  text-align: center;
+}
+
+.auth-mode-switch button {
+  border: 0;
+  padding: 0;
+  color: #b89cff;
+  background: transparent;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.auth-mode-switch button:hover {
+  color: #d7c8ff;
 }
 
 @media (max-width: 560px) {

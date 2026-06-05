@@ -83,25 +83,6 @@ async function submit() {
         </button>
       </header>
 
-      <div class="auth-modal-tabs" role="tablist" aria-label="登录注册切换">
-        <button
-          class="auth-login-tab"
-          type="button"
-          :aria-pressed="activeMode === 'login'"
-          @click="switchMode('login')"
-        >
-          登录
-        </button>
-        <button
-          class="auth-register-tab"
-          type="button"
-          :aria-pressed="activeMode === 'register'"
-          @click="switchMode('register')"
-        >
-          注册
-        </button>
-      </div>
-
       <form @submit.prevent="submit">
         <label v-if="activeMode === 'register'">
           用户名
@@ -125,6 +106,20 @@ async function submit() {
         <button class="auth-modal-submit" type="submit" :disabled="loading">
           {{ loading ? '处理中' : activeMode === 'login' ? '登录' : '注册' }}
         </button>
+        <p class="auth-mode-switch">
+          <template v-if="activeMode === 'login'">
+            没有账户？
+            <button class="auth-register-link" type="button" @click="switchMode('register')">
+              请先注册
+            </button>
+          </template>
+          <template v-else>
+            已有账户？
+            <button class="auth-login-link" type="button" @click="switchMode('login')">
+              直接登录
+            </button>
+          </template>
+        </p>
       </form>
     </section>
   </div>

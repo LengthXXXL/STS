@@ -71,9 +71,19 @@ describe('app shell', () => {
     await wrapper.find('.account-login-button').trigger('click')
     expect(wrapper.find('.auth-modal').exists()).toBe(true)
     expect(wrapper.find('.auth-modal').text()).toContain('登录')
+    expect(wrapper.find('.auth-modal-submit').text()).toBe('登录')
+    expect(wrapper.find('.auth-mode-switch').text()).toContain('没有账户？')
+    expect(wrapper.find('.auth-register-link').text()).toBe('请先注册')
+    expect(wrapper.find('.auth-modal-tabs').exists()).toBe(false)
 
-    await wrapper.find('.auth-register-tab').trigger('click')
+    await wrapper.find('.auth-register-link').trigger('click')
     expect(wrapper.find('.auth-modal').text()).toContain('创建账户')
+    expect(wrapper.find('.auth-modal-submit').text()).toBe('注册')
+    expect(wrapper.find('.auth-mode-switch').text()).toContain('已有账户？')
+    expect(wrapper.find('.auth-login-link').text()).toBe('直接登录')
+
+    await wrapper.find('.auth-login-link').trigger('click')
+    expect(wrapper.find('.auth-modal').text()).toContain('登录')
 
     await wrapper.find('.auth-modal-close').trigger('click')
     expect(wrapper.find('.auth-modal').exists()).toBe(false)
@@ -82,7 +92,7 @@ describe('app shell', () => {
     await nextTick()
 
     expect(wrapper.find('.auth-modal').exists()).toBe(true)
-    expect(wrapper.find('.auth-login-tab').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.find('.auth-modal-submit').text()).toBe('登录')
   })
 
   it('dispatches builder actions from the top bar', async () => {
