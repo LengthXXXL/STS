@@ -354,6 +354,83 @@ input {
   border-color: rgba(94, 230, 200, 0.38);
 }
 
+.block-inspector {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  z-index: 2;
+  width: min(300px, calc(100% - 40px));
+  border: 1px solid #292437;
+  border-radius: 8px;
+  padding: 16px;
+  color: #f7f2ff;
+  background: rgba(17, 16, 25, 0.9);
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.42), 0 0 28px rgba(124, 77, 255, 0.12);
+  backdrop-filter: blur(18px);
+  cursor: default;
+}
+
+.block-inspector header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.block-inspector h2 {
+  margin: 2px 0 0;
+  font-size: 18px;
+}
+
+.block-inspector small {
+  color: #a89bc1;
+  font-size: 12px;
+}
+
+.block-inspector header button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  color: #f7f2ff;
+  background: #191522;
+  cursor: pointer;
+}
+
+.block-inspector form {
+  display: grid;
+  gap: 12px;
+}
+
+.block-inspector label {
+  display: grid;
+  gap: 6px;
+}
+
+.block-inspector label > span {
+  color: #d9d1e8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.block-inspector input,
+.block-inspector select {
+  width: 100%;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #f7f2ff;
+  background: #09080d;
+}
+
+.param-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .canvas-controls {
   position: absolute;
   left: 20px;
@@ -508,6 +585,15 @@ input {
     top: 12px;
     right: 12px;
     width: min(240px, calc(100% - 24px));
+  }
+
+  .block-inspector {
+    top: auto;
+    bottom: 72px;
+    left: 12px;
+    width: min(280px, calc(100% - 24px));
+    max-height: calc(100vh - 172px);
+    overflow: auto;
   }
 
   .canvas-controls {

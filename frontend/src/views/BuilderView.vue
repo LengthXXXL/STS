@@ -15,6 +15,19 @@ interface BlockDefinition {
   label: string
   category: string
   tone: 'action' | 'risk' | 'condition'
+  fields: BlockParamField[]
+}
+
+interface BlockParamField {
+  key: string
+  label: string
+  type: 'text' | 'number' | 'select'
+  defaultValue: string
+  suffix?: string
+  min?: string
+  max?: string
+  step?: string
+  options?: Array<{ label: string; value: string }>
 }
 
 interface PlacedBlock {
@@ -24,6 +37,7 @@ interface PlacedBlock {
   tone: BlockDefinition['tone']
   x: number
   y: number
+  params: Record<string, string>
 }
 
 interface Connection {
@@ -61,12 +75,146 @@ const BLOCK_WIDTH = 132
 const BLOCK_HEIGHT = 44
 
 const blockDefinitions: BlockDefinition[] = [
-  { id: 'buy', label: '买入', category: '动作', tone: 'action' },
-  { id: 'sell', label: '卖出', category: '动作', tone: 'action' },
-  { id: 'clear', label: '清仓', category: '动作', tone: 'action' },
-  { id: 'take-profit', label: '止盈', category: '风控', tone: 'risk' },
-  { id: 'stop-loss', label: '止损', category: '风控', tone: 'risk' },
-  { id: 'cooldown', label: '冷却', category: '风控', tone: 'condition' }
+  {
+    id: 'buy',
+    label: '买入',
+    category: '动作',
+    tone: 'action',
+    fields: [
+      { key: 'symbol', label: '股票代码', type: 'text', defaultValue: '000001.SZ' },
+      {
+        key: 'sizePercent',
+        label: '买入仓位',
+        type: 'number',
+        defaultValue: '20',
+        min: '1',
+        max: '100',
+        step: '1',
+        suffix: '%'
+      },
+      {
+        key: 'orderType',
+        label: '委托方式',
+        type: 'select',
+        defaultValue: 'market',
+        options: [
+          { label: '市价', value: 'market' },
+          { label: '限价', value: 'limit' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'sell',
+    label: '卖出',
+    category: '动作',
+    tone: 'action',
+    fields: [
+      {
+        key: 'sellPercent',
+        label: '卖出仓位',
+        type: 'number',
+        defaultValue: '50',
+        min: '1',
+        max: '100',
+        step: '1',
+        suffix: '%'
+      },
+      {
+        key: 'orderType',
+        label: '委托方式',
+        type: 'select',
+        defaultValue: 'market',
+        options: [
+          { label: '市价', value: 'market' },
+          { label: '限价', value: 'limit' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'clear',
+    label: '清仓',
+    category: '动作',
+    tone: 'action',
+    fields: [
+      {
+        key: 'sellPercent',
+        label: '清仓比例',
+        type: 'number',
+        defaultValue: '100',
+        min: '1',
+        max: '100',
+        step: '1',
+        suffix: '%'
+      },
+      { key: 'reason', label: '触发说明', type: 'text', defaultValue: '退出全部持仓' }
+    ]
+  },
+  {
+    id: 'take-profit',
+    label: '止盈',
+    category: '风控',
+    tone: 'risk',
+    fields: [
+      {
+        key: 'profitRate',
+        label: '持仓收益率 >=',
+        type: 'number',
+        defaultValue: '5',
+        min: '0',
+        step: '0.1',
+        suffix: '%'
+      },
+      {
+        key: 'sellPercent',
+        label: '卖出仓位',
+        type: 'number',
+        defaultValue: '50',
+        min: '1',
+        max: '100',
+        step: '1',
+        suffix: '%'
+      }
+    ]
+  },
+  {
+    id: 'stop-loss',
+    label: '止损',
+    category: '风控',
+    tone: 'risk',
+    fields: [
+      {
+        key: 'lossRate',
+        label: '持仓亏损率 >=',
+        type: 'number',
+        defaultValue: '3',
+        min: '0',
+        step: '0.1',
+        suffix: '%'
+      },
+      {
+        key: 'sellPercent',
+        label: '卖出仓位',
+        type: 'number',
+        defaultValue: '100',
+        min: '1',
+        max: '100',
+        step: '1',
+        suffix: '%'
+      }
+    ]
+  },
+  {
+    id: 'cooldown',
+    label: '冷却',
+    category: '风控',
+    tone: 'condition',
+    fields: [
+      { key: 'abnormalRule', label: '异常条件', type: 'text', defaultValue: '连续亏损2次' },
+      { key: 'durationBars', label: '冷却K线数', type: 'number', defaultValue: '3', min: '1', step: '1' }
+    ]
+  }
 ]
 
 const canvasRef = ref<HTMLElement | null>(null)
@@ -104,6 +252,26 @@ const libraryStyle = computed(() => ({
 }))
 
 const zoomLabel = computed(() => `${Math.round(transform.scale * 100)}%`)
+
+const selectedBlock = computed(() => {
+  if (!selectedBlockId.value) {
+    return null
+  }
+
+  return findPlacedBlock(selectedBlockId.value) ?? null
+})
+
+const selectedBlockDefinition = computed(() => {
+  if (!selectedBlock.value) {
+    return null
+  }
+
+  return (
+    blockDefinitions.find((definition) => definition.id === selectedBlock.value?.blockId) ?? null
+  )
+})
+
+const selectedBlockFields = computed(() => selectedBlockDefinition.value?.fields ?? [])
 
 const connectionPaths = computed(() =>
   connections.value
@@ -185,6 +353,32 @@ function snapBlockPosition(position: CanvasPoint, movingId?: string) {
   })
 }
 
+function createDefaultParams(block: BlockDefinition) {
+  return block.fields.reduce<Record<string, string>>((params, field) => {
+    params[field.key] = field.defaultValue
+    return params
+  }, {})
+}
+
+function blockParamValue(block: PlacedBlock, field: BlockParamField) {
+  return block.params[field.key] ?? field.defaultValue
+}
+
+function updateBlockParam(blockId: string, key: string, event: Event) {
+  const block = findPlacedBlock(blockId)
+  if (
+    !block ||
+    !(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)
+  ) {
+    return
+  }
+
+  block.params = {
+    ...block.params,
+    [key]: event.target.value
+  }
+}
+
 function startBlockDrag(block: BlockDefinition, event: DragEvent) {
   event.dataTransfer?.setData('application/sts-block', block.id)
   if (event.dataTransfer) {
@@ -253,7 +447,8 @@ function addBlockAtClientPoint(block: BlockDefinition, clientX: number, clientY:
     label: block.label,
     tone: block.tone,
     x: Math.round(position.x),
-    y: Math.round(position.y)
+    y: Math.round(position.y),
+    params: createDefaultParams(block)
   })
 }
 
@@ -610,7 +805,9 @@ function startCanvasPan(event: PointerEvent) {
 
   if (
     event.button !== 0 ||
-    (event.target as HTMLElement).closest('.floating-block-library, .canvas-block, .canvas-controls')
+    (event.target as HTMLElement).closest(
+      '.floating-block-library, .block-inspector, .canvas-block, .canvas-controls'
+    )
   ) {
     return
   }
@@ -809,6 +1006,55 @@ function clearCanvas() {
           <small>{{ block.category }}</small>
         </button>
       </nav>
+    </aside>
+
+    <aside
+      v-if="selectedBlock"
+      class="block-inspector"
+      aria-label="积木参数"
+      @pointerdown.stop
+      @click.stop
+      @contextmenu.stop
+    >
+      <header>
+        <div>
+          <small>参数</small>
+          <h2>{{ selectedBlock.label }}</h2>
+        </div>
+        <button type="button" aria-label="关闭参数面板" @click="selectedBlockId = null">×</button>
+      </header>
+
+      <form @submit.prevent>
+        <label v-for="field in selectedBlockFields" :key="field.key">
+          <span>{{ field.label }}</span>
+          <select
+            v-if="field.type === 'select'"
+            :data-param-key="field.key"
+            :value="blockParamValue(selectedBlock, field)"
+            @change="updateBlockParam(selectedBlock.id, field.key, $event)"
+          >
+            <option
+              v-for="option in field.options"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+          <div v-else class="param-input-row">
+            <input
+              :data-param-key="field.key"
+              :type="field.type"
+              :min="field.min"
+              :max="field.max"
+              :step="field.step"
+              :value="blockParamValue(selectedBlock, field)"
+              @input="updateBlockParam(selectedBlock.id, field.key, $event)"
+            />
+            <small v-if="field.suffix">{{ field.suffix }}</small>
+          </div>
+        </label>
+      </form>
     </aside>
 
     <div class="canvas-controls" @pointerdown.stop>

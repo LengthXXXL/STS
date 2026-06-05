@@ -98,6 +98,27 @@ describe('builder view', () => {
     expect(placedBlock.text()).toContain('买入')
   })
 
+  it('shows editable parameters for a selected placed block', async () => {
+    const wrapper = mount(BuilderView)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    await wrapper.find('.canvas-block').trigger('click')
+
+    const inspector = wrapper.find('.block-inspector')
+    expect(inspector.exists()).toBe(true)
+    expect(inspector.text()).toContain('买入')
+    expect(inspector.text()).toContain('股票代码')
+
+    const symbolInput = wrapper.find('[data-param-key="symbol"]')
+    expect((symbolInput.element as HTMLInputElement).value).toBe('000001.SZ')
+
+    await symbolInput.setValue('AAPL')
+
+    expect((wrapper.find('[data-param-key="symbol"]').element as HTMLInputElement).value).toBe(
+      'AAPL'
+    )
+  })
+
   it('adds a block when a library block is pointer-dragged onto the canvas', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
@@ -296,12 +317,14 @@ describe('builder view', () => {
     expect(wrapper.findAll('.canvas-block')).toHaveLength(2)
     expect(wrapper.find('.connection-path').exists()).toBe(true)
     expect(wrapper.find('.context-menu').exists()).toBe(true)
+    expect(wrapper.find('.block-inspector').exists()).toBe(true)
 
     await wrapper.find('.clear-canvas-button').trigger('click')
 
     expect(wrapper.findAll('.canvas-block')).toHaveLength(0)
     expect(wrapper.find('.connection-path').exists()).toBe(false)
     expect(wrapper.find('.context-menu').exists()).toBe(false)
+    expect(wrapper.find('.block-inspector').exists()).toBe(false)
   })
 
   it('toggles magnetic snapping for component movement', async () => {
