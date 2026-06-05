@@ -126,14 +126,27 @@ describe('builder view', () => {
     expect(wrapper.find('.canvas-block').attributes('style')).toContain('translate(240px, 168px)')
   })
 
-  it('deletes a selected placed block and its connections', async () => {
+  it('deletes a placed block and its connections from its context menu', async () => {
     const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
+    await dropBlock(wrapper, 'sell', 460, 260)
 
-    await wrapper.find('.canvas-block').trigger('click')
-    await wrapper.find('.canvas-block-delete').trigger('click')
+    const outputPort = wrapper.find('[data-port="output"]')
+    const inputPorts = wrapper.findAll('[data-port="input"]')
+    await outputPort.trigger('pointerdown', { pointerId: 3, clientX: 288, clientY: 194 })
+    await inputPorts[1].trigger('pointerup', { pointerId: 3, clientX: 460, clientY: 260 })
+    expect(wrapper.find('.connection-path').exists()).toBe(true)
 
-    expect(wrapper.findAll('.canvas-block')).toHaveLength(0)
+    expect(wrapper.find('.canvas-block-delete').exists()).toBe(false)
+
+    await wrapper.find('.canvas-block').trigger('contextmenu', { clientX: 260, clientY: 170 })
+    expect(wrapper.find('.context-menu').exists()).toBe(true)
+
+    await wrapper.find('.context-menu-delete').trigger('click')
+
+    expect(wrapper.findAll('.canvas-block')).toHaveLength(1)
+    expect(wrapper.find('.connection-path').exists()).toBe(false)
   })
 
   it('connects an output port to an input port', async () => {
@@ -153,6 +166,24 @@ describe('builder view', () => {
     await inputPorts[1].trigger('pointerup', { pointerId: 3, clientX: 460, clientY: 260 })
 
     expect(wrapper.find('.connection-path').exists()).toBe(true)
+  })
+
+  it('deletes a connection from its context menu', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await dropBlock(wrapper, 'sell', 460, 260)
+
+    const outputPort = wrapper.find('[data-port="output"]')
+    const inputPorts = wrapper.findAll('[data-port="input"]')
+    await outputPort.trigger('pointerdown', { pointerId: 3, clientX: 288, clientY: 194 })
+    await inputPorts[1].trigger('pointerup', { pointerId: 3, clientX: 460, clientY: 260 })
+    expect(wrapper.find('.connection-path').exists()).toBe(true)
+
+    await wrapper.find('.connection-path').trigger('contextmenu', { clientX: 360, clientY: 220 })
+    await wrapper.find('.context-menu-delete').trigger('click')
+
+    expect(wrapper.find('.connection-path').exists()).toBe(false)
   })
 
   it('toggles magnetic snapping for component movement', async () => {

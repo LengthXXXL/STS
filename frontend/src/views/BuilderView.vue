@@ -38,6 +38,13 @@ interface ActiveConnection {
   y: number
 }
 
+interface ContextMenuState {
+  type: 'block' | 'connection'
+  targetId: string
+  x: number
+  y: number
+}
+
 interface DragState {
   startPointer: { clientX: number; clientY: number }
   startOffset: { x: number; y: number }
@@ -70,6 +77,7 @@ const connections = ref<Connection[]>([])
 const draggingBlock = ref<{ block: BlockDefinition; x: number; y: number } | null>(null)
 const activeConnection = ref<ActiveConnection | null>(null)
 const selectedBlockId = ref<string | null>(null)
+const contextMenu = ref<ContextMenuState | null>(null)
 const isPanning = ref(false)
 const isDraggingLibrary = ref(false)
 const isSnapEnabled = ref(true)
@@ -251,6 +259,49 @@ function deleteBlock(blockId: string) {
   if (selectedBlockId.value === blockId) {
     selectedBlockId.value = null
   }
+}
+
+function deleteConnection(connectionId: string) {
+  connections.value = connections.value.filter((connection) => connection.id !== connectionId)
+}
+
+function openBlockContextMenu(blockId: string, event: MouseEvent) {
+  event.preventDefault()
+  selectBlock(blockId)
+  contextMenu.value = {
+    type: 'block',
+    targetId: blockId,
+    x: event.clientX,
+    y: event.clientY
+  }
+}
+
+function openConnectionContextMenu(connectionId: string, event: MouseEvent) {
+  event.preventDefault()
+  contextMenu.value = {
+    type: 'connection',
+    targetId: connectionId,
+    x: event.clientX,
+    y: event.clientY
+  }
+}
+
+function deleteContextMenuTarget() {
+  if (!contextMenu.value) {
+    return
+  }
+
+  if (contextMenu.value.type === 'block') {
+    deleteBlock(contextMenu.value.targetId)
+  } else {
+    deleteConnection(contextMenu.value.targetId)
+  }
+
+  contextMenu.value = null
+}
+
+function closeContextMenu() {
+  contextMenu.value = null
 }
 
 function startPlacedBlockDrag(block: PlacedBlock, event: PointerEvent) {
@@ -492,6 +543,8 @@ function resetView() {
 }
 
 function startCanvasPan(event: PointerEvent) {
+  closeContextMenu()
+
   if (
     event.button !== 0 ||
     (event.target as HTMLElement).closest('.floating-block-library, .canvas-block, .canvas-controls')
@@ -589,6 +642,8 @@ function toggleSnap() {
     @pointerup="endCanvasPan"
     @pointercancel="endCanvasPan"
     @wheel="zoomCanvas"
+    @click="closeContextMenu"
+    @contextmenu.prevent="closeContextMenu"
   >
     <div class="canvas-world" :style="worldStyle">
       <svg class="connection-layer" aria-hidden="true">
@@ -597,6 +652,8 @@ function toggleSnap() {
           :key="path.id"
           class="connection-path"
           :d="path.d"
+          :data-connection-id="path.id"
+          @contextmenu.prevent.stop="openConnectionContextMenu(path.id, $event)"
         />
         <path
           v-if="activeConnectionPath"
@@ -616,16 +673,8 @@ function toggleSnap() {
         @pointermove.stop="movePlacedBlockDrag"
         @pointerup.stop="endPlacedBlockDrag"
         @pointercancel.stop="endPlacedBlockDrag"
+        @contextmenu.prevent.stop="openBlockContextMenu(block.id, $event)"
       >
-        <button
-          v-if="selectedBlockId === block.id"
-          class="canvas-block-delete"
-          type="button"
-          aria-label="删除积木"
-          @click.stop="deleteBlock(block.id)"
-        >
-          ×
-        </button>
         <span
           class="connection-port connection-port--input"
           data-port="input"
@@ -701,6 +750,19 @@ function toggleSnap() {
         @click="toggleSnap"
       >
         磁吸{{ isSnapEnabled ? '开' : '关' }}
+      </button>
+    </div>
+
+    <div
+      v-if="contextMenu"
+      class="context-menu"
+      :style="{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }"
+      @click.stop
+      @pointerdown.stop
+      @contextmenu.prevent.stop
+    >
+      <button class="context-menu-delete" type="button" @click="deleteContextMenuTarget">
+        删除{{ contextMenu.type === 'block' ? '积木' : '连接' }}
       </button>
     </div>
   </section>
