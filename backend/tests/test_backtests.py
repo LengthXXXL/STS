@@ -53,6 +53,15 @@ def _backtest_payload():
     }
 
 
+def account_payload(name: str = "A股日内账户") -> dict:
+    return {
+        "name": name,
+        "description": "用于回测账户选择",
+        "market": "A_SHARE",
+        "initialCash": 100000,
+    }
+
+
 def test_run_backtest_returns_computed_metrics_and_trade_path(client):
     response = client.post("/api/backtests/run", json=_backtest_payload())
 
@@ -199,3 +208,53 @@ def test_backtest_detail_requires_owner(client):
     assert detail["summary"]["tradeCount"] == len(detail["trades"])
     assert detail["equityCurve"][-1]["equity"] == detail["summary"]["endingEquity"]
     assert bob_detail.status_code == 404
+
+
+def test_run_backtest_uses_owned_simulation_account_settings(client):
+    token = register_and_token(client, "account-runner", "account-runner@example.com")
+    account_response = client.post(
+        "/api/simulation-accounts",
+        json={**account_payload("美股一分钟账户"), "market": "US_STOCK", "initialCash": 50000},
+        headers=auth_headers(token),
+    )
+    assert account_response.status_code == 201
+
+    payload = _backtest_payload()
+    payload["config"]["market"] = "A_SHARE"
+    payload["config"]["symbol"] = "AAPL"
+    payload["config"]["initialCash"] = 100000
+    payload["config"]["simulationAccountId"] = account_response.json()["id"]
+
+    response = client.post(
+        "/api/backtests/run",
+        json=payload,
+        headers=auth_headers(token),
+    )
+
+    assert response.status_code == 200
+    config = response.json()["config"]
+    assert config["market"] == "US_STOCK"
+    assert config["initialCash"] == 50000
+    assert config["simulationAccountId"] == account_response.json()["id"]
+
+
+def test_run_backtest_rejects_other_users_simulation_account(client):
+    alice_token = register_and_token(client, "account-owner", "account-owner@example.com")
+    bob_token = register_and_token(client, "account-intruder", "account-intruder@example.com")
+    account_response = client.post(
+        "/api/simulation-accounts",
+        json=account_payload(),
+        headers=auth_headers(alice_token),
+    )
+    assert account_response.status_code == 201
+
+    payload = _backtest_payload()
+    payload["config"]["simulationAccountId"] = account_response.json()["id"]
+
+    response = client.post(
+        "/api/backtests/run",
+        json=payload,
+        headers=auth_headers(bob_token),
+    )
+
+    assert response.status_code == 404

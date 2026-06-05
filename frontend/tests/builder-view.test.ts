@@ -8,6 +8,7 @@ import BuilderView from '../src/views/BuilderView.vue'
 
 vi.mock('../src/api/http', () => ({
   apiClient: {
+    get: vi.fn(),
     post: vi.fn(),
     put: vi.fn()
   }
@@ -666,6 +667,102 @@ describe('builder view', () => {
     expect(wrapper.find('.backtest-result-card').text()).toContain('2.8%')
     expect(wrapper.find('.backtest-trades').text()).toContain('BUY')
     expect(wrapper.find('.backtest-trades').text()).toContain('买入积木触发')
+  })
+
+  it('uses a selected simulation account when running a backtest', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: {
+        id: 1,
+        username: 'alice',
+        email: 'alice@example.com',
+        roles: ['user']
+      }
+    })
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            id: 3,
+            ownerId: 1,
+            name: '美股一分钟账户',
+            description: '美股短线测试',
+            market: 'US_STOCK',
+            initialCash: 50000,
+            createdAt: '2026-06-06T09:00:00',
+            updatedAt: '2026-06-06T09:00:00'
+          }
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 10
+      }
+    })
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        runId: 'mock-run-account',
+        status: 'COMPLETED',
+        summary: {
+          totalReturnPercent: 4.2,
+          maxDrawdownPercent: 1.8,
+          winRatePercent: 50,
+          endingEquity: 52100,
+          tradeCount: 2
+        },
+        config: {
+          market: 'US_STOCK',
+          symbol: 'AAPL',
+          timeframe: '5m',
+          startDate: '2026-01-01',
+          endDate: '2026-03-01',
+          initialCash: 50000,
+          simulationAccountId: 3
+        },
+        trades: [],
+        equityCurve: []
+      }
+    })
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenCalledWith('/simulation-accounts', {
+      params: { page: 1, pageSize: 50 }
+    })
+    expect(wrapper.text()).toContain('美股一分钟账户')
+
+    await wrapper.find('[data-backtest-key="simulationAccountId"]').setValue('3')
+    await wrapper.find('[data-backtest-key="symbol"]').setValue('AAPL')
+
+    const selectedConfig = JSON.parse(wrapper.find('.backtest-config-preview').text())
+    expect(selectedConfig).toMatchObject({
+      market: 'US_STOCK',
+      symbol: 'AAPL',
+      initialCash: 50000,
+      simulationAccountId: 3
+    })
+    expect((wrapper.find('[data-backtest-key="market"]').element as HTMLSelectElement).disabled).toBe(
+      true
+    )
+    expect(
+      (wrapper.find('[data-backtest-key="initialCash"]').element as HTMLInputElement).disabled
+    ).toBe(true)
+
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/backtests/run', {
+      strategy: expect.any(Object),
+      config: expect.objectContaining({
+        market: 'US_STOCK',
+        symbol: 'AAPL',
+        initialCash: 50000,
+        simulationAccountId: 3
+      })
+    })
   })
 
   it('clears placed blocks, connections, and context menu from the canvas controls', async () => {

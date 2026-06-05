@@ -38,6 +38,7 @@ class BacktestConfig(BaseModel):
     startDate: str
     endDate: str
     initialCash: float = Field(gt=0)
+    simulationAccountId: int | None = Field(default=None, ge=1)
 
 
 class BacktestRunRequest(BaseModel):

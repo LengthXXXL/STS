@@ -5,6 +5,7 @@ from app.api.dependencies import get_current_user, get_optional_current_user
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.backtest import (
+    BacktestConfig,
     BacktestRecordDetailResponse,
     BacktestRecordListResponse,
     BacktestRunRequest,
@@ -17,6 +18,7 @@ from app.services.backtest_record_service import (
 )
 from app.services.backtest_service import run_backtest as run_backtest_service
 from app.services.market_data_service import CachedMarketDataProvider
+from app.services.simulation_account_service import get_simulation_account
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
 
@@ -63,9 +65,44 @@ def run_backtest(
             detail="Strategy must contain at least one node",
         )
 
+    effective_request = _apply_simulation_account(request, current_user, db)
     result = run_backtest_service(
-        request,
+        effective_request,
         market_data_provider=CachedMarketDataProvider(db),
     )
-    save_backtest_result(db, request, result, current_user)
+    save_backtest_result(db, effective_request, result, current_user)
     return result
+
+
+def _apply_simulation_account(
+    request: BacktestRunRequest,
+    current_user: User | None,
+    db: Session,
+) -> BacktestRunRequest:
+    account_id = request.config.simulationAccountId
+    if account_id is None:
+        return request
+
+    if current_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Simulation account requires login",
+        )
+
+    account = get_simulation_account(db, current_user, account_id)
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Simulation account not found",
+        )
+
+    config_data = request.config.model_dump()
+    config_data.update(
+        {
+            "market": account.market,
+            "initialCash": account.initial_cash,
+            "simulationAccountId": account.id,
+        }
+    )
+    effective_config = BacktestConfig(**config_data)
+    return BacktestRunRequest(strategy=request.strategy, config=effective_config)

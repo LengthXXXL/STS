@@ -86,6 +86,21 @@ interface BacktestConfig {
   startDate: string
   endDate: string
   initialCash: number
+  simulationAccountId?: number
+}
+
+interface SimulationAccount {
+  id: number
+  name: string
+  market: BacktestSettings['market']
+  initialCash: number
+}
+
+interface SimulationAccountListResponse {
+  items: SimulationAccount[]
+  total: number
+  page: number
+  pageSize: number
 }
 
 interface BacktestSummaryResult {
@@ -539,6 +554,10 @@ const reviewModalMode = ref<ReviewMode | null>(null)
 const isBacktestRunning = ref(false)
 const backtestRunError = ref('')
 const backtestRunResult = ref<BacktestRunResult | null>(null)
+const simulationAccounts = ref<SimulationAccount[]>([])
+const selectedSimulationAccountId = ref('')
+const isLoadingSimulationAccounts = ref(false)
+const simulationAccountError = ref('')
 const currentStrategyId = ref<number | null>(null)
 const currentStrategyName = ref(DEFAULT_STRATEGY_NAME)
 const isSavingStrategy = ref(false)
@@ -680,7 +699,10 @@ const backtestConfig = computed<BacktestConfig>(() => ({
   timeframe: backtestSettings.timeframe,
   startDate: backtestSettings.startDate,
   endDate: backtestSettings.endDate,
-  initialCash: Number(backtestSettings.initialCash) || 0
+  initialCash: Number(backtestSettings.initialCash) || 0,
+  ...(selectedSimulationAccountId.value
+    ? { simulationAccountId: Number(selectedSimulationAccountId.value) }
+    : {})
 }))
 
 const backtestIssues = computed<ValidationIssue[]>(() => {
@@ -949,12 +971,55 @@ function applyBacktestConfig(config: BacktestConfig | null) {
     return
   }
 
+  selectedSimulationAccountId.value = config.simulationAccountId
+    ? String(config.simulationAccountId)
+    : ''
   backtestSettings.market = config.market
   backtestSettings.symbol = config.symbol
   backtestSettings.timeframe = config.timeframe
   backtestSettings.startDate = config.startDate
   backtestSettings.endDate = config.endDate
   backtestSettings.initialCash = String(config.initialCash)
+}
+
+async function loadSimulationAccounts() {
+  if (!authStore.isAuthenticated || isLoadingSimulationAccounts.value) {
+    return
+  }
+
+  isLoadingSimulationAccounts.value = true
+  simulationAccountError.value = ''
+  try {
+    const response = await apiClient.get<SimulationAccountListResponse>('/simulation-accounts', {
+      params: { page: 1, pageSize: 50 }
+    })
+    simulationAccounts.value = response.data.items
+
+    if (
+      selectedSimulationAccountId.value &&
+      !simulationAccounts.value.some((account) => String(account.id) === selectedSimulationAccountId.value)
+    ) {
+      selectedSimulationAccountId.value = ''
+    }
+
+    applySelectedSimulationAccount()
+  } catch {
+    simulationAccountError.value = '模拟账户加载失败'
+  } finally {
+    isLoadingSimulationAccounts.value = false
+  }
+}
+
+function applySelectedSimulationAccount() {
+  const account = simulationAccounts.value.find(
+    (item) => String(item.id) === selectedSimulationAccountId.value
+  )
+  if (!account) {
+    return
+  }
+
+  backtestSettings.market = account.market
+  backtestSettings.initialCash = String(account.initialCash)
 }
 
 function loadWorkspaceStrategy() {
@@ -1042,6 +1107,9 @@ async function saveStrategyToSpace() {
 function openReviewModal(mode: ReviewMode) {
   reviewModalMode.value = mode
   contextMenu.value = null
+  if (mode === 'backtest') {
+    void loadSimulationAccounts()
+  }
 }
 
 function closeReviewModal() {
@@ -1901,9 +1969,30 @@ function clearCanvas() {
             <section class="backtest-card" :class="{ 'is-ready': backtestIssues.length === 0 }">
               <strong class="backtest-summary">回测设置：{{ backtestSummary }}</strong>
               <form class="backtest-form" @submit.prevent>
+                <label class="backtest-account-field">
+                  <span>模拟账户</span>
+                  <select
+                    v-model="selectedSimulationAccountId"
+                    data-backtest-key="simulationAccountId"
+                    @change="applySelectedSimulationAccount"
+                  >
+                    <option value="">手动设置资金</option>
+                    <option
+                      v-for="account in simulationAccounts"
+                      :key="account.id"
+                      :value="String(account.id)"
+                    >
+                      {{ account.name }}
+                    </option>
+                  </select>
+                </label>
                 <label>
                   <span>市场</span>
-                  <select v-model="backtestSettings.market" data-backtest-key="market">
+                  <select
+                    v-model="backtestSettings.market"
+                    data-backtest-key="market"
+                    :disabled="!!selectedSimulationAccountId"
+                  >
                     <option value="A_SHARE">A股</option>
                     <option value="US_STOCK">美股</option>
                   </select>
@@ -1943,9 +2032,16 @@ function clearCanvas() {
                     type="number"
                     min="1"
                     step="1000"
+                    :disabled="!!selectedSimulationAccountId"
                   />
                 </label>
               </form>
+              <p v-if="isLoadingSimulationAccounts" class="backtest-account-status">
+                正在加载模拟账户
+              </p>
+              <p v-else-if="simulationAccountError" class="backtest-run-error">
+                {{ simulationAccountError }}
+              </p>
               <p v-if="backtestIssues.length === 0" class="backtest-empty">回测配置已准备</p>
               <ul v-else class="backtest-issues">
                 <li v-for="issue in backtestIssues" :key="issue.id">{{ issue.message }}</li>

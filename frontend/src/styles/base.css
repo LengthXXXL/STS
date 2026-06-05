@@ -1126,7 +1126,7 @@ button {
   gap: 5px;
 }
 
-.backtest-form label:nth-child(2) {
+.backtest-account-field {
   grid-column: span 2;
 }
 
@@ -1145,6 +1145,13 @@ button {
   color: #f7f2ff;
   background: rgba(5, 5, 7, 0.78);
   font-size: 12px;
+}
+
+.backtest-form input:disabled,
+.backtest-form select:disabled {
+  color: #8f839f;
+  cursor: not-allowed;
+  opacity: 0.78;
 }
 
 .strategy-json-preview,
@@ -1467,7 +1474,7 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .backtest-form label:nth-child(2) {
+  .backtest-account-field {
     grid-column: auto;
   }
 
