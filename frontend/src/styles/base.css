@@ -456,6 +456,7 @@ input {
   max-height: min(420px, calc(100vh - 120px));
   display: grid;
   gap: 10px;
+  overflow: auto;
   border: 1px solid #292437;
   border-radius: 8px;
   padding: 14px;
@@ -507,36 +508,80 @@ input {
   margin: 0;
 }
 
-.validation-card {
+.validation-card,
+.backtest-card {
   border: 1px solid rgba(255, 139, 167, 0.38);
   border-radius: 6px;
   padding: 10px;
   background: rgba(64, 25, 40, 0.42);
 }
 
-.validation-card.is-ready {
+.backtest-card {
+  display: grid;
+  gap: 10px;
+}
+
+.validation-card.is-ready,
+.backtest-card.is-ready {
   border-color: rgba(94, 230, 200, 0.38);
   background: rgba(18, 59, 54, 0.34);
 }
 
-.validation-summary {
+.validation-summary,
+.backtest-summary {
   display: block;
   color: #f7f2ff;
   font-size: 13px;
 }
 
 .validation-empty,
-.validation-issues {
+.validation-issues,
+.backtest-empty,
+.backtest-issues {
   margin: 6px 0 0;
   color: #d9d1e8;
   font-size: 12px;
 }
 
-.validation-issues {
+.validation-issues,
+.backtest-issues {
   padding-left: 18px;
 }
 
-.strategy-json-preview {
+.backtest-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.backtest-form label {
+  display: grid;
+  gap: 5px;
+}
+
+.backtest-form label:nth-child(2) {
+  grid-column: span 2;
+}
+
+.backtest-form span {
+  color: #a89bc1;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.backtest-form input,
+.backtest-form select {
+  min-width: 0;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 8px;
+  color: #f7f2ff;
+  background: rgba(5, 5, 7, 0.78);
+  font-size: 12px;
+}
+
+.strategy-json-preview,
+.backtest-config-preview {
   min-height: 120px;
   max-height: 220px;
   margin: 0;
@@ -549,6 +594,11 @@ input {
   font-size: 11px;
   line-height: 1.45;
   white-space: pre-wrap;
+}
+
+.backtest-config-preview {
+  min-height: 96px;
+  max-height: 140px;
 }
 
 .canvas-controls {
@@ -721,6 +771,14 @@ input {
     bottom: 72px;
     width: min(280px, calc(100% - 24px));
     max-height: min(320px, calc(100vh - 172px));
+  }
+
+  .backtest-form {
+    grid-template-columns: 1fr;
+  }
+
+  .backtest-form label:nth-child(2) {
+    grid-column: auto;
   }
 
   .canvas-controls {

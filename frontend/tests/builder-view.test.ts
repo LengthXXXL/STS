@@ -403,6 +403,61 @@ describe('builder view', () => {
     expect(wrapper.find('.validation-issues').text()).toContain('买入 的 买入仓位 不能为空')
   })
 
+  it('renders and updates the backtest configuration JSON', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    const initialConfig = JSON.parse(wrapper.find('.backtest-config-preview').text())
+    expect(initialConfig).toMatchObject({
+      market: 'A_SHARE',
+      symbol: '000001.SZ',
+      timeframe: '5m',
+      startDate: '2026-01-01',
+      endDate: '2026-03-01',
+      initialCash: 100000
+    })
+    expect(wrapper.find('.backtest-summary').text()).toContain('回测就绪')
+
+    await wrapper.find('[data-backtest-key="market"]').setValue('US_STOCK')
+    await wrapper.find('[data-backtest-key="symbol"]').setValue('AAPL')
+    await wrapper.find('[data-backtest-key="timeframe"]').setValue('1m')
+    await wrapper.find('[data-backtest-key="startDate"]').setValue('2026-06-01')
+    await wrapper.find('[data-backtest-key="endDate"]').setValue('2026-06-05')
+    await wrapper.find('[data-backtest-key="initialCash"]').setValue('250000')
+
+    const updatedConfig = JSON.parse(wrapper.find('.backtest-config-preview').text())
+    expect(updatedConfig).toMatchObject({
+      market: 'US_STOCK',
+      symbol: 'AAPL',
+      timeframe: '1m',
+      startDate: '2026-06-01',
+      endDate: '2026-06-05',
+      initialCash: 250000
+    })
+  })
+
+  it('validates backtest settings before running', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+
+    expect(wrapper.find('.backtest-summary').text()).toContain('需完善')
+    expect(wrapper.find('.backtest-issues').text()).toContain('策略校验通过后才能运行回测')
+
+    await dropBlock(wrapper, 'buy', 260, 170)
+    expect(wrapper.find('.backtest-summary').text()).toContain('回测就绪')
+
+    await wrapper.find('[data-backtest-key="symbol"]').setValue('')
+    expect(wrapper.find('.backtest-issues').text()).toContain('股票代码不能为空')
+
+    await wrapper.find('[data-backtest-key="symbol"]').setValue('000001.SZ')
+    await wrapper.find('[data-backtest-key="timeframe"]').setValue('1m')
+    await wrapper.find('[data-backtest-key="startDate"]').setValue('2026-06-01')
+    await wrapper.find('[data-backtest-key="endDate"]').setValue('2026-06-12')
+
+    expect(wrapper.find('.backtest-issues').text()).toContain('1分钟K线最多选择7天范围')
+  })
+
   it('clears placed blocks, connections, and context menu from the canvas controls', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)

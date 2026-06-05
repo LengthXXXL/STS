@@ -67,6 +67,24 @@ interface ValidationIssue {
   message: string
 }
 
+interface BacktestSettings {
+  market: 'A_SHARE' | 'US_STOCK'
+  symbol: string
+  timeframe: '5m' | '1m'
+  startDate: string
+  endDate: string
+  initialCash: string
+}
+
+interface BacktestConfig {
+  market: BacktestSettings['market']
+  symbol: string
+  timeframe: BacktestSettings['timeframe']
+  startDate: string
+  endDate: string
+  initialCash: number
+}
+
 interface Connection {
   id: string
   fromBlockId: string
@@ -259,6 +277,14 @@ const draftStatus = ref('尚未保存')
 const isPanning = ref(false)
 const isDraggingLibrary = ref(false)
 const isSnapEnabled = ref(true)
+const backtestSettings = reactive<BacktestSettings>({
+  market: 'A_SHARE',
+  symbol: '000001.SZ',
+  timeframe: '5m',
+  startDate: '2026-01-01',
+  endDate: '2026-03-01',
+  initialCash: '100000'
+})
 
 let panState: DragState | null = null
 let libraryDragState: DragState | null = null
@@ -373,6 +399,53 @@ const validationSummary = computed(() =>
   validationIssues.value.length > 0 ? '需完善' : '可运行'
 )
 
+const backtestConfig = computed<BacktestConfig>(() => ({
+  market: backtestSettings.market,
+  symbol: backtestSettings.symbol.trim(),
+  timeframe: backtestSettings.timeframe,
+  startDate: backtestSettings.startDate,
+  endDate: backtestSettings.endDate,
+  initialCash: Number(backtestSettings.initialCash) || 0
+}))
+
+const backtestIssues = computed<ValidationIssue[]>(() => {
+  const issues: ValidationIssue[] = []
+
+  if (validationIssues.value.length > 0) {
+    issues.push({ id: 'strategy-not-ready', message: '策略校验通过后才能运行回测' })
+  }
+
+  if (backtestConfig.value.symbol === '') {
+    issues.push({ id: 'empty-symbol', message: '股票代码不能为空' })
+  }
+
+  if (!backtestConfig.value.startDate || !backtestConfig.value.endDate) {
+    issues.push({ id: 'empty-date-range', message: '回测时间范围不能为空' })
+  } else {
+    const rangeDays = dateRangeDays(backtestConfig.value.startDate, backtestConfig.value.endDate)
+
+    if (rangeDays !== null && rangeDays <= 0) {
+      issues.push({ id: 'invalid-date-range', message: '开始日期不能晚于结束日期' })
+    }
+
+    if (backtestConfig.value.timeframe === '1m' && rangeDays !== null && rangeDays > 7) {
+      issues.push({ id: 'one-minute-range-too-long', message: '1分钟K线最多选择7天范围' })
+    }
+  }
+
+  if (backtestConfig.value.initialCash <= 0) {
+    issues.push({ id: 'invalid-initial-cash', message: '初始资金必须大于0' })
+  }
+
+  return issues
+})
+
+const backtestSummary = computed(() =>
+  backtestIssues.value.length > 0 ? '需完善' : '回测就绪'
+)
+
+const backtestJson = computed(() => JSON.stringify(backtestConfig.value, null, 2))
+
 const connectionPaths = computed(() =>
   connections.value
     .map((connection) => {
@@ -439,6 +512,17 @@ function createConnectionPath(from: CanvasPoint, to: CanvasPoint) {
     `${to.x - controlOffset} ${to.y}`,
     `${to.x} ${to.y}`
   ].join(' ')
+}
+
+function dateRangeDays(startDate: string, endDate: string) {
+  const startTime = Date.parse(`${startDate}T00:00:00`)
+  const endTime = Date.parse(`${endDate}T00:00:00`)
+
+  if (Number.isNaN(startTime) || Number.isNaN(endTime)) {
+    return null
+  }
+
+  return Math.round((endTime - startTime) / 86_400_000) + 1
 }
 
 function snapBlockPosition(position: CanvasPoint, movingId?: string) {
@@ -1302,6 +1386,60 @@ function clearCanvas() {
         <ul v-else class="validation-issues">
           <li v-for="issue in validationIssues" :key="issue.id">{{ issue.message }}</li>
         </ul>
+      </section>
+      <section class="backtest-card" :class="{ 'is-ready': backtestIssues.length === 0 }">
+        <strong class="backtest-summary">回测设置：{{ backtestSummary }}</strong>
+        <form class="backtest-form" @submit.prevent>
+          <label>
+            <span>市场</span>
+            <select v-model="backtestSettings.market" data-backtest-key="market">
+              <option value="A_SHARE">A股</option>
+              <option value="US_STOCK">美股</option>
+            </select>
+          </label>
+          <label>
+            <span>股票代码</span>
+            <input v-model="backtestSettings.symbol" data-backtest-key="symbol" />
+          </label>
+          <label>
+            <span>K线周期</span>
+            <select v-model="backtestSettings.timeframe" data-backtest-key="timeframe">
+              <option value="5m">5分钟</option>
+              <option value="1m">1分钟</option>
+            </select>
+          </label>
+          <label>
+            <span>开始日期</span>
+            <input
+              v-model="backtestSettings.startDate"
+              data-backtest-key="startDate"
+              type="date"
+            />
+          </label>
+          <label>
+            <span>结束日期</span>
+            <input
+              v-model="backtestSettings.endDate"
+              data-backtest-key="endDate"
+              type="date"
+            />
+          </label>
+          <label>
+            <span>初始资金</span>
+            <input
+              v-model="backtestSettings.initialCash"
+              data-backtest-key="initialCash"
+              type="number"
+              min="1"
+              step="1000"
+            />
+          </label>
+        </form>
+        <p v-if="backtestIssues.length === 0" class="backtest-empty">回测配置已准备</p>
+        <ul v-else class="backtest-issues">
+          <li v-for="issue in backtestIssues" :key="issue.id">{{ issue.message }}</li>
+        </ul>
+        <pre class="backtest-config-preview">{{ backtestJson }}</pre>
       </section>
       <pre class="strategy-json-preview">{{ strategyJson }}</pre>
     </aside>
