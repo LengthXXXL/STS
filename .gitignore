@@ -1,6 +1,7 @@
 .superpowers/
 .DS_Store
 backend/.venv/
+*.egg-info/
 __pycache__/
 *.py[cod]
 frontend/node_modules/
