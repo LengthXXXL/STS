@@ -6,13 +6,13 @@ from app.services.backtest_service import (
 )
 
 
-def _request(nodes, *, initial_cash=1000, market="US_STOCK"):
+def _request(nodes, *, edges=None, initial_cash=1000, market="US_STOCK"):
     return BacktestRunRequest.model_validate(
         {
             "strategy": {
                 "version": 1,
                 "nodes": nodes,
-                "edges": [],
+                "edges": edges or [],
                 "viewport": {"x": 0, "y": 0, "scale": 1},
             },
             "config": {
@@ -110,6 +110,90 @@ def test_engine_applies_stop_loss_and_cooldown_before_reentering():
     assert result.trades[1].side == "SELL"
     assert result.trades[1].reason == "止损触发"
     assert result.summary.maxDrawdownPercent > 0
+
+
+def test_engine_uses_connected_conditions_before_buying():
+    request = _request(
+        [
+            {
+                "id": "price-change-1",
+                "type": "price-change",
+                "label": "N根收益率",
+                "x": 0,
+                "y": 0,
+                "params": {"lookbackBars": "1", "comparator": ">=", "changePercent": "5"},
+            },
+            {
+                "id": "if-1",
+                "type": "if",
+                "label": "如果",
+                "x": 160,
+                "y": 0,
+                "params": {"mode": "all"},
+            },
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 320,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+        ],
+        edges=[
+            {"id": "signal-if", "from": "price-change-1", "to": "if-1"},
+            {"id": "if-buy", "from": "if-1", "to": "buy-1"},
+        ],
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", close=10.2),
+        MarketCandle(time="2026-01-01 09:45", close=10.8),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades[0].side == "BUY"
+    assert result.trades[0].time == "2026-01-01 09:45"
+    assert result.trades[0].price == 10.8
+
+
+def test_engine_applies_moving_stop_after_profit_retraces():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+            {
+                "id": "moving-stop-1",
+                "type": "moving-stop",
+                "label": "移动止损",
+                "x": 160,
+                "y": 0,
+                "params": {
+                    "minProfitPercent": "5",
+                    "trailPercent": "5",
+                    "sellPercent": "100",
+                },
+            },
+        ]
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", close=12.0),
+        MarketCandle(time="2026-01-01 09:45", close=11.3),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
+    assert result.trades[1].time == "2026-01-01 09:45"
+    assert result.trades[1].reason == "移动止损触发"
 
 
 class StaticMarketDataProvider:

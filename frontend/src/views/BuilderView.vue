@@ -15,7 +15,7 @@ interface BlockDefinition {
   id: string
   label: string
   category: string
-  tone: 'action' | 'risk' | 'condition'
+  tone: 'action' | 'risk' | 'condition' | 'indicator' | 'position' | 'time'
   fields: BlockParamField[]
 }
 
@@ -152,6 +152,7 @@ interface PlacedBlockDragState {
 const BLOCK_WIDTH = 132
 const BLOCK_HEIGHT = 44
 const STRATEGY_DRAFT_STORAGE_KEY = 'sts.builder.strategyDraft.v1'
+const blockCategoryOrder = ['动作', '条件', '行情指标', '持仓', '时间', '风控']
 
 const blockDefinitions: BlockDefinition[] = [
   {
@@ -230,6 +231,181 @@ const blockDefinitions: BlockDefinition[] = [
     ]
   },
   {
+    id: 'if',
+    label: '如果',
+    category: '条件',
+    tone: 'condition',
+    fields: [
+      {
+        key: 'mode',
+        label: '条件组合',
+        type: 'select',
+        defaultValue: 'all',
+        options: [
+          { label: '全部满足', value: 'all' },
+          { label: '任一满足', value: 'any' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'current-price',
+    label: '当前价',
+    category: '行情指标',
+    tone: 'indicator',
+    fields: [
+      {
+        key: 'comparator',
+        label: '比较方式',
+        type: 'select',
+        defaultValue: '>=',
+        options: [
+          { label: '大于等于', value: '>=' },
+          { label: '小于等于', value: '<=' }
+        ]
+      },
+      {
+        key: 'price',
+        label: '价格',
+        type: 'number',
+        defaultValue: '10',
+        min: '0',
+        step: '0.01'
+      }
+    ]
+  },
+  {
+    id: 'price-change',
+    label: 'N根收益率',
+    category: '行情指标',
+    tone: 'indicator',
+    fields: [
+      {
+        key: 'lookbackBars',
+        label: '回看K线数',
+        type: 'number',
+        defaultValue: '1',
+        min: '1',
+        step: '1'
+      },
+      {
+        key: 'comparator',
+        label: '比较方式',
+        type: 'select',
+        defaultValue: '>=',
+        options: [
+          { label: '大于等于', value: '>=' },
+          { label: '小于等于', value: '<=' }
+        ]
+      },
+      {
+        key: 'changePercent',
+        label: '收益率',
+        type: 'number',
+        defaultValue: '5',
+        step: '0.1',
+        suffix: '%'
+      }
+    ]
+  },
+  {
+    id: 'moving-average',
+    label: '均线',
+    category: '行情指标',
+    tone: 'indicator',
+    fields: [
+      {
+        key: 'period',
+        label: '均线周期',
+        type: 'number',
+        defaultValue: '5',
+        min: '1',
+        step: '1'
+      },
+      {
+        key: 'relation',
+        label: '价格位置',
+        type: 'select',
+        defaultValue: 'above',
+        options: [
+          { label: '价格在均线上方', value: 'above' },
+          { label: '价格在均线下方', value: 'below' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'volume-change',
+    label: '成交量变化',
+    category: '行情指标',
+    tone: 'indicator',
+    fields: [
+      {
+        key: 'lookbackBars',
+        label: '回看K线数',
+        type: 'number',
+        defaultValue: '1',
+        min: '1',
+        step: '1'
+      },
+      {
+        key: 'comparator',
+        label: '比较方式',
+        type: 'select',
+        defaultValue: '>=',
+        options: [
+          { label: '大于等于', value: '>=' },
+          { label: '小于等于', value: '<=' }
+        ]
+      },
+      {
+        key: 'changePercent',
+        label: '成交量变化',
+        type: 'number',
+        defaultValue: '20',
+        step: '1',
+        suffix: '%'
+      }
+    ]
+  },
+  {
+    id: 'position-state',
+    label: '持仓状态',
+    category: '持仓',
+    tone: 'position',
+    fields: [
+      {
+        key: 'state',
+        label: '判断内容',
+        type: 'select',
+        defaultValue: 'no-position',
+        options: [
+          { label: '没有持仓', value: 'no-position' },
+          { label: '已有持仓', value: 'has-position' },
+          { label: '持仓收益率 >=', value: 'profit-gte' },
+          { label: '持仓K线数 >=', value: 'holding-bars-gte' }
+        ]
+      },
+      {
+        key: 'threshold',
+        label: '阈值',
+        type: 'number',
+        defaultValue: '3',
+        step: '0.1'
+      }
+    ]
+  },
+  {
+    id: 'time-window',
+    label: '交易时段',
+    category: '时间',
+    tone: 'time',
+    fields: [
+      { key: 'startTime', label: '开始时间', type: 'text', defaultValue: '09:35' },
+      { key: 'endTime', label: '结束时间', type: 'text', defaultValue: '14:55' }
+    ]
+  },
+  {
     id: 'take-profit',
     label: '止盈',
     category: '风控',
@@ -265,6 +441,42 @@ const blockDefinitions: BlockDefinition[] = [
       {
         key: 'lossRate',
         label: '持仓亏损率 >=',
+        type: 'number',
+        defaultValue: '3',
+        min: '0',
+        step: '0.1',
+        suffix: '%'
+      },
+      {
+        key: 'sellPercent',
+        label: '卖出仓位',
+        type: 'number',
+        defaultValue: '100',
+        min: '1',
+        max: '100',
+        step: '1',
+        suffix: '%'
+      }
+    ]
+  },
+  {
+    id: 'moving-stop',
+    label: '移动止损',
+    category: '风控',
+    tone: 'risk',
+    fields: [
+      {
+        key: 'minProfitPercent',
+        label: '最高收益至少',
+        type: 'number',
+        defaultValue: '5',
+        min: '0',
+        step: '0.1',
+        suffix: '%'
+      },
+      {
+        key: 'trailPercent',
+        label: '从高点回落',
         type: 'number',
         defaultValue: '3',
         min: '0',
@@ -377,6 +589,15 @@ const filteredBlockDefinitions = computed(() => {
     )
   })
 })
+
+const filteredBlockGroups = computed(() =>
+  blockCategoryOrder
+    .map((category) => ({
+      category,
+      blocks: filteredBlockDefinitions.value.filter((block) => block.category === category)
+    }))
+    .filter((group) => group.blocks.length > 0)
+)
 
 const strategyDraft = computed<StrategyDraft>(() => ({
   version: 1,
@@ -1395,24 +1616,33 @@ function clearCanvas() {
         <span aria-hidden="true">••</span>
       </header>
       <input v-model="blockSearchQuery" class="block-library-search" placeholder="搜索积木" />
-      <nav>
-        <button
-          v-for="block in filteredBlockDefinitions"
-          :key="block.id"
-          class="library-block"
-          :class="`library-block--${block.tone}`"
-          :data-block-id="block.id"
-          draggable="false"
-          @dragstart="startBlockDrag(block, $event)"
-          @pointerdown.stop="startPointerBlockDrag(block, $event)"
-          @pointermove.stop="movePointerBlockDrag"
-          @pointerup.stop="endPointerBlockDrag"
-          @pointercancel.stop="cancelPointerBlockDrag"
-          @mousedown.stop="startMouseBlockDrag(block, $event)"
+      <nav class="block-library-groups">
+        <section
+          v-for="group in filteredBlockGroups"
+          :key="group.category"
+          class="block-library-group"
         >
-          <span>{{ block.label }}</span>
-          <small>{{ block.category }}</small>
-        </button>
+          <h3>{{ group.category }}</h3>
+          <div class="block-library-group-items">
+            <button
+              v-for="block in group.blocks"
+              :key="block.id"
+              class="library-block"
+              :class="`library-block--${block.tone}`"
+              :data-block-id="block.id"
+              draggable="false"
+              @dragstart="startBlockDrag(block, $event)"
+              @pointerdown.stop="startPointerBlockDrag(block, $event)"
+              @pointermove.stop="movePointerBlockDrag"
+              @pointerup.stop="endPointerBlockDrag"
+              @pointercancel.stop="cancelPointerBlockDrag"
+              @mousedown.stop="startMouseBlockDrag(block, $event)"
+            >
+              <span>{{ block.label }}</span>
+              <small>{{ block.category }}</small>
+            </button>
+          </div>
+        </section>
       </nav>
     </aside>
 

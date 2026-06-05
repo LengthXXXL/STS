@@ -77,10 +77,17 @@ describe('builder view', () => {
 
     expect(wrapper.find('.builder-canvas').exists()).toBe(true)
     expect(wrapper.find('.floating-block-library').exists()).toBe(true)
+    expect(wrapper.findAll('.block-library-group')).toHaveLength(6)
+    expect(wrapper.find('.block-library').text()).toContain('行情指标')
+    expect(wrapper.find('.block-library').text()).toContain('持仓')
+    expect(wrapper.find('.block-library').text()).toContain('时间')
     expect(wrapper.find('.strategy-draft-panel').exists()).toBe(false)
     expect(wrapper.find('.strategy-review-modal').exists()).toBe(false)
     expect(wrapper.text()).toContain('积木库')
     expect(wrapper.text()).toContain('买入')
+    expect(wrapper.text()).toContain('如果')
+    expect(wrapper.text()).toContain('N根收益率')
+    expect(wrapper.text()).toContain('移动止损')
     expect(wrapper.text()).toContain('止损')
     expect(wrapper.text()).toContain('风控')
   })
@@ -158,13 +165,13 @@ describe('builder view', () => {
   it('filters the block library by the search keyword', async () => {
     const wrapper = mount(BuilderView)
 
-    expect(wrapper.findAll('.library-block')).toHaveLength(6)
+    expect(wrapper.findAll('.library-block')).toHaveLength(14)
 
-    await wrapper.find('.block-library-search').setValue('止损')
+    await wrapper.find('.block-library-search').setValue('移动')
 
     const visibleBlocks = wrapper.findAll('.library-block')
     expect(visibleBlocks).toHaveLength(1)
-    expect(visibleBlocks[0].text()).toContain('止损')
+    expect(visibleBlocks[0].text()).toContain('移动止损')
 
     await wrapper.find('.block-library-search').setValue('动作')
 

@@ -129,8 +129,8 @@ def test_eastmoney_provider_maps_a_share_symbol_and_parses_klines():
     assert "beg=20260101" in requested_urls[0]
     assert "end=20260102" in requested_urls[0]
     assert candles == [
-        MarketCandle(time="2026-01-01 09:35", close=10.25),
-        MarketCandle(time="2026-01-01 09:40", close=10.4568),
+        MarketCandle(time="2026-01-01 09:35", close=10.25, volume=1200),
+        MarketCandle(time="2026-01-01 09:40", close=10.4568, volume=1500),
     ]
 
 

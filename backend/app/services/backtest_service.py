@@ -19,6 +19,19 @@ from app.services.market_data_service import (
 class Position:
     quantity: int = 0
     average_price: float = 0
+    highest_price: float = 0
+    holding_bars: int = 0
+
+
+CONDITION_NODE_TYPES = {
+    "if",
+    "current-price",
+    "price-change",
+    "moving-average",
+    "volume-change",
+    "position-state",
+    "time-window",
+}
 
 
 def run_backtest(
@@ -48,6 +61,7 @@ def run_backtest_with_candles(
     clear_node = _first_node(request, "clear")
     take_profit_node = _first_node(request, "take-profit")
     stop_loss_node = _first_node(request, "stop-loss")
+    moving_stop_node = _first_node(request, "moving-stop")
     cooldown_node = _first_node(request, "cooldown")
 
     if not candles:
@@ -65,11 +79,16 @@ def run_backtest_with_candles(
         sold_this_candle = False
 
         if position.quantity > 0:
+            position.highest_price = max(position.highest_price, candle.close)
             exit_rule = _select_exit_rule(
+                request=request,
                 position=position,
                 close=candle.close,
+                candles=candles,
+                candle_index=len(equity_curve),
                 take_profit_node=take_profit_node,
                 stop_loss_node=stop_loss_node,
+                moving_stop_node=moving_stop_node,
                 clear_node=clear_node,
                 sell_node=sell_node,
             )
@@ -97,11 +116,24 @@ def run_backtest_with_candles(
                     if position.quantity <= 0:
                         position.quantity = 0
                         position.average_price = 0
+                        position.highest_price = 0
+                        position.holding_bars = 0
                     if exit_rule.kind == "stop-loss" and cooldown_node:
                         cooldown_remaining = _node_int(cooldown_node, "durationBars", 3)
                     sold_this_candle = True
 
-        if position.quantity == 0 and buy_node and not sold_this_candle:
+        if (
+            position.quantity == 0
+            and buy_node
+            and not sold_this_candle
+            and _action_conditions_pass(
+                request=request,
+                target_node=buy_node,
+                candles=candles,
+                candle_index=len(equity_curve),
+                position=position,
+            )
+        ):
             if cooldown_remaining > 0:
                 cooldown_remaining -= 1
             else:
@@ -115,6 +147,8 @@ def run_backtest_with_candles(
                     cash = round(cash - buy_quantity * candle.close, 2)
                     position.quantity = buy_quantity
                     position.average_price = candle.close
+                    position.highest_price = candle.close
+                    position.holding_bars = 0
                     trades.append(
                         BacktestTrade(
                             time=candle.time,
@@ -131,6 +165,8 @@ def run_backtest_with_candles(
                 equity=round(cash + position.quantity * candle.close, 2),
             )
         )
+        if position.quantity > 0:
+            position.holding_bars += 1
 
     if position.quantity > 0:
         last_candle = candles[-1]
@@ -146,6 +182,8 @@ def run_backtest_with_candles(
             closed_trade_wins += 1
         position.quantity = 0
         position.average_price = 0
+        position.highest_price = 0
+        position.holding_bars = 0
         equity_curve[-1] = EquityPoint(time=last_candle.time, equity=round(cash, 2))
 
     return _build_response(
@@ -170,10 +208,14 @@ class ExitRule:
 
 def _select_exit_rule(
     *,
+    request: BacktestRunRequest,
     position: Position,
     close: float,
+    candles: list[MarketCandle],
+    candle_index: int,
     take_profit_node: StrategyNode | None,
     stop_loss_node: StrategyNode | None,
+    moving_stop_node: StrategyNode | None,
     clear_node: StrategyNode | None,
     sell_node: StrategyNode | None,
 ) -> ExitRule | None:
@@ -199,7 +241,22 @@ def _select_exit_rule(
             reason="止损触发",
         )
 
-    if clear_node:
+    if moving_stop_node and _moving_stop_triggered(position, close, moving_stop_node):
+        return ExitRule(
+            node=moving_stop_node,
+            kind="moving-stop",
+            param_key="sellPercent",
+            default_percent=100,
+            reason="移动止损触发",
+        )
+
+    if clear_node and _action_conditions_pass(
+        request=request,
+        target_node=clear_node,
+        candles=candles,
+        candle_index=candle_index,
+        position=position,
+    ):
         return ExitRule(
             node=clear_node,
             kind="clear",
@@ -208,7 +265,13 @@ def _select_exit_rule(
             reason=clear_node.params.get("reason") or "清仓积木触发",
         )
 
-    if sell_node:
+    if sell_node and _action_conditions_pass(
+        request=request,
+        target_node=sell_node,
+        candles=candles,
+        candle_index=candle_index,
+        position=position,
+    ):
         return ExitRule(
             node=sell_node,
             kind="sell",
@@ -218,6 +281,155 @@ def _select_exit_rule(
         )
 
     return None
+
+
+def _action_conditions_pass(
+    *,
+    request: BacktestRunRequest,
+    target_node: StrategyNode,
+    candles: list[MarketCandle],
+    candle_index: int,
+    position: Position,
+) -> bool:
+    condition_nodes = _incoming_condition_nodes(request, target_node)
+    if not condition_nodes:
+        return True
+
+    return all(
+        _condition_node_passes(
+            request=request,
+            node=node,
+            candles=candles,
+            candle_index=candle_index,
+            position=position,
+        )
+        for node in condition_nodes
+    )
+
+
+def _incoming_condition_nodes(
+    request: BacktestRunRequest,
+    target_node: StrategyNode,
+) -> list[StrategyNode]:
+    nodes_by_id = {node.id: node for node in request.strategy.nodes}
+    return [
+        nodes_by_id[edge.from_]
+        for edge in request.strategy.edges
+        if edge.to == target_node.id
+        and edge.from_ in nodes_by_id
+        and nodes_by_id[edge.from_].type in CONDITION_NODE_TYPES
+    ]
+
+
+def _condition_node_passes(
+    *,
+    request: BacktestRunRequest,
+    node: StrategyNode,
+    candles: list[MarketCandle],
+    candle_index: int,
+    position: Position,
+) -> bool:
+    candle = candles[candle_index]
+
+    if node.type == "if":
+        incoming_nodes = _incoming_condition_nodes(request, node)
+        if not incoming_nodes:
+            return True
+
+        results = [
+            _condition_node_passes(
+                request=request,
+                node=incoming_node,
+                candles=candles,
+                candle_index=candle_index,
+                position=position,
+            )
+            for incoming_node in incoming_nodes
+        ]
+        return any(results) if node.params.get("mode") == "any" else all(results)
+
+    if node.type == "current-price":
+        return _compare(
+            candle.close,
+            node.params.get("comparator", ">="),
+            _node_float(node, "price", candle.close),
+        )
+
+    if node.type == "price-change":
+        lookback = _node_int(node, "lookbackBars", 1)
+        if candle_index - lookback < 0:
+            return False
+        previous_close = candles[candle_index - lookback].close
+        if previous_close == 0:
+            return False
+        change_percent = (candle.close - previous_close) / previous_close * 100
+        return _compare(
+            change_percent,
+            node.params.get("comparator", ">="),
+            _node_float(node, "changePercent", 0),
+        )
+
+    if node.type == "moving-average":
+        period = _node_int(node, "period", 5)
+        if candle_index - period + 1 < 0:
+            return False
+        window = candles[candle_index - period + 1 : candle_index + 1]
+        average_close = sum(point.close for point in window) / len(window)
+        if node.params.get("relation") == "below":
+            return candle.close <= average_close
+        return candle.close >= average_close
+
+    if node.type == "volume-change":
+        lookback = _node_int(node, "lookbackBars", 1)
+        if candle_index - lookback < 0:
+            return False
+        previous_volume = candles[candle_index - lookback].volume
+        if previous_volume == 0:
+            return False
+        change_percent = (candle.volume - previous_volume) / previous_volume * 100
+        return _compare(
+            change_percent,
+            node.params.get("comparator", ">="),
+            _node_float(node, "changePercent", 0),
+        )
+
+    if node.type == "position-state":
+        state = node.params.get("state", "no-position")
+        if state == "has-position":
+            return position.quantity > 0
+        if state == "profit-gte":
+            return _position_return_percent(position, candle.close) >= _node_float(
+                node, "threshold", 0
+            )
+        if state == "holding-bars-gte":
+            return position.holding_bars >= _node_int(node, "threshold", 1)
+        return position.quantity == 0
+
+    if node.type == "time-window":
+        return _time_in_window(
+            candle.time[-5:],
+            node.params.get("startTime", "09:35"),
+            node.params.get("endTime", "14:55"),
+        )
+
+    return True
+
+
+def _moving_stop_triggered(
+    position: Position,
+    close: float,
+    moving_stop_node: StrategyNode,
+) -> bool:
+    if position.highest_price <= 0 or position.average_price <= 0:
+        return False
+
+    highest_return_percent = (
+        (position.highest_price - position.average_price) / position.average_price * 100
+    )
+    pullback_percent = (position.highest_price - close) / position.highest_price * 100
+    return highest_return_percent >= _node_float(
+        moving_stop_node, "minProfitPercent", 5
+    ) and pullback_percent >= _node_float(moving_stop_node, "trailPercent", 3)
 
 
 def _build_response(
@@ -329,6 +541,18 @@ def _position_return_percent(position: Position, close: float) -> float:
 
 def _position_loss_percent(position: Position, close: float) -> float:
     return max(0, -_position_return_percent(position, close))
+
+
+def _compare(actual: float, comparator: str, expected: float) -> bool:
+    if comparator == "<=":
+        return actual <= expected
+    return actual >= expected
+
+
+def _time_in_window(current_time: str, start_time: str, end_time: str) -> bool:
+    if start_time <= end_time:
+        return start_time <= current_time <= end_time
+    return current_time >= start_time or current_time <= end_time
 
 
 def _max_drawdown_percent(equity_curve: list[EquityPoint]) -> float:

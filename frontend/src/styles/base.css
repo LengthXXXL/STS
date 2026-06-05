@@ -330,7 +330,24 @@ input {
   background: #09080d;
 }
 
-.block-library nav {
+.block-library-groups {
+  display: grid;
+  gap: 14px;
+}
+
+.block-library-group {
+  display: grid;
+  gap: 8px;
+}
+
+.block-library-group h3 {
+  margin: 0;
+  color: #bfb3ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.block-library-group-items {
   display: grid;
   gap: 8px;
 }
@@ -354,6 +371,18 @@ input {
 
 .library-block--condition {
   border-color: rgba(94, 230, 200, 0.38);
+}
+
+.library-block--indicator {
+  border-color: rgba(125, 195, 255, 0.38);
+}
+
+.library-block--position {
+  border-color: rgba(255, 213, 116, 0.38);
+}
+
+.library-block--time {
+  border-color: rgba(190, 148, 255, 0.42);
 }
 
 .block-inspector {

@@ -17,6 +17,7 @@ from app.schemas.backtest import BacktestConfig
 class MarketCandle:
     time: str
     close: float
+    volume: float = 0
 
 
 class MarketDataProvider(Protocol):
@@ -43,6 +44,7 @@ class LocalMarketDataProvider:
                     "%Y-%m-%d %H:%M"
                 ),
                 close=round(base_price * factor, 4),
+                volume=1000 + index * 120,
             )
             for index, factor in enumerate(price_factors)
         ]
@@ -94,7 +96,9 @@ class YahooChartMarketDataProvider:
         exchange_timezone = _zoneinfo_or_utc(timezone_name)
         timestamps = result.get("timestamp") or []
         quote_sets = result.get("indicators", {}).get("quote") or []
-        closes = quote_sets[0].get("close") if quote_sets else []
+        quote = quote_sets[0] if quote_sets else {}
+        closes = quote.get("close") or []
+        volumes = quote.get("volume") or []
 
         candles = [
             MarketCandle(
@@ -102,8 +106,9 @@ class YahooChartMarketDataProvider:
                 .astimezone(exchange_timezone)
                 .strftime("%Y-%m-%d %H:%M"),
                 close=round(float(close), 4),
+                volume=_safe_float_at(volumes, index),
             )
-            for timestamp, close in zip(timestamps, closes, strict=False)
+            for index, (timestamp, close) in enumerate(zip(timestamps, closes, strict=False))
             if close is not None
         ]
         if not candles:
@@ -157,6 +162,7 @@ class EastMoneyMarketDataProvider:
                     MarketCandle(
                         time=parts[0],
                         close=round(float(parts[2]), 4),
+                        volume=float(parts[5]) if len(parts) > 5 else 0,
                     )
                 )
             except ValueError:
@@ -241,6 +247,15 @@ def _eastmoney_timeframe(timeframe: str) -> str:
 
 def _compact_date(date_value: str) -> str:
     return date_value.replace("-", "")
+
+
+def _safe_float_at(values: list[Any], index: int) -> float:
+    if index >= len(values) or values[index] is None:
+        return 0
+    try:
+        return float(values[index])
+    except (TypeError, ValueError):
+        return 0
 
 
 def _zoneinfo_or_utc(timezone_name: str | None):
