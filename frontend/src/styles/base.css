@@ -385,6 +385,14 @@ input {
   padding: 0 10px;
 }
 
+.canvas-controls .clear-canvas-button {
+  width: auto;
+  padding: 0 10px;
+  color: #ffe4ea;
+  border-color: rgba(255, 139, 167, 0.48);
+  background: rgba(64, 25, 40, 0.82);
+}
+
 .canvas-controls .snap-toggle[aria-pressed="true"] {
   border-color: rgba(124, 77, 255, 0.7);
   background: #302157;

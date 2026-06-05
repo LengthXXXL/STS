@@ -281,6 +281,29 @@ describe('builder view', () => {
     expect(wrapper.find('.connection-path').exists()).toBe(false)
   })
 
+  it('clears placed blocks, connections, and context menu from the canvas controls', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await dropBlock(wrapper, 'sell', 460, 260)
+
+    const outputPort = wrapper.find('[data-port="output"]')
+    const inputPorts = wrapper.findAll('[data-port="input"]')
+    await outputPort.trigger('pointerdown', { pointerId: 3, clientX: 288, clientY: 194 })
+    await inputPorts[1].trigger('pointerup', { pointerId: 3, clientX: 460, clientY: 260 })
+    await wrapper.find('.canvas-block').trigger('contextmenu', { clientX: 260, clientY: 170 })
+
+    expect(wrapper.findAll('.canvas-block')).toHaveLength(2)
+    expect(wrapper.find('.connection-path').exists()).toBe(true)
+    expect(wrapper.find('.context-menu').exists()).toBe(true)
+
+    await wrapper.find('.clear-canvas-button').trigger('click')
+
+    expect(wrapper.findAll('.canvas-block')).toHaveLength(0)
+    expect(wrapper.find('.connection-path').exists()).toBe(false)
+    expect(wrapper.find('.context-menu').exists()).toBe(false)
+  })
+
   it('toggles magnetic snapping for component movement', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)

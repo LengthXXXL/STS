@@ -689,6 +689,15 @@ function endLibraryDrag(event: PointerEvent) {
 function toggleSnap() {
   isSnapEnabled.value = !isSnapEnabled.value
 }
+
+function clearCanvas() {
+  placedBlocks.value = []
+  connections.value = []
+  activeConnection.value = null
+  selectedBlockId.value = null
+  contextMenu.value = null
+  placedBlockDragState = null
+}
 </script>
 
 <template>
@@ -814,6 +823,14 @@ function toggleSnap() {
         @click="toggleSnap"
       >
         磁吸{{ isSnapEnabled ? '开' : '关' }}
+      </button>
+      <button
+        class="clear-canvas-button"
+        type="button"
+        aria-label="清空画布"
+        @click="clearCanvas"
+      >
+        清屏
       </button>
     </div>
 
