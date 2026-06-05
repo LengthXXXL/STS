@@ -26,23 +26,22 @@ def _backtest_payload():
     }
 
 
-def test_run_backtest_returns_mock_metrics_and_trade_path(client):
+def test_run_backtest_returns_computed_metrics_and_trade_path(client):
     response = client.post("/api/backtests/run", json=_backtest_payload())
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["summary"] == {
-        "totalReturnPercent": 7.3,
-        "maxDrawdownPercent": 2.8,
-        "winRatePercent": 66.7,
-        "endingEquity": 107300.0,
-        "tradeCount": 3,
-    }
+    assert payload["summary"]["totalReturnPercent"] > 0
+    assert payload["summary"]["maxDrawdownPercent"] >= 0
+    assert payload["summary"]["winRatePercent"] == 100
+    assert payload["summary"]["endingEquity"] > 100000
+    assert payload["summary"]["tradeCount"] == len(payload["trades"])
     assert payload["config"]["symbol"] == "000001.SZ"
+    assert payload["runId"] == "engine-000001.SZ-5m"
     assert payload["trades"][0]["side"] == "BUY"
     assert payload["trades"][0]["price"] > 0
     assert payload["equityCurve"][0]["equity"] == 100000
-    assert payload["equityCurve"][-1]["equity"] == 107300.0
+    assert payload["equityCurve"][-1]["equity"] == payload["summary"]["endingEquity"]
 
 
 def test_run_backtest_rejects_empty_strategy(client):

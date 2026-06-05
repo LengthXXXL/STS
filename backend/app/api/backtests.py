@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status
 
 from app.schemas.backtest import BacktestRunRequest, BacktestRunResponse
-from app.services.backtest_service import run_mock_backtest
+from app.services.backtest_service import run_backtest as run_backtest_service
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
 
@@ -14,4 +14,4 @@ def run_backtest(request: BacktestRunRequest) -> BacktestRunResponse:
             detail="Strategy must contain at least one node",
         )
 
-    return run_mock_backtest(request)
+    return run_backtest_service(request)
