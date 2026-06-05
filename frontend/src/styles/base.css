@@ -431,6 +431,22 @@ input {
   gap: 8px;
 }
 
+.block-inspector-actions {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(58, 49, 80, 0.72);
+}
+
+.block-inspector-delete {
+  width: 100%;
+  border: 1px solid rgba(255, 139, 167, 0.5);
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #ffdce6;
+  background: rgba(64, 25, 40, 0.82);
+  cursor: pointer;
+}
+
 .canvas-controls {
   position: absolute;
   left: 20px;

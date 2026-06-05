@@ -53,7 +53,7 @@ interface ActiveConnection {
 }
 
 interface ContextMenuState {
-  type: 'block' | 'connection'
+  type: 'connection'
   targetId: string
   x: number
   y: number
@@ -498,15 +498,9 @@ function deleteConnection(connectionId: string) {
   connections.value = connections.value.filter((connection) => connection.id !== connectionId)
 }
 
-function openBlockContextMenu(blockId: string, event: MouseEvent) {
+function ignoreBlockContextMenu(event: MouseEvent) {
   event.preventDefault()
-  selectedBlockId.value = null
-  contextMenu.value = {
-    type: 'block',
-    targetId: blockId,
-    x: event.clientX,
-    y: event.clientY
-  }
+  contextMenu.value = null
 }
 
 function openConnectionContextMenu(connectionId: string, event: MouseEvent) {
@@ -524,16 +518,20 @@ function deleteContextMenuTarget() {
     return
   }
 
-  if (contextMenu.value.type === 'block') {
-    deleteBlock(contextMenu.value.targetId)
-  } else {
-    deleteConnection(contextMenu.value.targetId)
-  }
-
+  deleteConnection(contextMenu.value.targetId)
   contextMenu.value = null
 }
 
 function closeContextMenu() {
+  contextMenu.value = null
+}
+
+function deleteSelectedBlock() {
+  if (!selectedBlock.value) {
+    return
+  }
+
+  deleteBlock(selectedBlock.value.id)
   contextMenu.value = null
 }
 
@@ -955,7 +953,7 @@ function clearCanvas() {
         @pointermove.stop="movePlacedBlockDrag"
         @pointerup.stop="endPlacedBlockDrag"
         @pointercancel.stop="endPlacedBlockDrag"
-        @contextmenu.prevent.stop="openBlockContextMenu(block.id, $event)"
+        @contextmenu.prevent.stop="ignoreBlockContextMenu"
       >
         <span
           class="connection-port connection-port--input"
@@ -1068,6 +1066,16 @@ function clearCanvas() {
           </div>
         </label>
       </form>
+
+      <footer class="block-inspector-actions">
+        <button
+          class="block-inspector-delete"
+          type="button"
+          @click="deleteSelectedBlock"
+        >
+          删除积木
+        </button>
+      </footer>
     </aside>
 
     <div class="canvas-controls" @pointerdown.stop>
@@ -1102,7 +1110,7 @@ function clearCanvas() {
       @contextmenu.prevent.stop
     >
       <button class="context-menu-delete" type="button" @click="deleteContextMenuTarget">
-        删除{{ contextMenu.type === 'block' ? '积木' : '连接' }}
+        删除连接
       </button>
     </div>
   </section>

@@ -259,7 +259,7 @@ describe('builder view', () => {
     expect(wrapper.find('.canvas-block').attributes('style')).toContain('translate(240px, 168px)')
   })
 
-  it('deletes a placed block and its connections from its context menu', async () => {
+  it('deletes a selected placed block and its connections from the parameter inspector', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
@@ -273,14 +273,25 @@ describe('builder view', () => {
 
     expect(wrapper.find('.canvas-block-delete').exists()).toBe(false)
 
-    await wrapper.find('.canvas-block').trigger('contextmenu', { clientX: 260, clientY: 170 })
-    expect(wrapper.find('.context-menu').exists()).toBe(true)
-    expect(wrapper.find('.block-inspector').exists()).toBe(false)
+    await wrapper.find('.canvas-block').trigger('click')
+    expect(wrapper.find('.block-inspector').exists()).toBe(true)
 
-    await wrapper.find('.context-menu-delete').trigger('click')
+    await wrapper.find('.block-inspector-delete').trigger('click')
 
     expect(wrapper.findAll('.canvas-block')).toHaveLength(1)
     expect(wrapper.find('.connection-path').exists()).toBe(false)
+    expect(wrapper.find('.block-inspector').exists()).toBe(false)
+  })
+
+  it('does not open a block delete menu when a placed block is right-clicked', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    await wrapper.find('.canvas-block').trigger('contextmenu', { clientX: 260, clientY: 170 })
+
+    expect(wrapper.find('.context-menu').exists()).toBe(false)
+    expect(wrapper.find('.block-inspector').exists()).toBe(false)
   })
 
   it('connects an output port to an input port', async () => {
@@ -330,12 +341,13 @@ describe('builder view', () => {
     const inputPorts = wrapper.findAll('[data-port="input"]')
     await outputPort.trigger('pointerdown', { pointerId: 3, clientX: 288, clientY: 194 })
     await inputPorts[1].trigger('pointerup', { pointerId: 3, clientX: 460, clientY: 260 })
-    await wrapper.find('.canvas-block').trigger('contextmenu', { clientX: 260, clientY: 170 })
+    await wrapper.find('.canvas-block').trigger('click')
+    await wrapper.find('.connection-path').trigger('contextmenu', { clientX: 360, clientY: 220 })
 
     expect(wrapper.findAll('.canvas-block')).toHaveLength(2)
     expect(wrapper.find('.connection-path').exists()).toBe(true)
     expect(wrapper.find('.context-menu').exists()).toBe(true)
-    expect(wrapper.find('.block-inspector').exists()).toBe(false)
+    expect(wrapper.find('.block-inspector').exists()).toBe(true)
 
     await wrapper.find('.clear-canvas-button').trigger('click')
 
