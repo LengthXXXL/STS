@@ -40,6 +40,28 @@ interface PlacedBlock {
   params: Record<string, string>
 }
 
+interface StrategyDraft {
+  version: 1
+  nodes: StrategyNode[]
+  edges: StrategyEdge[]
+  viewport: CanvasTransform
+}
+
+interface StrategyNode {
+  id: string
+  type: string
+  label: string
+  x: number
+  y: number
+  params: Record<string, string>
+}
+
+interface StrategyEdge {
+  id: string
+  from: string
+  to: string
+}
+
 interface Connection {
   id: string
   fromBlockId: string
@@ -73,6 +95,7 @@ interface PlacedBlockDragState {
 
 const BLOCK_WIDTH = 132
 const BLOCK_HEIGHT = 44
+const STRATEGY_DRAFT_STORAGE_KEY = 'sts.builder.strategyDraft.v1'
 
 const blockDefinitions: BlockDefinition[] = [
   {
@@ -227,6 +250,7 @@ const activeConnection = ref<ActiveConnection | null>(null)
 const selectedBlockId = ref<string | null>(null)
 const contextMenu = ref<ContextMenuState | null>(null)
 const blockSearchQuery = ref('')
+const draftStatus = ref('尚未保存')
 const isPanning = ref(false)
 const isDraggingLibrary = ref(false)
 const isSnapEnabled = ref(true)
@@ -285,6 +309,30 @@ const filteredBlockDefinitions = computed(() => {
     )
   })
 })
+
+const strategyDraft = computed<StrategyDraft>(() => ({
+  version: 1,
+  nodes: placedBlocks.value.map((block) => ({
+    id: block.id,
+    type: block.blockId,
+    label: block.label,
+    x: block.x,
+    y: block.y,
+    params: { ...block.params }
+  })),
+  edges: connections.value.map((connection) => ({
+    id: connection.id,
+    from: connection.fromBlockId,
+    to: connection.toBlockId
+  })),
+  viewport: {
+    x: transform.x,
+    y: transform.y,
+    scale: transform.scale
+  }
+}))
+
+const strategyJson = computed(() => JSON.stringify(strategyDraft.value, null, 2))
 
 const connectionPaths = computed(() =>
   connections.value
@@ -373,6 +421,25 @@ function createDefaultParams(block: BlockDefinition) {
   }, {})
 }
 
+function normalizeBlockParams(block: BlockDefinition, params: unknown) {
+  const nextParams = createDefaultParams(block)
+  if (!params || typeof params !== 'object') {
+    return nextParams
+  }
+
+  const savedParams = params as Record<string, unknown>
+  block.fields.forEach((field) => {
+    const value = savedParams[field.key]
+    if (typeof value === 'string') {
+      nextParams[field.key] = value
+    } else if (typeof value === 'number') {
+      nextParams[field.key] = String(value)
+    }
+  })
+
+  return nextParams
+}
+
 function blockParamValue(block: PlacedBlock, field: BlockParamField) {
   return block.params[field.key] ?? field.defaultValue
 }
@@ -389,6 +456,94 @@ function updateBlockParam(blockId: string, key: string, event: Event) {
   block.params = {
     ...block.params,
     [key]: event.target.value
+  }
+}
+
+function isDraftRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object')
+}
+
+function restoreStrategyDraft(draft: unknown) {
+  if (!isDraftRecord(draft) || !Array.isArray(draft.nodes) || !Array.isArray(draft.edges)) {
+    draftStatus.value = '草稿格式无效'
+    return
+  }
+
+  const nextBlocks = draft.nodes.reduce<PlacedBlock[]>((blocks, node) => {
+    if (!isDraftRecord(node) || typeof node.id !== 'string' || typeof node.type !== 'string') {
+      return blocks
+    }
+
+    const definition = blockDefinitions.find((block) => block.id === node.type)
+    if (!definition) {
+      return blocks
+    }
+
+    blocks.push({
+      id: node.id,
+      blockId: definition.id,
+      label: definition.label,
+      tone: definition.tone,
+      x: typeof node.x === 'number' ? Math.round(node.x) : 0,
+      y: typeof node.y === 'number' ? Math.round(node.y) : 0,
+      params: normalizeBlockParams(definition, node.params)
+    })
+    return blocks
+  }, [])
+
+  const blockIds = new Set(nextBlocks.map((block) => block.id))
+  const nextConnections = draft.edges.reduce<Connection[]>((edges, edge) => {
+    if (
+      !isDraftRecord(edge) ||
+      typeof edge.id !== 'string' ||
+      typeof edge.from !== 'string' ||
+      typeof edge.to !== 'string' ||
+      !blockIds.has(edge.from) ||
+      !blockIds.has(edge.to)
+    ) {
+      return edges
+    }
+
+    edges.push({
+      id: edge.id,
+      fromBlockId: edge.from,
+      toBlockId: edge.to
+    })
+    return edges
+  }, [])
+
+  placedBlocks.value = nextBlocks
+  connections.value = nextConnections
+  selectedBlockId.value = null
+  contextMenu.value = null
+  activeConnection.value = null
+  placedBlockDragState = null
+
+  if (isDraftRecord(draft.viewport)) {
+    transform.x = typeof draft.viewport.x === 'number' ? draft.viewport.x : 0
+    transform.y = typeof draft.viewport.y === 'number' ? draft.viewport.y : 0
+    transform.scale = typeof draft.viewport.scale === 'number' ? draft.viewport.scale : 1
+  }
+
+  draftStatus.value = '草稿已加载'
+}
+
+function saveDraft() {
+  localStorage.setItem(STRATEGY_DRAFT_STORAGE_KEY, strategyJson.value)
+  draftStatus.value = '草稿已保存到本机'
+}
+
+function loadDraft() {
+  const rawDraft = localStorage.getItem(STRATEGY_DRAFT_STORAGE_KEY)
+  if (!rawDraft) {
+    draftStatus.value = '暂无本地草稿'
+    return
+  }
+
+  try {
+    restoreStrategyDraft(JSON.parse(rawDraft))
+  } catch {
+    draftStatus.value = '草稿读取失败'
   }
 }
 
@@ -817,7 +972,13 @@ function startCanvasPan(event: PointerEvent) {
   if (
     event.button !== 0 ||
     (event.target as HTMLElement).closest(
-      '.floating-block-library, .block-inspector, .canvas-block, .canvas-controls'
+      [
+        '.floating-block-library',
+        '.block-inspector',
+        '.strategy-draft-panel',
+        '.canvas-block',
+        '.canvas-controls'
+      ].join(', ')
     )
   ) {
     return
@@ -1076,6 +1237,27 @@ function clearCanvas() {
           删除积木
         </button>
       </footer>
+    </aside>
+
+    <aside
+      class="strategy-draft-panel"
+      aria-label="策略数据"
+      @pointerdown.stop
+      @click.stop
+      @contextmenu.stop
+    >
+      <header>
+        <div>
+          <small>策略数据</small>
+          <h2>JSON 预览</h2>
+        </div>
+      </header>
+      <div class="draft-actions">
+        <button class="save-draft-button" type="button" @click="saveDraft">保存草稿</button>
+        <button class="load-draft-button" type="button" @click="loadDraft">加载草稿</button>
+      </div>
+      <p class="draft-status">{{ draftStatus }}</p>
+      <pre class="strategy-json-preview">{{ strategyJson }}</pre>
     </aside>
 
     <div class="canvas-controls" @pointerdown.stop>

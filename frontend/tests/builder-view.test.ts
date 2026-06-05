@@ -331,6 +331,59 @@ describe('builder view', () => {
     expect(wrapper.find('.connection-path').exists()).toBe(false)
   })
 
+  it('renders strategy JSON with placed block params and connections', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await dropBlock(wrapper, 'sell', 460, 260)
+
+    await wrapper.find('.canvas-block').trigger('click')
+    await wrapper.find('[data-param-key="sizePercent"]').setValue('35')
+
+    const outputPort = wrapper.find('[data-port="output"]')
+    const inputPorts = wrapper.findAll('[data-port="input"]')
+    await outputPort.trigger('pointerdown', { pointerId: 3, clientX: 288, clientY: 194 })
+    await inputPorts[1].trigger('pointerup', { pointerId: 3, clientX: 460, clientY: 260 })
+
+    const strategy = JSON.parse(wrapper.find('.strategy-json-preview').text())
+
+    expect(strategy.version).toBe(1)
+    expect(strategy.nodes).toHaveLength(2)
+    expect(strategy.edges).toHaveLength(1)
+    expect(strategy.nodes[0]).toMatchObject({
+      type: 'buy',
+      label: '买入',
+      params: {
+        sizePercent: '35',
+        orderType: 'market'
+      }
+    })
+    expect(strategy.edges[0]).toMatchObject({
+      from: strategy.nodes[0].id,
+      to: strategy.nodes[1].id
+    })
+  })
+
+  it('saves and loads a local strategy draft', async () => {
+    localStorage.clear()
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    await wrapper.find('.save-draft-button').trigger('click')
+    expect(localStorage.getItem('sts.builder.strategyDraft.v1')).toContain('"nodes"')
+
+    await wrapper.find('.clear-canvas-button').trigger('click')
+    expect(wrapper.findAll('.canvas-block')).toHaveLength(0)
+
+    await wrapper.find('.load-draft-button').trigger('click')
+
+    const placedBlocks = wrapper.findAll('.canvas-block')
+    expect(placedBlocks).toHaveLength(1)
+    expect(placedBlocks[0].text()).toContain('买入')
+    expect(wrapper.find('.draft-status').text()).toContain('已加载')
+  })
+
   it('clears placed blocks, connections, and context menu from the canvas controls', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)

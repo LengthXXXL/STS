@@ -447,6 +447,81 @@ input {
   cursor: pointer;
 }
 
+.strategy-draft-panel {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1;
+  width: min(360px, calc(100% - 40px));
+  max-height: min(420px, calc(100vh - 120px));
+  display: grid;
+  gap: 10px;
+  border: 1px solid #292437;
+  border-radius: 8px;
+  padding: 14px;
+  color: #f7f2ff;
+  background: rgba(17, 16, 25, 0.88);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px);
+  cursor: default;
+}
+
+.strategy-draft-panel header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.strategy-draft-panel h2 {
+  margin: 2px 0 0;
+  font-size: 16px;
+}
+
+.strategy-draft-panel small,
+.draft-status {
+  color: #a89bc1;
+  font-size: 12px;
+}
+
+.draft-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.draft-actions button {
+  flex: 1;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #f7f2ff;
+  background: #191522;
+  cursor: pointer;
+}
+
+.draft-actions .save-draft-button {
+  border-color: rgba(124, 77, 255, 0.58);
+  background: #302157;
+}
+
+.draft-status {
+  margin: 0;
+}
+
+.strategy-json-preview {
+  min-height: 120px;
+  max-height: 220px;
+  margin: 0;
+  overflow: auto;
+  border: 1px solid #292437;
+  border-radius: 6px;
+  padding: 10px;
+  color: #d9d1e8;
+  background: rgba(5, 5, 7, 0.72);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
 .canvas-controls {
   position: absolute;
   left: 20px;
@@ -610,6 +685,13 @@ input {
     width: min(280px, calc(100% - 24px));
     max-height: calc(100vh - 172px);
     overflow: auto;
+  }
+
+  .strategy-draft-panel {
+    right: 12px;
+    bottom: 72px;
+    width: min(280px, calc(100% - 24px));
+    max-height: min(320px, calc(100vh - 172px));
   }
 
   .canvas-controls {
