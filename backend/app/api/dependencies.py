@@ -13,13 +13,10 @@ from app.models.user import User
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
+def _resolve_user_from_credentials(
+    credentials: HTTPAuthorizationCredentials,
+    db: Session,
 ) -> User:
-    if credentials is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-
     try:
         payload = decode_access_token(credentials.credentials)
     except InvalidTokenError as exc:
@@ -43,6 +40,25 @@ def get_current_user(
     if user is None or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User unavailable")
     return user
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User:
+    if credentials is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    return _resolve_user_from_credentials(credentials, db)
+
+
+def get_optional_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> User | None:
+    if credentials is None:
+        return None
+    return _resolve_user_from_credentials(credentials, db)
 
 
 def require_role(role_name: str) -> Callable[[User], User]:

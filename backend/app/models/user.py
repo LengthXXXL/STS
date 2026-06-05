@@ -16,6 +16,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
+    from app.models.backtest import BacktestTask
     from app.models.strategy import Strategy
 
 user_roles = Table(
@@ -46,6 +47,10 @@ class User(Base):
         lazy="selectin",
     )
     strategies: Mapped[list["Strategy"]] = relationship(
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
+    backtest_tasks: Mapped[list["BacktestTask"]] = relationship(
         back_populates="owner",
         cascade="all, delete-orphan",
     )
