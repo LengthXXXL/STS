@@ -1,6 +1,9 @@
 import pytest
+from sqlalchemy import select
 
+from app import models
 from app.schemas.backtest import BacktestConfig
+from app.services import market_data_service
 from app.services.market_data_service import (
     DefaultMarketDataProvider,
     EastMoneyMarketDataProvider,
@@ -202,6 +205,53 @@ def test_default_provider_uses_eastmoney_for_a_share_before_fallback():
 
     assert eastmoney_provider.received_config == config
     assert candles == [MarketCandle(time="2026-01-01 09:35", close=10)]
+
+
+def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
+    assert hasattr(models, "MarketKlineCache")
+    assert hasattr(market_data_service, "CachedMarketDataProvider")
+
+    MarketKlineCache = models.MarketKlineCache
+    CachedMarketDataProvider = market_data_service.CachedMarketDataProvider
+
+    class SourceProvider:
+        def __init__(self):
+            self.calls = 0
+
+        def get_intraday_candles(self, config):
+            self.calls += 1
+            return [
+                MarketCandle(time="2026-01-01 09:35", close=10.25, volume=1200),
+                MarketCandle(time="2026-01-01 09:40", close=10.45, volume=1500),
+            ]
+
+    class FailingProvider:
+        def get_intraday_candles(self, config):
+            raise AssertionError("cache hit should not fetch source provider")
+
+    config = _config(market="A_SHARE", symbol="000001.SZ", timeframe="5m")
+    source_provider = SourceProvider()
+    cached_provider = CachedMarketDataProvider(db_session, source_provider=source_provider)
+
+    first_candles = cached_provider.get_intraday_candles(config)
+
+    assert source_provider.calls == 1
+    assert first_candles == [
+        MarketCandle(time="2026-01-01 09:35", close=10.25, volume=1200),
+        MarketCandle(time="2026-01-01 09:40", close=10.45, volume=1500),
+    ]
+    cached_rows = db_session.scalars(select(MarketKlineCache)).all()
+    assert [(row.candle_time, row.close, row.volume) for row in cached_rows] == [
+        ("2026-01-01 09:35", 10.25, 1200),
+        ("2026-01-01 09:40", 10.45, 1500),
+    ]
+
+    cached_again = CachedMarketDataProvider(
+        db_session,
+        source_provider=FailingProvider(),
+    ).get_intraday_candles(config)
+
+    assert cached_again == first_candles
 
 
 def test_fetch_json_uses_explicit_ssl_context(monkeypatch):

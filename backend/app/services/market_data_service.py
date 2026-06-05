@@ -9,7 +9,10 @@ from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import certifi
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
+from app.models.market_data import MarketKlineCache
 from app.schemas.backtest import BacktestConfig
 
 
@@ -200,6 +203,74 @@ class DefaultMarketDataProvider:
         return self.fallback_provider.get_intraday_candles(config)
 
 
+class CachedMarketDataProvider:
+    def __init__(
+        self,
+        db: Session,
+        source_provider: MarketDataProvider | None = None,
+    ):
+        self.db = db
+        self.source_provider = source_provider or DefaultMarketDataProvider()
+
+    def get_intraday_candles(self, config: BacktestConfig) -> list[MarketCandle]:
+        cached_candles = self._cached_candles(config)
+        if cached_candles:
+            return cached_candles
+
+        fetched_candles = self.source_provider.get_intraday_candles(config)
+        self._cache_candles(config, fetched_candles)
+        return fetched_candles
+
+    def _cached_candles(self, config: BacktestConfig) -> list[MarketCandle]:
+        rows = self.db.scalars(
+            select(MarketKlineCache)
+            .where(MarketKlineCache.market == config.market)
+            .where(MarketKlineCache.symbol == _normalized_symbol(config.symbol))
+            .where(MarketKlineCache.timeframe == config.timeframe)
+            .where(MarketKlineCache.candle_time >= _day_start_key(config.startDate))
+            .where(MarketKlineCache.candle_time <= _day_end_key(config.endDate))
+            .order_by(MarketKlineCache.candle_time)
+        ).all()
+
+        return [
+            MarketCandle(time=row.candle_time, close=row.close, volume=row.volume)
+            for row in rows
+        ]
+
+    def _cache_candles(self, config: BacktestConfig, candles: list[MarketCandle]) -> None:
+        if not candles:
+            return
+
+        symbol = _normalized_symbol(config.symbol)
+        candle_times = sorted({candle.time for candle in candles})
+        existing_times = set(
+            self.db.scalars(
+                select(MarketKlineCache.candle_time)
+                .where(MarketKlineCache.market == config.market)
+                .where(MarketKlineCache.symbol == symbol)
+                .where(MarketKlineCache.timeframe == config.timeframe)
+                .where(MarketKlineCache.candle_time.in_(candle_times))
+            ).all()
+        )
+        seen_times: set[str] = set()
+
+        for candle in candles:
+            if candle.time in existing_times or candle.time in seen_times:
+                continue
+            seen_times.add(candle.time)
+            self.db.add(
+                MarketKlineCache(
+                    market=config.market,
+                    symbol=symbol,
+                    timeframe=config.timeframe,
+                    candle_time=candle.time,
+                    close=float(candle.close),
+                    volume=float(candle.volume),
+                )
+            )
+        self.db.commit()
+
+
 def _fetch_json(url: str, extra_headers: dict[str, str] | None = None) -> dict[str, Any]:
     context = ssl.create_default_context(cafile=certifi.where())
     headers = {
@@ -256,6 +327,18 @@ def _safe_float_at(values: list[Any], index: int) -> float:
         return float(values[index])
     except (TypeError, ValueError):
         return 0
+
+
+def _normalized_symbol(symbol: str) -> str:
+    return symbol.strip().upper()
+
+
+def _day_start_key(date_value: str) -> str:
+    return f"{date_value} 00:00"
+
+
+def _day_end_key(date_value: str) -> str:
+    return f"{date_value} 23:59"
 
 
 def _zoneinfo_or_utc(timezone_name: str | None):

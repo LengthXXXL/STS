@@ -1,3 +1,8 @@
+from sqlalchemy import select
+
+from app.models import MarketKlineCache
+
+
 def _backtest_payload():
     return {
         "strategy": {
@@ -52,3 +57,19 @@ def test_run_backtest_rejects_empty_strategy(client):
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Strategy must contain at least one node"
+
+
+def test_run_backtest_caches_market_data_rows(client, db_session):
+    response = client.post("/api/backtests/run", json=_backtest_payload())
+
+    assert response.status_code == 200
+    cached_rows = db_session.scalars(
+        select(MarketKlineCache)
+        .where(MarketKlineCache.market == "A_SHARE")
+        .where(MarketKlineCache.symbol == "000001.SZ")
+        .where(MarketKlineCache.timeframe == "5m")
+        .order_by(MarketKlineCache.candle_time)
+    ).all()
+    assert cached_rows
+    assert cached_rows[0].candle_time.startswith("2026-")
+    assert cached_rows[0].close > 0
