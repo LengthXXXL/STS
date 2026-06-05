@@ -290,6 +290,8 @@ input {
   right: 20px;
   z-index: 1;
   width: min(280px, calc(100% - 40px));
+  max-height: min(340px, calc(100vh - 180px));
+  overflow: auto;
   background: rgba(17, 16, 25, 0.88);
   backdrop-filter: blur(18px);
   cursor: default;
@@ -449,11 +451,11 @@ input {
 
 .strategy-draft-panel {
   position: absolute;
-  right: 20px;
-  bottom: 20px;
+  left: 20px;
+  bottom: 84px;
   z-index: 1;
-  width: min(360px, calc(100% - 40px));
-  max-height: min(420px, calc(100vh - 120px));
+  width: min(340px, calc(100% - 40px));
+  max-height: min(300px, calc(100vh - 220px));
   display: grid;
   gap: 10px;
   overflow: auto;
@@ -755,22 +757,24 @@ input {
     top: 12px;
     right: 12px;
     width: min(240px, calc(100% - 24px));
+    max-height: min(280px, calc(48vh - 24px));
   }
 
   .block-inspector {
-    top: auto;
-    bottom: 72px;
+    top: 12px;
+    bottom: auto;
     left: 12px;
     width: min(280px, calc(100% - 24px));
-    max-height: calc(100vh - 172px);
+    max-height: min(280px, calc(48vh - 24px));
     overflow: auto;
   }
 
   .strategy-draft-panel {
-    right: 12px;
+    left: 12px;
+    right: auto;
     bottom: 72px;
     width: min(280px, calc(100% - 24px));
-    max-height: min(320px, calc(100vh - 172px));
+    max-height: min(260px, calc(48vh - 24px));
   }
 
   .backtest-form {
