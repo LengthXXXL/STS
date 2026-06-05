@@ -8,6 +8,7 @@ from app.services.market_data_service import (
     MarketCandle,
     MarketDataUnavailableError,
     YahooChartMarketDataProvider,
+    _fetch_eastmoney_json,
     _fetch_json,
 )
 
@@ -122,6 +123,7 @@ def test_eastmoney_provider_maps_a_share_symbol_and_parses_klines():
         _config(market="A_SHARE", symbol="000001.SZ", timeframe="5m")
     )
 
+    assert requested_urls[0].startswith("http://push2his.eastmoney.com/")
     assert "secid=0.000001" in requested_urls[0]
     assert "klt=5" in requested_urls[0]
     assert "beg=20260101" in requested_urls[0]
@@ -230,4 +232,33 @@ def test_fetch_json_uses_explicit_ssl_context(monkeypatch):
     assert "Mozilla" in captured["request"].get_header("User-agent")
     assert captured["request"].get_header("Accept") == "application/json"
     assert captured["timeout"] == 8
+    assert captured["context"] is not None
+
+
+def test_fetch_eastmoney_json_uses_quote_referer(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def read(self):
+            return b'{"data": {"klines": []}}'
+
+    def fake_urlopen(request, timeout, context=None):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        captured["context"] = context
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.market_data_service.urlopen", fake_urlopen)
+
+    payload = _fetch_eastmoney_json("https://push2his.eastmoney.com/example")
+
+    assert payload == {"data": {"klines": []}}
+    assert captured["request"].get_header("Referer") == "https://quote.eastmoney.com/"
+    assert captured["request"].get_header("Accept") == "*/*"
     assert captured["context"] is not None

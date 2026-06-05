@@ -112,10 +112,10 @@ class YahooChartMarketDataProvider:
 
 
 class EastMoneyMarketDataProvider:
-    base_url = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+    base_url = "http://push2his.eastmoney.com/api/qt/stock/kline/get"
 
     def __init__(self, fetch_json: Callable[[str], dict[str, Any]] | None = None):
-        self.fetch_json = fetch_json or _fetch_json
+        self.fetch_json = fetch_json or _fetch_eastmoney_json
 
     def get_intraday_candles(self, config: BacktestConfig) -> list[MarketCandle]:
         if config.market != "A_SHARE":
@@ -194,21 +194,33 @@ class DefaultMarketDataProvider:
         return self.fallback_provider.get_intraday_candles(config)
 
 
-def _fetch_json(url: str) -> dict[str, Any]:
+def _fetch_json(url: str, extra_headers: dict[str, str] | None = None) -> dict[str, Any]:
     context = ssl.create_default_context(cafile=certifi.where())
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/125.0 Safari/537.36"
+        ),
+    }
+    headers.update(extra_headers or {})
     request = Request(
         url,
-        headers={
-            "Accept": "application/json",
-            "User-Agent": (
-                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/125.0 Safari/537.36"
-            ),
-        },
+        headers=headers,
     )
     with urlopen(request, timeout=8, context=context) as response:
         return json.loads(response.read().decode("utf-8"))
+
+
+def _fetch_eastmoney_json(url: str) -> dict[str, Any]:
+    return _fetch_json(
+        url,
+        extra_headers={
+            "Accept": "*/*",
+            "Referer": "https://quote.eastmoney.com/",
+        },
+    )
 
 
 def _start_of_day_timestamp(date_value: str) -> int:
