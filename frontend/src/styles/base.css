@@ -424,10 +424,10 @@ button {
 }
 
 .floating-block-library.is-collapsed {
-  width: 52px;
+  width: 118px;
   max-height: none;
   overflow: visible;
-  padding: 12px 8px;
+  padding: 8px 10px;
 }
 
 .block-library-header {
@@ -449,19 +449,16 @@ button {
 }
 
 .floating-block-library.is-collapsed .block-library-header {
-  flex-direction: column;
-  justify-content: center;
-  gap: 10px;
+  flex-direction: row;
+  justify-content: space-between;
+  gap: 8px;
   margin-bottom: 0;
 }
 
 .floating-block-library.is-collapsed .block-library-header h2 {
-  writing-mode: vertical-rl;
-  text-orientation: upright;
   white-space: nowrap;
   font-size: 15px;
-  line-height: 1;
-  letter-spacing: 2px;
+  line-height: 1.2;
 }
 
 .floating-block-library.is-collapsed .block-library-header-actions span {
@@ -490,15 +487,16 @@ button {
 
 .block-library-collapse-toggle::before {
   content: "";
-  width: 8px;
-  height: 8px;
-  border-top: 2px solid currentColor;
-  border-left: 2px solid currentColor;
-  transform: translateY(2px) rotate(45deg);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 6px solid currentColor;
 }
 
 .block-library-collapse-toggle.is-expand-arrow::before {
-  transform: translateY(-2px) rotate(225deg);
+  border-top: 6px solid currentColor;
+  border-bottom: 0;
 }
 
 .block-library-collapse-toggle:hover {
