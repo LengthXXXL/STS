@@ -1,8 +1,15 @@
 <template>
-  <section class="work-surface">
-    <div class="canvas-placeholder">
-      <h1>搭建积木</h1>
-      <p>在这里拼接策略积木。未登录用户可以临时搭建，但不能保存或运行完整回测。</p>
-    </div>
+  <section class="builder-canvas" aria-label="策略搭建画布">
+    <aside class="block-library floating-block-library" aria-label="积木库">
+      <h2>积木库</h2>
+      <input placeholder="搜索积木" />
+      <nav>
+        <button>条件</button>
+        <button>指标</button>
+        <button>动作</button>
+        <button>风控</button>
+        <button>自定义</button>
+      </nav>
+    </aside>
   </section>
 </template>

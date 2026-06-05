@@ -34,19 +34,8 @@ const authStore = useAuthStore()
         </div>
       </header>
 
-      <div class="content-grid">
+      <div class="content-area">
         <RouterView />
-        <aside class="block-library" aria-label="积木库">
-          <h2>积木库</h2>
-          <input placeholder="搜索积木" />
-          <nav>
-            <button>条件</button>
-            <button>指标</button>
-            <button>动作</button>
-            <button>风控</button>
-            <button>自定义</button>
-          </nav>
-        </aside>
       </div>
     </main>
   </div>

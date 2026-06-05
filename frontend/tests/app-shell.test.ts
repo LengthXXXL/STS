@@ -28,7 +28,6 @@ describe('app shell', () => {
     expect(wrapper.text()).toContain('发布')
     expect(wrapper.text()).toContain('登录')
     expect(wrapper.text()).toContain('注册')
-    expect(wrapper.text()).toContain('积木库')
 
     authStore.setSession({
       token: 'token-123',
