@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     Boolean,
@@ -13,6 +14,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.strategy import Strategy
 
 user_roles = Table(
     "user_roles",
@@ -40,6 +44,10 @@ class User(Base):
         secondary=user_roles,
         back_populates="users",
         lazy="selectin",
+    )
+    strategies: Mapped[list["Strategy"]] = relationship(
+        back_populates="owner",
+        cascade="all, delete-orphan",
     )
 
 

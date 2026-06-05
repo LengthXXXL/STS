@@ -1,16 +1,25 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia, setActivePinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
-import { describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../src/api/http'
+import { useAuthStore } from '../src/stores/auth'
 import BuilderView from '../src/views/BuilderView.vue'
 
 vi.mock('../src/api/http', () => ({
   apiClient: {
-    post: vi.fn()
+    post: vi.fn(),
+    put: vi.fn()
   }
 }))
 
 describe('builder view', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    localStorage.clear()
+    vi.resetAllMocks()
+  })
+
   function mockCanvasRect(wrapper: ReturnType<typeof mount>) {
     const canvas = wrapper.find('.builder-canvas')
     canvas.element.getBoundingClientRect = vi.fn(() => ({
@@ -409,7 +418,6 @@ describe('builder view', () => {
   })
 
   it('saves and loads a local strategy draft', async () => {
-    localStorage.clear()
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
@@ -431,6 +439,57 @@ describe('builder view', () => {
     expect(placedBlocks).toHaveLength(1)
     expect(placedBlocks[0].text()).toContain('买入')
     expect(wrapper.find('.draft-status').text()).toContain('已从本机浏览器加载草稿')
+  })
+
+  it('saves the current strategy to the authenticated personal space', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        id: 7,
+        name: '未命名策略',
+        description: null,
+        strategy: {},
+        backtestConfig: null,
+        ownerId: 1,
+        isPublic: false,
+        createdAt: '2026-06-05T12:00:00',
+        updatedAt: '2026-06-05T12:00:00'
+      }
+    })
+    const wrapper = mount(BuilderView)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action: 'save' } }))
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/strategies', {
+      name: '未命名策略',
+      description: null,
+      strategy: expect.objectContaining({
+        version: 1,
+        nodes: expect.arrayContaining([expect.objectContaining({ type: 'buy' })])
+      }),
+      backtestConfig: expect.objectContaining({
+        symbol: '000001.SZ',
+        timeframe: '5m'
+      })
+    })
+    expect(wrapper.find('.strategy-save-status').text()).toContain('已保存到个人空间')
+  })
+
+  it('asks anonymous users to log in before saving to personal space', async () => {
+    const wrapper = mount(BuilderView)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action: 'save' } }))
+    await nextTick()
+
+    expect(apiClient.post).not.toHaveBeenCalled()
+    expect(wrapper.find('.strategy-save-status').text()).toContain('请先登录')
   })
 
   it('validates whether the strategy draft can run', async () => {

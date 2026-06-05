@@ -10,6 +10,8 @@ import {
   type CanvasTransform
 } from '../utils/builderCanvas'
 import { apiClient } from '../api/http'
+import { useAuthStore } from '../stores/auth'
+import { useStrategyWorkspaceStore } from '../stores/strategyWorkspace'
 
 interface BlockDefinition {
   id: string
@@ -116,6 +118,13 @@ interface BacktestRunResult {
   equityCurve: EquityPointResult[]
 }
 
+interface SavedStrategyResponse {
+  id: number
+  name: string
+  strategy: StrategyDraft
+  backtestConfig: BacktestConfig | null
+}
+
 type ReviewMode = 'backtest' | 'publish'
 
 interface Connection {
@@ -153,6 +162,7 @@ const BLOCK_WIDTH = 132
 const BLOCK_HEIGHT = 44
 const STRATEGY_DRAFT_STORAGE_KEY = 'sts.builder.strategyDraft.v1'
 const blockCategoryOrder = ['动作', '条件', '行情指标', '持仓', '时间', '风控']
+const DEFAULT_STRATEGY_NAME = '未命名策略'
 
 const blockDefinitions: BlockDefinition[] = [
   {
@@ -509,6 +519,8 @@ const blockDefinitions: BlockDefinition[] = [
 
 const canvasRef = ref<HTMLElement | null>(null)
 const libraryRef = ref<HTMLElement | null>(null)
+const authStore = useAuthStore()
+const strategyWorkspaceStore = useStrategyWorkspaceStore()
 const transform = reactive<CanvasTransform>({ x: 0, y: 0, scale: 1 })
 const libraryOffset = reactive({ x: 0, y: 0 })
 const placedBlocks = ref<PlacedBlock[]>([])
@@ -526,6 +538,10 @@ const reviewModalMode = ref<ReviewMode | null>(null)
 const isBacktestRunning = ref(false)
 const backtestRunError = ref('')
 const backtestRunResult = ref<BacktestRunResult | null>(null)
+const currentStrategyId = ref<number | null>(null)
+const currentStrategyName = ref(DEFAULT_STRATEGY_NAME)
+const isSavingStrategy = ref(false)
+const strategySaveStatus = ref('')
 const backtestSettings = reactive<BacktestSettings>({
   market: 'A_SHARE',
   symbol: '000001.SZ',
@@ -860,7 +876,7 @@ function isDraftRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object')
 }
 
-function restoreStrategyDraft(draft: unknown) {
+function restoreStrategyDraft(draft: unknown, successStatus = '已从本机浏览器加载草稿') {
   if (!isDraftRecord(draft) || !Array.isArray(draft.nodes) || !Array.isArray(draft.edges)) {
     draftStatus.value = '草稿格式无效'
     return
@@ -915,6 +931,8 @@ function restoreStrategyDraft(draft: unknown) {
   contextMenu.value = null
   activeConnection.value = null
   placedBlockDragState = null
+  currentStrategyId.value = null
+  currentStrategyName.value = DEFAULT_STRATEGY_NAME
 
   if (isDraftRecord(draft.viewport)) {
     transform.x = typeof draft.viewport.x === 'number' ? draft.viewport.x : 0
@@ -922,7 +940,33 @@ function restoreStrategyDraft(draft: unknown) {
     transform.scale = typeof draft.viewport.scale === 'number' ? draft.viewport.scale : 1
   }
 
-  draftStatus.value = '已从本机浏览器加载草稿'
+  draftStatus.value = successStatus
+}
+
+function applyBacktestConfig(config: BacktestConfig | null) {
+  if (!config) {
+    return
+  }
+
+  backtestSettings.market = config.market
+  backtestSettings.symbol = config.symbol
+  backtestSettings.timeframe = config.timeframe
+  backtestSettings.startDate = config.startDate
+  backtestSettings.endDate = config.endDate
+  backtestSettings.initialCash = String(config.initialCash)
+}
+
+function loadWorkspaceStrategy() {
+  const savedStrategy = strategyWorkspaceStore.consumePendingStrategy()
+  if (!savedStrategy) {
+    return
+  }
+
+  restoreStrategyDraft(savedStrategy.strategy, `已打开个人空间策略：${savedStrategy.name}`)
+  applyBacktestConfig(savedStrategy.backtestConfig)
+  currentStrategyId.value = savedStrategy.id
+  currentStrategyName.value = savedStrategy.name
+  strategySaveStatus.value = `已打开个人空间策略：${savedStrategy.name}`
 }
 
 function saveDraft() {
@@ -941,6 +985,55 @@ function loadDraft() {
     restoreStrategyDraft(JSON.parse(rawDraft))
   } catch {
     draftStatus.value = '草稿读取失败'
+  }
+}
+
+async function saveStrategyToSpace() {
+  contextMenu.value = null
+
+  if (!authStore.isAuthenticated) {
+    strategySaveStatus.value = '请先登录后再保存策略到个人空间'
+    return
+  }
+
+  if (validationIssues.value.length > 0) {
+    strategySaveStatus.value = validationIssues.value[0].message
+    return
+  }
+
+  if (isSavingStrategy.value) {
+    return
+  }
+
+  isSavingStrategy.value = true
+  strategySaveStatus.value = '正在保存策略'
+
+  const payload = {
+    name: currentStrategyName.value || DEFAULT_STRATEGY_NAME,
+    description: null,
+    strategy: strategyDraft.value,
+    backtestConfig: backtestConfig.value
+  }
+
+  try {
+    const response =
+      currentStrategyId.value === null
+        ? await apiClient.post<SavedStrategyResponse>('/strategies', payload)
+        : await apiClient.put<SavedStrategyResponse>(
+            `/strategies/${currentStrategyId.value}`,
+            payload
+          )
+
+    currentStrategyId.value = response.data.id
+    currentStrategyName.value = response.data.name
+    strategySaveStatus.value =
+      currentStrategyId.value === null
+        ? '策略已保存到个人空间'
+        : `策略已保存到个人空间：${response.data.name}`
+  } catch {
+    strategySaveStatus.value = '保存失败，请稍后重试'
+  } finally {
+    isSavingStrategy.value = false
   }
 }
 
@@ -988,7 +1081,7 @@ function handleBuilderAction(event: Event) {
   const detail = (event as CustomEvent<{ action?: string }>).detail
 
   if (detail?.action === 'save') {
-    saveDraft()
+    void saveStrategyToSpace()
     return
   }
 
@@ -1352,6 +1445,7 @@ function startMouseBlockDrag(block: BlockDefinition, event: MouseEvent) {
 
 onMounted(() => {
   window.addEventListener('sts:builder-action', handleBuilderAction)
+  loadWorkspaceStrategy()
 })
 
 onBeforeUnmount(() => {
@@ -1522,6 +1616,9 @@ function clearCanvas() {
   selectedBlockId.value = null
   contextMenu.value = null
   placedBlockDragState = null
+  currentStrategyId.value = null
+  currentStrategyName.value = DEFAULT_STRATEGY_NAME
+  strategySaveStatus.value = ''
 }
 </script>
 
@@ -1596,6 +1693,8 @@ function clearCanvas() {
     >
       {{ draggingBlock.block.label }}
     </div>
+
+    <p v-if="strategySaveStatus" class="strategy-save-status">{{ strategySaveStatus }}</p>
 
     <aside
       ref="libraryRef"

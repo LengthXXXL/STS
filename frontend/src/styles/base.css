@@ -125,6 +125,96 @@ input {
   padding: 18px;
 }
 
+.personal-space {
+  display: grid;
+  gap: 16px;
+}
+
+.space-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: start;
+}
+
+.space-header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.space-header p,
+.space-muted,
+.strategy-item p,
+.strategy-item small,
+.space-footer {
+  color: #a89bc1;
+}
+
+.space-search {
+  display: flex;
+  gap: 8px;
+}
+
+.space-search input {
+  min-width: 220px;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #f7f2ff;
+  background: #09080d;
+}
+
+.space-search button,
+.strategy-item-actions button {
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: #f7f2ff;
+  background: #191522;
+  cursor: pointer;
+}
+
+.strategy-list {
+  display: grid;
+  gap: 10px;
+}
+
+.strategy-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(58, 49, 80, 0.86);
+  border-radius: 8px;
+  padding: 14px;
+  background: rgba(9, 8, 13, 0.54);
+}
+
+.strategy-item h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.strategy-item p {
+  margin: 0 0 8px;
+}
+
+.strategy-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.strategy-open-button {
+  border-color: rgba(124, 77, 255, 0.68) !important;
+  background: #302157 !important;
+}
+
+.strategy-delete-button {
+  color: #ffe4ea !important;
+  border-color: rgba(255, 139, 167, 0.48) !important;
+  background: rgba(64, 25, 40, 0.72) !important;
+}
+
 .block-library button {
   border: 1px solid #3a3150;
   background: #191522;
@@ -278,6 +368,23 @@ input {
 
 .drag-preview--condition {
   border-color: rgba(94, 230, 200, 0.58);
+}
+
+.strategy-save-status {
+  position: absolute;
+  left: 20px;
+  top: 18px;
+  z-index: 2;
+  max-width: min(420px, calc(100% - 40px));
+  margin: 0;
+  border: 1px solid rgba(124, 77, 255, 0.42);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #e9e2ff;
+  background: rgba(17, 16, 25, 0.88);
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.36);
+  font-size: 13px;
+  backdrop-filter: blur(16px);
 }
 
 .block-library {
