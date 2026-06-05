@@ -68,6 +68,24 @@ input {
 
 .section-title {
   font-weight: 700;
+  white-space: nowrap;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.top-actions button {
+  border: 1px solid #3a3150;
+  background: #191522;
+  color: #f7f2ff;
+  border-radius: 6px;
+  padding: 8px 10px;
+  cursor: pointer;
+  white-space: nowrap;
 }
 
 .account-actions {
@@ -80,6 +98,7 @@ input {
   color: #b89cff;
   text-decoration: none;
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .account-actions span {
@@ -90,7 +109,7 @@ input {
 .content-grid {
   min-height: calc(100vh - 64px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 260px;
+  grid-template-columns: minmax(0, 1fr) clamp(200px, 24vw, 260px);
   gap: 16px;
   padding: 16px;
 }
@@ -109,13 +128,6 @@ input {
   padding: 18px;
 }
 
-.toolbar-panel {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 16px;
-}
-
-.toolbar-panel button,
 .block-library button {
   border: 1px solid #3a3150;
   background: #191522;
@@ -205,7 +217,7 @@ input {
   color: #ff8ba7;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 560px) {
   .app-shell {
     grid-template-columns: 72px minmax(0, 1fr);
   }
@@ -222,7 +234,7 @@ input {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .toolbar-panel {
-    flex-wrap: wrap;
+  .section-title {
+    display: none;
   }
 }

@@ -17,7 +17,10 @@ const authStore = useAuthStore()
     <main class="main-shell">
       <header class="top-bar">
         <div class="top-actions">
-          <span class="section-title">Simulated Trading System</span>
+          <span class="section-title">策略工作台</span>
+          <button type="button">保存策略</button>
+          <button type="button">运行回测</button>
+          <button type="button">发布</button>
         </div>
         <div class="account-actions">
           <template v-if="authStore.isAuthenticated && authStore.user">
