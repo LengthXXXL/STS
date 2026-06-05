@@ -86,6 +86,7 @@ const isSnapEnabled = ref(true)
 let panState: DragState | null = null
 let libraryDragState: DragState | null = null
 let blockDragState: { block: BlockDefinition; pointerId: number | null } | null = null
+let blockDragPointerTarget: HTMLElement | null = null
 let placedBlockDragState: PlacedBlockDragState | null = null
 
 const canvasStyle = computed(() => ({
@@ -219,6 +220,11 @@ function finishBlockDrag(clientX: number, clientY: number) {
   }
 
   addBlockAtClientPoint(blockDragState.block, clientX, clientY)
+  draggingBlock.value = null
+  blockDragState = null
+}
+
+function cancelBlockDrag() {
   draggingBlock.value = null
   blockDragState = null
 }
@@ -431,7 +437,12 @@ function startPointerBlockDrag(block: BlockDefinition, event: PointerEvent) {
 
   event.preventDefault()
   beginBlockDrag(block, event.clientX, event.clientY, event.pointerId)
-  ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+  blockDragPointerTarget = event.currentTarget as HTMLElement
+  blockDragPointerTarget.setPointerCapture?.(event.pointerId)
+  window.addEventListener('pointermove', movePointerBlockDrag, true)
+  window.addEventListener('pointerup', endPointerBlockDrag, true)
+  window.addEventListener('pointercancel', cancelPointerBlockDrag, true)
+  window.addEventListener('blur', cancelPointerBlockDrag)
 }
 
 function movePointerBlockDrag(event: PointerEvent) {
@@ -447,8 +458,41 @@ function endPointerBlockDrag(event: PointerEvent) {
     return
   }
 
+  const pointerId = event.pointerId
   finishBlockDrag(event.clientX, event.clientY)
-  ;(event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId)
+  releasePointerBlockDragCapture(pointerId)
+  removePointerBlockDragListeners()
+}
+
+function cancelPointerBlockDrag(event?: Event) {
+  if (!blockDragState || blockDragState.pointerId === null) {
+    return
+  }
+
+  if (
+    event &&
+    'pointerId' in event &&
+    blockDragState.pointerId !== (event as PointerEvent).pointerId
+  ) {
+    return
+  }
+
+  const pointerId = blockDragState.pointerId
+  cancelBlockDrag()
+  releasePointerBlockDragCapture(pointerId)
+  removePointerBlockDragListeners()
+}
+
+function releasePointerBlockDragCapture(pointerId: number) {
+  blockDragPointerTarget?.releasePointerCapture?.(pointerId)
+  blockDragPointerTarget = null
+}
+
+function removePointerBlockDragListeners() {
+  window.removeEventListener('pointermove', movePointerBlockDrag, true)
+  window.removeEventListener('pointerup', endPointerBlockDrag, true)
+  window.removeEventListener('pointercancel', cancelPointerBlockDrag, true)
+  window.removeEventListener('blur', cancelPointerBlockDrag)
 }
 
 function moveMouseBlockDrag(event: MouseEvent) {
@@ -473,8 +517,7 @@ function cancelMouseBlockDrag() {
     return
   }
 
-  draggingBlock.value = null
-  blockDragState = null
+  cancelBlockDrag()
   removeMouseBlockDragListeners()
 }
 
@@ -498,6 +541,7 @@ function startMouseBlockDrag(block: BlockDefinition, event: MouseEvent) {
 
 onBeforeUnmount(() => {
   removeMouseBlockDragListeners()
+  removePointerBlockDragListeners()
 })
 
 function allowCanvasDrop(event: DragEvent) {
@@ -749,7 +793,7 @@ function toggleSnap() {
           @pointerdown.stop="startPointerBlockDrag(block, $event)"
           @pointermove.stop="movePointerBlockDrag"
           @pointerup.stop="endPointerBlockDrag"
-          @pointercancel.stop="endPointerBlockDrag"
+          @pointercancel.stop="cancelPointerBlockDrag"
           @mousedown.stop="startMouseBlockDrag(block, $event)"
         >
           <span>{{ block.label }}</span>

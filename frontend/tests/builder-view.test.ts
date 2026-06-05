@@ -47,6 +47,19 @@ describe('builder view', () => {
     return library
   }
 
+  function dispatchPointerWindowEvent(
+    type: string,
+    options: { pointerId: number; clientX?: number; clientY?: number }
+  ) {
+    const event = new Event(type, { bubbles: true }) as PointerEvent
+    Object.defineProperties(event, {
+      pointerId: { value: options.pointerId },
+      clientX: { value: options.clientX ?? 0 },
+      clientY: { value: options.clientY ?? 0 }
+    })
+    window.dispatchEvent(event)
+  }
+
   it('renders a dotted canvas with a floating block library', () => {
     const wrapper = mount(BuilderView)
 
@@ -99,6 +112,23 @@ describe('builder view', () => {
     expect(placedBlocks[0].text()).toContain('买入')
   })
 
+  it('finishes pointer block dragging from a window pointerup event', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+
+    await wrapper
+      .find('[data-block-id="buy"]')
+      .trigger('pointerdown', { button: 0, pointerId: 8, clientX: 410, clientY: 220 })
+    dispatchPointerWindowEvent('pointermove', { pointerId: 8, clientX: 260, clientY: 170 })
+    dispatchPointerWindowEvent('pointerup', { pointerId: 8, clientX: 260, clientY: 170 })
+    await nextTick()
+
+    const placedBlocks = wrapper.findAll('.canvas-block')
+    expect(placedBlocks).toHaveLength(1)
+    expect(placedBlocks[0].text()).toContain('买入')
+    expect(wrapper.find('.drag-preview').exists()).toBe(false)
+  })
+
   it('adds a block when a library block is mouse-dragged onto the canvas', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
@@ -141,6 +171,40 @@ describe('builder view', () => {
     window.dispatchEvent(new Event('blur'))
     await nextTick()
 
+    expect(wrapper.find('.drag-preview').exists()).toBe(false)
+  })
+
+  it('cancels pointer block dragging when the window loses focus', async () => {
+    const wrapper = mount(BuilderView)
+
+    await wrapper
+      .find('[data-block-id="buy"]')
+      .trigger('pointerdown', { button: 0, pointerId: 9, clientX: 410, clientY: 220 })
+
+    expect(wrapper.find('.drag-preview').exists()).toBe(true)
+
+    window.dispatchEvent(new Event('blur'))
+    await nextTick()
+
+    expect(wrapper.find('.drag-preview').exists()).toBe(false)
+  })
+
+  it('cancels pointer block dragging from a pointercancel event', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+
+    await wrapper
+      .find('[data-block-id="buy"]')
+      .trigger('pointerdown', { button: 0, pointerId: 10, clientX: 410, clientY: 220 })
+
+    expect(wrapper.find('.drag-preview').exists()).toBe(true)
+
+    await wrapper
+      .find('[data-block-id="buy"]')
+      .trigger('pointercancel', { pointerId: 10, clientX: 260, clientY: 170 })
+    await nextTick()
+
+    expect(wrapper.findAll('.canvas-block')).toHaveLength(0)
     expect(wrapper.find('.drag-preview').exists()).toBe(false)
   })
 
