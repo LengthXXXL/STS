@@ -1382,6 +1382,7 @@ function clearCanvas() {
       :class="{ 'is-dragging': isDraggingLibrary }"
       :style="libraryStyle"
       aria-label="积木库"
+      @wheel.stop
     >
       <header
         class="block-library-header"
