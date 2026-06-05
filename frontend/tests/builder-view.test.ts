@@ -103,6 +103,32 @@ describe('builder view', () => {
     expect(wrapper.text()).toContain('风控')
   })
 
+  it('collapses and expands the floating block library from its arrow button', async () => {
+    const wrapper = mount(BuilderView)
+
+    expect(wrapper.find('.block-library-search').exists()).toBe(true)
+    expect(wrapper.findAll('.block-library-group')).toHaveLength(6)
+    expect(wrapper.find('.floating-block-library').classes()).not.toContain('is-collapsed')
+
+    await wrapper.find('.block-library-collapse-toggle').trigger('click')
+
+    expect(wrapper.find('.floating-block-library').classes()).toContain('is-collapsed')
+    expect(wrapper.find('.block-library-search').exists()).toBe(false)
+    expect(wrapper.findAll('.block-library-group')).toHaveLength(0)
+    expect(wrapper.find('.block-library-collapse-toggle').attributes('aria-label')).toBe(
+      '展开积木库'
+    )
+
+    await wrapper.find('.block-library-collapse-toggle').trigger('click')
+
+    expect(wrapper.find('.floating-block-library').classes()).not.toContain('is-collapsed')
+    expect(wrapper.find('.block-library-search').exists()).toBe(true)
+    expect(wrapper.findAll('.block-library-group')).toHaveLength(6)
+    expect(wrapper.find('.block-library-collapse-toggle').attributes('aria-label')).toBe(
+      '收起积木库'
+    )
+  })
+
   it('shows strategy preview only when running a backtest or publishing', async () => {
     const wrapper = mount(BuilderView)
 

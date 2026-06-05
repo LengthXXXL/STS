@@ -423,6 +423,13 @@ button {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.46), 0 0 30px rgba(124, 77, 255, 0.16);
 }
 
+.floating-block-library.is-collapsed {
+  width: 148px;
+  max-height: none;
+  overflow: visible;
+  padding: 10px 12px;
+}
+
 .block-library-header {
   display: flex;
   align-items: center;
@@ -439,6 +446,29 @@ button {
 .block-library-header span {
   color: #786a95;
   letter-spacing: 2px;
+}
+
+.block-library-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.block-library-collapse-toggle {
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(124, 77, 255, 0.42);
+  border-radius: 999px;
+  padding: 0;
+  color: #f7f2ff;
+  background: rgba(48, 33, 87, 0.72);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.block-library-collapse-toggle:hover {
+  border-color: rgba(184, 156, 255, 0.72);
+  background: rgba(109, 61, 242, 0.82);
 }
 
 .block-library input {

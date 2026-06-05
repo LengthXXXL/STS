@@ -533,6 +533,7 @@ const blockSearchQuery = ref('')
 const draftStatus = ref('尚未保存')
 const isPanning = ref(false)
 const isDraggingLibrary = ref(false)
+const isLibraryCollapsed = ref(false)
 const isSnapEnabled = ref(true)
 const reviewModalMode = ref<ReviewMode | null>(null)
 const isBacktestRunning = ref(false)
@@ -1610,6 +1611,10 @@ function toggleSnap() {
   isSnapEnabled.value = !isSnapEnabled.value
 }
 
+function toggleLibraryCollapsed() {
+  isLibraryCollapsed.value = !isLibraryCollapsed.value
+}
+
 function clearCanvas() {
   placedBlocks.value = []
   connections.value = []
@@ -1700,7 +1705,7 @@ function clearCanvas() {
     <aside
       ref="libraryRef"
       class="block-library floating-block-library"
-      :class="{ 'is-dragging': isDraggingLibrary }"
+      :class="{ 'is-dragging': isDraggingLibrary, 'is-collapsed': isLibraryCollapsed }"
       :style="libraryStyle"
       aria-label="积木库"
       @wheel.stop
@@ -1713,10 +1718,26 @@ function clearCanvas() {
         @pointercancel.stop="endLibraryDrag"
       >
         <h2>积木库</h2>
-        <span aria-hidden="true">••</span>
+        <div class="block-library-header-actions">
+          <span aria-hidden="true">••</span>
+          <button
+            class="block-library-collapse-toggle"
+            type="button"
+            :aria-label="isLibraryCollapsed ? '展开积木库' : '收起积木库'"
+            @pointerdown.stop
+            @click.stop="toggleLibraryCollapsed"
+          >
+            {{ isLibraryCollapsed ? '⌄' : '⌃' }}
+          </button>
+        </div>
       </header>
-      <input v-model="blockSearchQuery" class="block-library-search" placeholder="搜索积木" />
-      <nav class="block-library-groups">
+      <input
+        v-if="!isLibraryCollapsed"
+        v-model="blockSearchQuery"
+        class="block-library-search"
+        placeholder="搜索积木"
+      />
+      <nav v-if="!isLibraryCollapsed" class="block-library-groups">
         <section
           v-for="group in filteredBlockGroups"
           :key="group.category"
