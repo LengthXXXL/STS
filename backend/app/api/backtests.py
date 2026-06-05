@@ -1,0 +1,17 @@
+from fastapi import APIRouter, HTTPException, status
+
+from app.schemas.backtest import BacktestRunRequest, BacktestRunResponse
+from app.services.backtest_service import run_mock_backtest
+
+router = APIRouter(prefix="/backtests", tags=["backtests"])
+
+
+@router.post("/run", response_model=BacktestRunResponse)
+def run_backtest(request: BacktestRunRequest) -> BacktestRunResponse:
+    if not request.strategy.nodes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Strategy must contain at least one node",
+        )
+
+    return run_mock_backtest(request)

@@ -1,7 +1,14 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
+import { apiClient } from '../src/api/http'
 import BuilderView from '../src/views/BuilderView.vue'
+
+vi.mock('../src/api/http', () => ({
+  apiClient: {
+    post: vi.fn()
+  }
+}))
 
 describe('builder view', () => {
   function mockCanvasRect(wrapper: ReturnType<typeof mount>) {
@@ -490,6 +497,72 @@ describe('builder view', () => {
     await wrapper.find('[data-backtest-key="endDate"]').setValue('2026-06-12')
 
     expect(wrapper.find('.backtest-issues').text()).toContain('1分钟K线最多选择7天范围')
+  })
+
+  it('runs a backtest and renders the returned result summary', async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        runId: 'mock-run-1',
+        status: 'COMPLETED',
+        summary: {
+          totalReturnPercent: 7.3,
+          maxDrawdownPercent: 2.8,
+          winRatePercent: 66.7,
+          endingEquity: 107300,
+          tradeCount: 3
+        },
+        config: {
+          market: 'A_SHARE',
+          symbol: '000001.SZ',
+          timeframe: '5m',
+          startDate: '2026-01-01',
+          endDate: '2026-03-01',
+          initialCash: 100000
+        },
+        trades: [
+          {
+            time: '2026-01-05 10:30',
+            side: 'BUY',
+            price: 10.2,
+            quantity: 1900,
+            reason: '买入积木触发'
+          }
+        ],
+        equityCurve: [
+          { time: '2026-01-01', equity: 100000 },
+          { time: '2026-03-01', equity: 107300 }
+        ]
+      }
+    })
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
+
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/backtests/run', {
+      strategy: expect.objectContaining({
+        version: 1,
+        nodes: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'buy'
+          })
+        ])
+      }),
+      config: expect.objectContaining({
+        symbol: '000001.SZ',
+        timeframe: '5m',
+        initialCash: 100000
+      })
+    })
+    expect(wrapper.find('.backtest-result-card').text()).toContain('总收益率')
+    expect(wrapper.find('.backtest-result-card').text()).toContain('7.3%')
+    expect(wrapper.find('.backtest-result-card').text()).toContain('最大回撤')
+    expect(wrapper.find('.backtest-result-card').text()).toContain('2.8%')
+    expect(wrapper.find('.backtest-trades').text()).toContain('BUY')
+    expect(wrapper.find('.backtest-trades').text()).toContain('买入积木触发')
   })
 
   it('clears placed blocks, connections, and context menu from the canvas controls', async () => {

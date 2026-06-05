@@ -554,6 +554,71 @@ input {
   gap: 10px;
 }
 
+.backtest-result-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(124, 77, 255, 0.38);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgba(48, 33, 87, 0.34);
+}
+
+.backtest-result-card strong {
+  color: #f7f2ff;
+  font-size: 13px;
+}
+
+.backtest-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.backtest-metrics span {
+  display: grid;
+  gap: 3px;
+  border: 1px solid rgba(58, 49, 80, 0.72);
+  border-radius: 6px;
+  padding: 8px;
+  background: rgba(5, 5, 7, 0.42);
+}
+
+.backtest-metrics small {
+  color: #a89bc1;
+  font-size: 11px;
+}
+
+.backtest-metrics b {
+  color: #f7f2ff;
+  font-size: 15px;
+}
+
+.backtest-trades {
+  width: 100%;
+  border-collapse: collapse;
+  color: #d9d1e8;
+  font-size: 12px;
+}
+
+.backtest-trades th,
+.backtest-trades td {
+  border-top: 1px solid rgba(58, 49, 80, 0.72);
+  padding: 7px 6px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.backtest-trades th {
+  color: #a89bc1;
+  font-weight: 700;
+}
+
+.backtest-run-error {
+  margin: 0;
+  color: #ffb8c8;
+  font-size: 13px;
+}
+
 .validation-card.is-ready,
 .backtest-card.is-ready {
   border-color: rgba(94, 230, 200, 0.38);

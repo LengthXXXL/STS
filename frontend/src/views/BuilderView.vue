@@ -9,6 +9,7 @@ import {
   type CanvasRect,
   type CanvasTransform
 } from '../utils/builderCanvas'
+import { apiClient } from '../api/http'
 
 interface BlockDefinition {
   id: string
@@ -83,6 +84,36 @@ interface BacktestConfig {
   startDate: string
   endDate: string
   initialCash: number
+}
+
+interface BacktestSummaryResult {
+  totalReturnPercent: number
+  maxDrawdownPercent: number
+  winRatePercent: number
+  endingEquity: number
+  tradeCount: number
+}
+
+interface BacktestTradeResult {
+  time: string
+  side: 'BUY' | 'SELL'
+  price: number
+  quantity: number
+  reason: string
+}
+
+interface EquityPointResult {
+  time: string
+  equity: number
+}
+
+interface BacktestRunResult {
+  runId: string
+  status: 'COMPLETED'
+  config: BacktestConfig
+  summary: BacktestSummaryResult
+  trades: BacktestTradeResult[]
+  equityCurve: EquityPointResult[]
 }
 
 type ReviewMode = 'backtest' | 'publish'
@@ -280,6 +311,9 @@ const isPanning = ref(false)
 const isDraggingLibrary = ref(false)
 const isSnapEnabled = ref(true)
 const reviewModalMode = ref<ReviewMode | null>(null)
+const isBacktestRunning = ref(false)
+const backtestRunError = ref('')
+const backtestRunResult = ref<BacktestRunResult | null>(null)
 const backtestSettings = reactive<BacktestSettings>({
   market: 'A_SHARE',
   symbol: '000001.SZ',
@@ -696,6 +730,37 @@ function openReviewModal(mode: ReviewMode) {
 
 function closeReviewModal() {
   reviewModalMode.value = null
+}
+
+async function runBacktest() {
+  if (backtestIssues.value.length > 0 || isBacktestRunning.value) {
+    return
+  }
+
+  isBacktestRunning.value = true
+  backtestRunError.value = ''
+  backtestRunResult.value = null
+
+  try {
+    const response = await apiClient.post<BacktestRunResult>('/backtests/run', {
+      strategy: strategyDraft.value,
+      config: backtestConfig.value
+    })
+    backtestRunResult.value = response.data
+  } catch {
+    backtestRunError.value = '回测运行失败，请稍后重试'
+  } finally {
+    isBacktestRunning.value = false
+  }
+}
+
+async function handleReviewPrimaryAction() {
+  if (reviewModalMode.value === 'backtest') {
+    await runBacktest()
+    return
+  }
+
+  draftStatus.value = '发布接口待接入，当前仅完成发布前检查'
 }
 
 function handleBuilderAction(event: Event) {
@@ -1532,6 +1597,51 @@ function clearCanvas() {
                 <li v-for="issue in backtestIssues" :key="issue.id">{{ issue.message }}</li>
               </ul>
             </section>
+
+            <section v-if="backtestRunResult || backtestRunError" class="backtest-result-card">
+              <template v-if="backtestRunResult">
+                <strong>回测结果</strong>
+                <div class="backtest-metrics">
+                  <span>
+                    <small>总收益率</small>
+                    <b>{{ backtestRunResult.summary.totalReturnPercent }}%</b>
+                  </span>
+                  <span>
+                    <small>最大回撤</small>
+                    <b>{{ backtestRunResult.summary.maxDrawdownPercent }}%</b>
+                  </span>
+                  <span>
+                    <small>胜率</small>
+                    <b>{{ backtestRunResult.summary.winRatePercent }}%</b>
+                  </span>
+                  <span>
+                    <small>期末资产</small>
+                    <b>{{ backtestRunResult.summary.endingEquity }}</b>
+                  </span>
+                </div>
+                <table class="backtest-trades">
+                  <thead>
+                    <tr>
+                      <th>时间</th>
+                      <th>方向</th>
+                      <th>价格</th>
+                      <th>数量</th>
+                      <th>原因</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="trade in backtestRunResult.trades" :key="`${trade.time}-${trade.side}`">
+                      <td>{{ trade.time }}</td>
+                      <td>{{ trade.side }}</td>
+                      <td>{{ trade.price }}</td>
+                      <td>{{ trade.quantity }}</td>
+                      <td>{{ trade.reason }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </template>
+              <p v-else class="backtest-run-error">{{ backtestRunError }}</p>
+            </section>
           </div>
 
           <div class="strategy-review-column">
@@ -1550,8 +1660,13 @@ function clearCanvas() {
           <button class="review-secondary-button" type="button" @click="closeReviewModal">
             继续搭建
           </button>
-          <button class="review-primary-button" type="button" :disabled="reviewPrimaryDisabled">
-            {{ reviewPrimaryLabel }}
+          <button
+            class="review-primary-button"
+            type="button"
+            :disabled="reviewPrimaryDisabled || isBacktestRunning"
+            @click="handleReviewPrimaryAction"
+          >
+            {{ isBacktestRunning ? '回测中' : reviewPrimaryLabel }}
           </button>
         </footer>
       </aside>
