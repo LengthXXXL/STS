@@ -424,10 +424,10 @@ button {
 }
 
 .floating-block-library.is-collapsed {
-  width: 148px;
+  width: 52px;
   max-height: none;
   overflow: visible;
-  padding: 10px 12px;
+  padding: 12px 8px;
 }
 
 .block-library-header {
@@ -448,6 +448,26 @@ button {
   letter-spacing: 2px;
 }
 
+.floating-block-library.is-collapsed .block-library-header {
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 0;
+}
+
+.floating-block-library.is-collapsed .block-library-header h2 {
+  writing-mode: vertical-rl;
+  text-orientation: upright;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 1;
+  letter-spacing: 2px;
+}
+
+.floating-block-library.is-collapsed .block-library-header-actions span {
+  display: none;
+}
+
 .block-library-header-actions {
   display: flex;
   align-items: center;
@@ -455,15 +475,30 @@ button {
 }
 
 .block-library-collapse-toggle {
-  width: 26px;
-  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
   border: 1px solid rgba(124, 77, 255, 0.42);
   border-radius: 999px;
   padding: 0;
   color: #f7f2ff;
   background: rgba(48, 33, 87, 0.72);
   cursor: pointer;
-  line-height: 1;
+}
+
+.block-library-collapse-toggle::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-top: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+  transform: translateY(2px) rotate(45deg);
+}
+
+.block-library-collapse-toggle.is-expand-arrow::before {
+  transform: translateY(-2px) rotate(225deg);
 }
 
 .block-library-collapse-toggle:hover {

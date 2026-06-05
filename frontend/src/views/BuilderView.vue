@@ -1722,13 +1722,12 @@ function clearCanvas() {
           <span aria-hidden="true">••</span>
           <button
             class="block-library-collapse-toggle"
+            :class="{ 'is-expand-arrow': isLibraryCollapsed }"
             type="button"
             :aria-label="isLibraryCollapsed ? '展开积木库' : '收起积木库'"
             @pointerdown.stop
             @click.stop="toggleLibraryCollapsed"
-          >
-            {{ isLibraryCollapsed ? '⌄' : '⌃' }}
-          </button>
+          ></button>
         </div>
       </header>
       <input
