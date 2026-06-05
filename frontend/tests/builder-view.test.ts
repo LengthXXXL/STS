@@ -275,6 +275,7 @@ describe('builder view', () => {
 
     await wrapper.find('.canvas-block').trigger('contextmenu', { clientX: 260, clientY: 170 })
     expect(wrapper.find('.context-menu').exists()).toBe(true)
+    expect(wrapper.find('.block-inspector').exists()).toBe(false)
 
     await wrapper.find('.context-menu-delete').trigger('click')
 
@@ -334,7 +335,7 @@ describe('builder view', () => {
     expect(wrapper.findAll('.canvas-block')).toHaveLength(2)
     expect(wrapper.find('.connection-path').exists()).toBe(true)
     expect(wrapper.find('.context-menu').exists()).toBe(true)
-    expect(wrapper.find('.block-inspector').exists()).toBe(true)
+    expect(wrapper.find('.block-inspector').exists()).toBe(false)
 
     await wrapper.find('.clear-canvas-button').trigger('click')
 

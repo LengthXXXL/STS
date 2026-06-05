@@ -500,7 +500,7 @@ function deleteConnection(connectionId: string) {
 
 function openBlockContextMenu(blockId: string, event: MouseEvent) {
   event.preventDefault()
-  selectBlock(blockId)
+  selectedBlockId.value = null
   contextMenu.value = {
     type: 'block',
     targetId: blockId,
