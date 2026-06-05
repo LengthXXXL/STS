@@ -9,7 +9,7 @@ from app.schemas.backtest import (
     StrategyNode,
 )
 from app.services.market_data_service import (
-    LocalMarketDataProvider,
+    DefaultMarketDataProvider,
     MarketCandle,
     MarketDataProvider,
 )
@@ -25,7 +25,7 @@ def run_backtest(
     request: BacktestRunRequest,
     market_data_provider: MarketDataProvider | None = None,
 ) -> BacktestRunResponse:
-    provider = market_data_provider or LocalMarketDataProvider()
+    provider = market_data_provider or DefaultMarketDataProvider()
 
     return run_backtest_with_candles(request, provider.get_intraday_candles(request.config))
 

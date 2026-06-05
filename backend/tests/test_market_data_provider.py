@@ -1,5 +1,14 @@
+import pytest
+
 from app.schemas.backtest import BacktestConfig
-from app.services.market_data_service import LocalMarketDataProvider
+from app.services.market_data_service import (
+    DefaultMarketDataProvider,
+    LocalMarketDataProvider,
+    MarketCandle,
+    MarketDataUnavailableError,
+    YahooChartMarketDataProvider,
+    _fetch_json,
+)
 
 
 def _config(**overrides):
@@ -35,3 +44,115 @@ def test_local_provider_uses_market_and_timeframe_to_shape_candles():
     assert a_share_candles[0].close != us_stock_candles[0].close
     assert us_stock_candles[0].time == "2026-01-01 09:31"
     assert us_stock_candles[-1].time == "2026-01-01 09:36"
+
+
+def test_yahoo_provider_parses_chart_response_into_candles():
+    requested_urls = []
+
+    def fetch_json(url):
+        requested_urls.append(url)
+        return {
+            "chart": {
+                "result": [
+                    {
+                        "meta": {"exchangeTimezoneName": "America/New_York"},
+                        "timestamp": [1767277800, 1767278100, 1767278400],
+                        "indicators": {
+                            "quote": [
+                                {
+                                    "close": [187.125, None, 188.45678],
+                                }
+                            ]
+                        },
+                    }
+                ],
+                "error": None,
+            }
+        }
+
+    provider = YahooChartMarketDataProvider(fetch_json=fetch_json)
+
+    candles = provider.get_intraday_candles(_config(market="US_STOCK", symbol="AAPL"))
+
+    assert "AAPL" in requested_urls[0]
+    assert "interval=5m" in requested_urls[0]
+    assert "period1=" in requested_urls[0]
+    assert "period2=" in requested_urls[0]
+    assert candles == [
+        MarketCandle(time="2026-01-01 09:30", close=187.125),
+        MarketCandle(time="2026-01-01 09:40", close=188.4568),
+    ]
+
+
+def test_yahoo_provider_rejects_non_us_market():
+    provider = YahooChartMarketDataProvider(fetch_json=lambda url: {})
+
+    with pytest.raises(MarketDataUnavailableError):
+        provider.get_intraday_candles(_config(market="A_SHARE"))
+
+
+def test_yahoo_provider_wraps_fetch_errors_as_unavailable():
+    def fetch_json(url):
+        raise OSError("network down")
+
+    provider = YahooChartMarketDataProvider(fetch_json=fetch_json)
+
+    with pytest.raises(MarketDataUnavailableError):
+        provider.get_intraday_candles(_config(market="US_STOCK", symbol="AAPL"))
+
+
+def test_default_provider_falls_back_when_yahoo_is_unavailable():
+    class BrokenProvider:
+        def get_intraday_candles(self, config):
+            raise MarketDataUnavailableError("network failed")
+
+    class FallbackProvider:
+        def __init__(self):
+            self.received_config = None
+
+        def get_intraday_candles(self, config):
+            self.received_config = config
+            return [MarketCandle(time="2026-01-01 09:35", close=10)]
+
+    fallback_provider = FallbackProvider()
+    provider = DefaultMarketDataProvider(
+        yahoo_provider=BrokenProvider(),
+        fallback_provider=fallback_provider,
+    )
+    config = _config(market="US_STOCK", symbol="AAPL")
+
+    candles = provider.get_intraday_candles(config)
+
+    assert fallback_provider.received_config == config
+    assert candles == [MarketCandle(time="2026-01-01 09:35", close=10)]
+
+
+def test_fetch_json_uses_explicit_ssl_context(monkeypatch):
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return None
+
+        def read(self):
+            return b'{"ok": true}'
+
+    def fake_urlopen(request, timeout, context=None):
+        captured["request"] = request
+        captured["timeout"] = timeout
+        captured["context"] = context
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.market_data_service.urlopen", fake_urlopen)
+
+    payload = _fetch_json("https://example.test/chart")
+
+    assert payload == {"ok": True}
+    assert captured["request"].full_url == "https://example.test/chart"
+    assert "Mozilla" in captured["request"].get_header("User-agent")
+    assert captured["request"].get_header("Accept") == "application/json"
+    assert captured["timeout"] == 8
+    assert captured["context"] is not None
