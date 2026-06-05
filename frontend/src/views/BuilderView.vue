@@ -3,7 +3,9 @@ import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import {
   dragOffsetFromPointer,
   screenToCanvasPoint,
+  snapCanvasPoint,
   zoomTransformAtPoint,
+  type CanvasPoint,
   type CanvasRect,
   type CanvasTransform
 } from '../utils/builderCanvas'
@@ -24,10 +26,32 @@ interface PlacedBlock {
   y: number
 }
 
+interface Connection {
+  id: string
+  fromBlockId: string
+  toBlockId: string
+}
+
+interface ActiveConnection {
+  fromBlockId: string
+  x: number
+  y: number
+}
+
 interface DragState {
   startPointer: { clientX: number; clientY: number }
   startOffset: { x: number; y: number }
 }
+
+interface PlacedBlockDragState {
+  blockId: string
+  pointerId: number
+  startPointer: CanvasPoint
+  startBlock: CanvasPoint
+}
+
+const BLOCK_WIDTH = 132
+const BLOCK_HEIGHT = 44
 
 const blockDefinitions: BlockDefinition[] = [
   { id: 'buy', label: '买入', category: '动作', tone: 'action' },
@@ -42,13 +66,18 @@ const canvasRef = ref<HTMLElement | null>(null)
 const transform = reactive<CanvasTransform>({ x: 0, y: 0, scale: 1 })
 const libraryOffset = reactive({ x: 0, y: 0 })
 const placedBlocks = ref<PlacedBlock[]>([])
+const connections = ref<Connection[]>([])
 const draggingBlock = ref<{ block: BlockDefinition; x: number; y: number } | null>(null)
+const activeConnection = ref<ActiveConnection | null>(null)
+const selectedBlockId = ref<string | null>(null)
 const isPanning = ref(false)
 const isDraggingLibrary = ref(false)
+const isSnapEnabled = ref(true)
 
 let panState: DragState | null = null
 let libraryDragState: DragState | null = null
 let blockDragState: { block: BlockDefinition; pointerId: number | null } | null = null
+let placedBlockDragState: PlacedBlockDragState | null = null
 
 const canvasStyle = computed(() => ({
   '--grid-size': `${24 * transform.scale}px`,
@@ -66,6 +95,37 @@ const libraryStyle = computed(() => ({
 
 const zoomLabel = computed(() => `${Math.round(transform.scale * 100)}%`)
 
+const connectionPaths = computed(() =>
+  connections.value
+    .map((connection) => {
+      const fromBlock = findPlacedBlock(connection.fromBlockId)
+      const toBlock = findPlacedBlock(connection.toBlockId)
+
+      if (!fromBlock || !toBlock) {
+        return null
+      }
+
+      return {
+        id: connection.id,
+        d: createConnectionPath(outputPortPoint(fromBlock), inputPortPoint(toBlock))
+      }
+    })
+    .filter((path): path is { id: string; d: string } => path !== null)
+)
+
+const activeConnectionPath = computed(() => {
+  if (!activeConnection.value) {
+    return ''
+  }
+
+  const fromBlock = findPlacedBlock(activeConnection.value.fromBlockId)
+  if (!fromBlock) {
+    return ''
+  }
+
+  return createConnectionPath(outputPortPoint(fromBlock), activeConnection.value)
+})
+
 function toCanvasRect(rect: DOMRect): CanvasRect {
   return {
     left: rect.left,
@@ -73,6 +133,46 @@ function toCanvasRect(rect: DOMRect): CanvasRect {
     width: rect.width,
     height: rect.height
   }
+}
+
+function findPlacedBlock(blockId: string) {
+  return placedBlocks.value.find((block) => block.id === blockId)
+}
+
+function inputPortPoint(block: PlacedBlock) {
+  return {
+    x: block.x,
+    y: block.y + BLOCK_HEIGHT / 2
+  }
+}
+
+function outputPortPoint(block: PlacedBlock) {
+  return {
+    x: block.x + BLOCK_WIDTH,
+    y: block.y + BLOCK_HEIGHT / 2
+  }
+}
+
+function createConnectionPath(from: CanvasPoint, to: CanvasPoint) {
+  const controlOffset = Math.max(36, Math.abs(to.x - from.x) / 2)
+  return [
+    `M ${from.x} ${from.y}`,
+    `C ${from.x + controlOffset} ${from.y}`,
+    `${to.x - controlOffset} ${to.y}`,
+    `${to.x} ${to.y}`
+  ].join(' ')
+}
+
+function snapBlockPosition(position: CanvasPoint, movingId?: string) {
+  return snapCanvasPoint(position, {
+    enabled: isSnapEnabled.value,
+    movingId,
+    targets: placedBlocks.value.map((block) => ({
+      id: block.id,
+      x: block.x,
+      y: block.y
+    }))
+  })
 }
 
 function startBlockDrag(block: BlockDefinition, event: DragEvent) {
@@ -127,14 +227,131 @@ function addBlockAtClientPoint(block: BlockDefinition, clientX: number, clientY:
   }
 
   const point = screenToCanvasPoint(clientX, clientY, toCanvasRect(rect), transform)
+  const position = snapBlockPosition(point)
   placedBlocks.value.push({
     id: `${block.id}-${Date.now()}-${placedBlocks.value.length}`,
     blockId: block.id,
     label: block.label,
     tone: block.tone,
-    x: Math.round(point.x),
-    y: Math.round(point.y)
+    x: Math.round(position.x),
+    y: Math.round(position.y)
   })
+}
+
+function selectBlock(blockId: string) {
+  selectedBlockId.value = blockId
+}
+
+function deleteBlock(blockId: string) {
+  placedBlocks.value = placedBlocks.value.filter((block) => block.id !== blockId)
+  connections.value = connections.value.filter(
+    (connection) => connection.fromBlockId !== blockId && connection.toBlockId !== blockId
+  )
+
+  if (selectedBlockId.value === blockId) {
+    selectedBlockId.value = null
+  }
+}
+
+function startPlacedBlockDrag(block: PlacedBlock, event: PointerEvent) {
+  if (event.button !== 0) {
+    return
+  }
+
+  const rect = canvasRef.value?.getBoundingClientRect()
+  if (!rect) {
+    return
+  }
+
+  event.preventDefault()
+  selectBlock(block.id)
+  placedBlockDragState = {
+    blockId: block.id,
+    pointerId: event.pointerId,
+    startPointer: screenToCanvasPoint(event.clientX, event.clientY, toCanvasRect(rect), transform),
+    startBlock: { x: block.x, y: block.y }
+  }
+  ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+}
+
+function movePlacedBlockDrag(event: PointerEvent) {
+  if (!placedBlockDragState || placedBlockDragState.pointerId !== event.pointerId) {
+    return
+  }
+
+  const rect = canvasRef.value?.getBoundingClientRect()
+  const block = findPlacedBlock(placedBlockDragState.blockId)
+  if (!rect || !block) {
+    return
+  }
+
+  const currentPointer = screenToCanvasPoint(event.clientX, event.clientY, toCanvasRect(rect), transform)
+  const nextPosition = snapBlockPosition(
+    {
+      x: placedBlockDragState.startBlock.x + currentPointer.x - placedBlockDragState.startPointer.x,
+      y: placedBlockDragState.startBlock.y + currentPointer.y - placedBlockDragState.startPointer.y
+    },
+    block.id
+  )
+  block.x = Math.round(nextPosition.x)
+  block.y = Math.round(nextPosition.y)
+}
+
+function endPlacedBlockDrag(event: PointerEvent) {
+  if (!placedBlockDragState || placedBlockDragState.pointerId !== event.pointerId) {
+    return
+  }
+
+  placedBlockDragState = null
+  ;(event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId)
+}
+
+function startConnection(blockId: string, event: PointerEvent) {
+  const rect = canvasRef.value?.getBoundingClientRect()
+  if (!rect) {
+    return
+  }
+
+  event.preventDefault()
+  selectBlock(blockId)
+  activeConnection.value = {
+    fromBlockId: blockId,
+    ...screenToCanvasPoint(event.clientX, event.clientY, toCanvasRect(rect), transform)
+  }
+}
+
+function updateActiveConnection(event: PointerEvent) {
+  const rect = canvasRef.value?.getBoundingClientRect()
+  if (!activeConnection.value || !rect) {
+    return
+  }
+
+  const point = screenToCanvasPoint(event.clientX, event.clientY, toCanvasRect(rect), transform)
+  activeConnection.value.x = point.x
+  activeConnection.value.y = point.y
+}
+
+function finishConnection(toBlockId: string, event: PointerEvent) {
+  event.preventDefault()
+  if (!activeConnection.value || activeConnection.value.fromBlockId === toBlockId) {
+    activeConnection.value = null
+    return
+  }
+
+  const exists = connections.value.some(
+    (connection) =>
+      connection.fromBlockId === activeConnection.value?.fromBlockId &&
+      connection.toBlockId === toBlockId
+  )
+  if (!exists) {
+    connections.value.push({
+      id: `${activeConnection.value.fromBlockId}-${toBlockId}`,
+      fromBlockId: activeConnection.value.fromBlockId,
+      toBlockId
+    })
+  }
+
+  activeConnection.value = null
 }
 
 function startPointerBlockDrag(block: BlockDefinition, event: PointerEvent) {
@@ -178,8 +395,23 @@ function endMouseBlockDrag(event: MouseEvent) {
   }
 
   finishBlockDrag(event.clientX, event.clientY)
+  removeMouseBlockDragListeners()
+}
+
+function cancelMouseBlockDrag() {
+  if (!blockDragState || blockDragState.pointerId !== null) {
+    return
+  }
+
+  draggingBlock.value = null
+  blockDragState = null
+  removeMouseBlockDragListeners()
+}
+
+function removeMouseBlockDragListeners() {
   window.removeEventListener('mousemove', moveMouseBlockDrag)
   window.removeEventListener('mouseup', endMouseBlockDrag)
+  window.removeEventListener('blur', cancelMouseBlockDrag)
 }
 
 function startMouseBlockDrag(block: BlockDefinition, event: MouseEvent) {
@@ -191,11 +423,11 @@ function startMouseBlockDrag(block: BlockDefinition, event: MouseEvent) {
   beginBlockDrag(block, event.clientX, event.clientY, null)
   window.addEventListener('mousemove', moveMouseBlockDrag)
   window.addEventListener('mouseup', endMouseBlockDrag)
+  window.addEventListener('blur', cancelMouseBlockDrag)
 }
 
 onBeforeUnmount(() => {
-  window.removeEventListener('mousemove', moveMouseBlockDrag)
-  window.removeEventListener('mouseup', endMouseBlockDrag)
+  removeMouseBlockDragListeners()
 })
 
 function allowCanvasDrop(event: DragEvent) {
@@ -276,6 +508,11 @@ function startCanvasPan(event: PointerEvent) {
 }
 
 function moveCanvasPan(event: PointerEvent) {
+  if (activeConnection.value) {
+    updateActiveConnection(event)
+    return
+  }
+
   if (!panState) {
     return
   }
@@ -286,6 +523,11 @@ function moveCanvasPan(event: PointerEvent) {
 }
 
 function endCanvasPan(event: PointerEvent) {
+  if (activeConnection.value) {
+    activeConnection.value = null
+    return
+  }
+
   if (!panState) {
     return
   }
@@ -327,6 +569,10 @@ function endLibraryDrag(event: PointerEvent) {
   isDraggingLibrary.value = false
   ;(event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId)
 }
+
+function toggleSnap() {
+  isSnapEnabled.value = !isSnapEnabled.value
+}
 </script>
 
 <template>
@@ -345,14 +591,54 @@ function endLibraryDrag(event: PointerEvent) {
     @wheel="zoomCanvas"
   >
     <div class="canvas-world" :style="worldStyle">
+      <svg class="connection-layer" aria-hidden="true">
+        <path
+          v-for="path in connectionPaths"
+          :key="path.id"
+          class="connection-path"
+          :d="path.d"
+        />
+        <path
+          v-if="activeConnectionPath"
+          class="connection-path connection-path--draft"
+          :d="activeConnectionPath"
+        />
+      </svg>
+
       <article
         v-for="block in placedBlocks"
         :key="block.id"
         class="canvas-block"
-        :class="`canvas-block--${block.tone}`"
+        :class="[`canvas-block--${block.tone}`, { 'is-selected': selectedBlockId === block.id }]"
         :style="{ transform: `translate(${block.x}px, ${block.y}px)` }"
+        @click.stop="selectBlock(block.id)"
+        @pointerdown.stop="startPlacedBlockDrag(block, $event)"
+        @pointermove.stop="movePlacedBlockDrag"
+        @pointerup.stop="endPlacedBlockDrag"
+        @pointercancel.stop="endPlacedBlockDrag"
       >
+        <button
+          v-if="selectedBlockId === block.id"
+          class="canvas-block-delete"
+          type="button"
+          aria-label="删除积木"
+          @click.stop="deleteBlock(block.id)"
+        >
+          ×
+        </button>
+        <span
+          class="connection-port connection-port--input"
+          data-port="input"
+          aria-label="输入端口"
+          @pointerup.stop="finishConnection(block.id, $event)"
+        />
         <span>{{ block.label }}</span>
+        <span
+          class="connection-port connection-port--output"
+          data-port="output"
+          aria-label="输出端口"
+          @pointerdown.stop="startConnection(block.id, $event)"
+        />
       </article>
     </div>
 
@@ -408,6 +694,14 @@ function endLibraryDrag(event: PointerEvent) {
       <span>{{ zoomLabel }}</span>
       <button type="button" aria-label="放大画布" @click="zoomBy(1)">+</button>
       <button type="button" aria-label="重置视图" @click="resetView">↺</button>
+      <button
+        class="snap-toggle"
+        type="button"
+        :aria-pressed="isSnapEnabled"
+        @click="toggleSnap"
+      >
+        磁吸{{ isSnapEnabled ? '开' : '关' }}
+      </button>
     </div>
   </section>
 </template>

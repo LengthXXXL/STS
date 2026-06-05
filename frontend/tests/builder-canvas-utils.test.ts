@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   dragOffsetFromPointer,
   screenToCanvasPoint,
+  snapCanvasPoint,
   zoomTransformAtPoint,
   type CanvasRect,
   type CanvasTransform
@@ -40,5 +41,31 @@ describe('builder canvas utilities', () => {
     )
 
     expect(offset).toEqual({ x: 57, y: -38 })
+  })
+
+  it('snaps points to grid and nearby component positions when enabled', () => {
+    const snapped = snapCanvasPoint(
+      { x: 62, y: 97 },
+      {
+        enabled: true,
+        targets: [{ id: 'a', x: 120, y: 96 }],
+        movingId: 'b'
+      }
+    )
+
+    expect(snapped).toEqual({ x: 72, y: 96 })
+  })
+
+  it('leaves points untouched when snapping is disabled', () => {
+    const snapped = snapCanvasPoint(
+      { x: 62, y: 97 },
+      {
+        enabled: false,
+        targets: [{ id: 'a', x: 120, y: 96 }],
+        movingId: 'b'
+      }
+    )
+
+    expect(snapped).toEqual({ x: 62, y: 97 })
   })
 })

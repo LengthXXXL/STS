@@ -16,8 +16,27 @@ interface PointerPoint {
   clientY: number
 }
 
+export interface CanvasPoint {
+  x: number
+  y: number
+}
+
+export interface SnapTarget extends CanvasPoint {
+  id: string
+}
+
+export interface SnapOptions {
+  enabled: boolean
+  targets?: SnapTarget[]
+  movingId?: string
+  gridSize?: number
+  threshold?: number
+}
+
 const MIN_SCALE = 0.45
 const MAX_SCALE = 2.4
+const DEFAULT_GRID_SIZE = 24
+const DEFAULT_SNAP_THRESHOLD = 14
 
 export function clampScale(scale: number) {
   return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale))
@@ -64,4 +83,33 @@ export function dragOffsetFromPointer(
     x: startOffset.x + currentPointer.clientX - startPointer.clientX,
     y: startOffset.y + currentPointer.clientY - startPointer.clientY
   }
+}
+
+export function snapCanvasPoint(point: CanvasPoint, options: SnapOptions): CanvasPoint {
+  if (!options.enabled) {
+    return point
+  }
+
+  const gridSize = options.gridSize ?? DEFAULT_GRID_SIZE
+  const threshold = options.threshold ?? DEFAULT_SNAP_THRESHOLD
+  const snapped = {
+    x: Math.round(point.x / gridSize) * gridSize,
+    y: Math.round(point.y / gridSize) * gridSize
+  }
+
+  for (const target of options.targets ?? []) {
+    if (target.id === options.movingId) {
+      continue
+    }
+
+    if (Math.abs(point.x - target.x) <= threshold) {
+      snapped.x = target.x
+    }
+
+    if (Math.abs(point.y - target.y) <= threshold) {
+      snapped.y = target.y
+    }
+  }
+
+  return snapped
 }
