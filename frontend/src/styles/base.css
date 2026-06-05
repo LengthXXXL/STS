@@ -159,7 +159,9 @@ button {
 .space-header p,
 .space-muted,
 .strategy-item p,
+.account-item p,
 .strategy-item small,
+.account-item small,
 .space-footer {
   color: #a89bc1;
 }
@@ -181,6 +183,7 @@ button {
 .space-search button,
 .strategy-item-actions button,
 .space-tabs button,
+.account-form-actions button,
 .backtest-open-button,
 .space-lane button {
   border: 1px solid #3a3150;
@@ -223,6 +226,7 @@ button {
 
 .space-metric,
 .space-lane,
+.account-form,
 .space-detail-panel {
   border: 1px solid rgba(58, 49, 80, 0.82);
   border-radius: 8px;
@@ -274,12 +278,14 @@ button {
   gap: 12px;
 }
 
-.strategy-list {
+.strategy-list,
+.account-list {
   display: grid;
   gap: 10px;
 }
 
 .strategy-item,
+.account-item,
 .backtest-item {
   display: flex;
   align-items: center;
@@ -292,12 +298,14 @@ button {
 }
 
 .strategy-item h2,
+.account-item h2,
 .backtest-item h2 {
   margin: 0 0 6px;
   font-size: 17px;
 }
 
 .strategy-item p,
+.account-item p,
 .backtest-item p {
   margin: 0 0 8px;
 }
@@ -317,10 +325,92 @@ button {
   background: rgba(21, 57, 53, 0.76);
 }
 
-.strategy-delete-button {
+.strategy-delete-button,
+.account-delete-button {
   color: #ffe4ea !important;
   border-color: rgba(255, 139, 167, 0.48) !important;
   background: rgba(64, 25, 40, 0.72) !important;
+}
+
+.account-edit-button {
+  border-color: rgba(124, 77, 255, 0.58) !important;
+  background: rgba(48, 33, 87, 0.82) !important;
+}
+
+.account-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.account-form {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.account-form strong {
+  font-size: 17px;
+}
+
+.account-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.account-form label span {
+  color: #a89bc1;
+  font-size: 13px;
+}
+
+.account-form input,
+.account-form select,
+.account-form textarea {
+  width: 100%;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #f7f2ff;
+  background: #09080d;
+}
+
+.account-form textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.account-form-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.account-submit-button {
+  border-color: rgba(94, 230, 200, 0.44) !important;
+  background: rgba(21, 57, 53, 0.76) !important;
+}
+
+.space-pagination {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.space-pagination button {
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: #f7f2ff;
+  background: #191522;
+  cursor: pointer;
+}
+
+.space-pagination button:disabled {
+  color: #6f657f;
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .backtest-layout {
@@ -1384,6 +1474,7 @@ button {
   .space-header,
   .space-lane,
   .strategy-item,
+  .account-item,
   .backtest-item {
     align-items: stretch;
     flex-direction: column;
@@ -1404,6 +1495,7 @@ button {
 
   .space-overview-grid,
   .space-overview-lanes,
+  .account-layout,
   .backtest-layout,
   .backtest-detail-metrics {
     grid-template-columns: 1fr;

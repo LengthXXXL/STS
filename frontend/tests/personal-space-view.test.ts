@@ -16,6 +16,8 @@ vi.mock('vue-router', () => ({
 vi.mock('../src/api/http', () => ({
   apiClient: {
     get: vi.fn(),
+    post: vi.fn(),
+    put: vi.fn(),
     delete: vi.fn()
   }
 }))
@@ -68,6 +70,17 @@ const savedBacktest = {
   endingEquity: 107350,
   tradeCount: 4,
   createdAt: '2026-06-06T10:00:00'
+}
+
+const savedAccount = {
+  id: 3,
+  ownerId: 1,
+  name: 'A股日内账户',
+  description: '专门用于五分钟策略测试',
+  market: 'A_SHARE',
+  initialCash: 100000,
+  createdAt: '2026-06-06T09:00:00',
+  updatedAt: '2026-06-06T09:00:00'
 }
 
 const backtestDetail = {
@@ -125,6 +138,16 @@ function mockPersonalSpaceRequests() {
         }
       })
     }
+    if (url === '/simulation-accounts') {
+      return Promise.resolve({
+        data: {
+          items: [savedAccount],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
     if (url === '/backtests/11') {
       return Promise.resolve({ data: backtestDetail })
     }
@@ -150,12 +173,18 @@ describe('personal space view', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/backtests', {
       params: { keyword: '', page: 1, pageSize: 10 }
     })
+    expect(apiClient.get).toHaveBeenCalledWith('/simulation-accounts', {
+      params: { keyword: '', page: 1, pageSize: 10 }
+    })
     expect(wrapper.text()).toContain('概览')
     expect(wrapper.text()).toContain('我的策略')
+    expect(wrapper.text()).toContain('模拟账户')
     expect(wrapper.text()).toContain('我的回测')
     expect(wrapper.text()).toContain('策略总数')
+    expect(wrapper.text()).toContain('账户总数')
     expect(wrapper.text()).toContain('回测总数')
     expect(wrapper.text()).toContain('五分钟突破策略')
+    expect(wrapper.text()).toContain('A股日内账户')
     expect(wrapper.text()).toContain('000001.SZ')
 
     await wrapper.find('.strategy-open-button').trigger('click')
@@ -199,5 +228,91 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('回测详情')
     expect(wrapper.text()).toContain('买入积木触发')
     expect(wrapper.text()).toContain('107350')
+  })
+
+  it('creates, edits and deletes a simulation account', async () => {
+    mockPersonalSpaceRequests()
+    vi.mocked(apiClient.post).mockResolvedValueOnce({ data: savedAccount })
+    vi.mocked(apiClient.put).mockResolvedValueOnce({
+      data: { ...savedAccount, name: '美股一分钟账户', market: 'US_STOCK', initialCash: 50000 }
+    })
+    vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: null })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="accounts"]').trigger('click')
+
+    expect(wrapper.text()).toContain('A股日内账户')
+    expect(wrapper.text()).toContain('100000')
+
+    await wrapper.find('.account-name-input').setValue('美股一分钟账户')
+    await wrapper.find('.account-market-select').setValue('US_STOCK')
+    await wrapper.find('.account-cash-input').setValue('50000')
+    await wrapper.find('.account-description-input').setValue('一分钟策略测试')
+    await wrapper.find('.account-submit-button').trigger('click')
+
+    expect(apiClient.post).toHaveBeenCalledWith('/simulation-accounts', {
+      name: '美股一分钟账户',
+      description: '一分钟策略测试',
+      market: 'US_STOCK',
+      initialCash: 50000
+    })
+    await flushPromises()
+
+    await wrapper.find('.account-edit-button').trigger('click')
+    await wrapper.find('.account-name-input').setValue('美股一分钟账户')
+    await wrapper.find('.account-submit-button').trigger('click')
+
+    expect(apiClient.put).toHaveBeenCalledWith('/simulation-accounts/3', {
+      name: '美股一分钟账户',
+      description: '专门用于五分钟策略测试',
+      market: 'A_SHARE',
+      initialCash: 100000
+    })
+
+    await wrapper.find('.account-delete-button').trigger('click')
+    expect(apiClient.delete).toHaveBeenCalledWith('/simulation-accounts/3')
+  })
+
+  it('changes pages for strategy, account and backtest lists', async () => {
+    vi.mocked(apiClient.get).mockImplementation((url: string, config?: { params?: { page?: number } }) => {
+      const page = config?.params?.page ?? 1
+      if (url === '/strategies') {
+        return Promise.resolve({
+          data: { items: [savedStrategy], total: 11, page, pageSize: 10 }
+        })
+      }
+      if (url === '/simulation-accounts') {
+        return Promise.resolve({
+          data: { items: [savedAccount], total: 11, page, pageSize: 10 }
+        })
+      }
+      if (url === '/backtests') {
+        return Promise.resolve({
+          data: { items: [savedBacktest], total: 11, page, pageSize: 10 }
+        })
+      }
+      return Promise.reject(new Error(`Unhandled GET ${url}`))
+    })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="strategies"]').trigger('click')
+    await wrapper.find('[data-pagination="strategies-next"]').trigger('click')
+    expect(apiClient.get).toHaveBeenCalledWith('/strategies', {
+      params: { keyword: '', page: 2, pageSize: 10 }
+    })
+
+    await wrapper.find('[data-space-tab="accounts"]').trigger('click')
+    await wrapper.find('[data-pagination="accounts-next"]').trigger('click')
+    expect(apiClient.get).toHaveBeenCalledWith('/simulation-accounts', {
+      params: { keyword: '', page: 2, pageSize: 10 }
+    })
+
+    await wrapper.find('[data-space-tab="backtests"]').trigger('click')
+    await wrapper.find('[data-pagination="backtests-next"]').trigger('click')
+    expect(apiClient.get).toHaveBeenCalledWith('/backtests', {
+      params: { keyword: '', page: 2, pageSize: 10 }
+    })
   })
 })

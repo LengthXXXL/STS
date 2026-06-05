@@ -7,7 +7,7 @@ import {
   type SavedStrategy
 } from '../stores/strategyWorkspace'
 
-type SpaceTab = 'overview' | 'strategies' | 'backtests'
+type SpaceTab = 'overview' | 'strategies' | 'accounts' | 'backtests'
 
 interface StrategyListResponse {
   items: SavedStrategy[]
@@ -35,6 +35,24 @@ interface BacktestListItem {
 
 interface BacktestListResponse {
   items: BacktestListItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+interface SimulationAccount {
+  id: number
+  ownerId: number
+  name: string
+  description: string | null
+  market: 'A_SHARE' | 'US_STOCK'
+  initialCash: number
+  createdAt: string
+  updatedAt: string
+}
+
+interface SimulationAccountListResponse {
+  items: SimulationAccount[]
   total: number
   page: number
   pageSize: number
@@ -69,20 +87,33 @@ const router = useRouter()
 const workspaceStore = useStrategyWorkspaceStore()
 const activeTab = ref<SpaceTab>('overview')
 const strategies = ref<SavedStrategy[]>([])
+const accounts = ref<SimulationAccount[]>([])
 const backtests = ref<BacktestListItem[]>([])
 const selectedBacktest = ref<BacktestDetail | null>(null)
 const strategyKeyword = ref('')
+const accountKeyword = ref('')
 const backtestKeyword = ref('')
 const strategyPage = ref(1)
+const accountPage = ref(1)
 const backtestPage = ref(1)
 const pageSize = 10
 const strategyTotal = ref(0)
+const accountTotal = ref(0)
 const backtestTotal = ref(0)
 const strategyLoading = ref(false)
+const accountLoading = ref(false)
 const backtestLoading = ref(false)
 const backtestDetailLoading = ref(false)
 const strategyError = ref('')
+const accountError = ref('')
 const backtestError = ref('')
+const editingAccountId = ref<number | null>(null)
+const accountForm = ref({
+  name: '',
+  description: '',
+  market: 'A_SHARE' as SimulationAccount['market'],
+  initialCash: 100000
+})
 
 const bestBacktest = computed(() =>
   backtests.value.reduce<BacktestListItem | null>((best, item) => {
@@ -103,7 +134,11 @@ const lowestDrawdownBacktest = computed(() =>
 )
 
 const latestStrategy = computed(() => strategies.value[0] ?? null)
+const latestAccount = computed(() => accounts.value[0] ?? null)
 const latestBacktest = computed(() => backtests.value[0] ?? null)
+const strategyTotalPages = computed(() => Math.max(1, Math.ceil(strategyTotal.value / pageSize)))
+const accountTotalPages = computed(() => Math.max(1, Math.ceil(accountTotal.value / pageSize)))
+const backtestTotalPages = computed(() => Math.max(1, Math.ceil(backtestTotal.value / pageSize)))
 
 async function loadStrategies() {
   strategyLoading.value = true
@@ -128,6 +163,31 @@ async function loadStrategies() {
 async function searchStrategies() {
   strategyPage.value = 1
   await loadStrategies()
+}
+
+async function loadAccounts() {
+  accountLoading.value = true
+  accountError.value = ''
+  try {
+    const response = await apiClient.get<SimulationAccountListResponse>('/simulation-accounts', {
+      params: {
+        keyword: accountKeyword.value.trim(),
+        page: accountPage.value,
+        pageSize
+      }
+    })
+    accounts.value = response.data.items
+    accountTotal.value = response.data.total
+  } catch {
+    accountError.value = '模拟账户加载失败，请确认已登录'
+  } finally {
+    accountLoading.value = false
+  }
+}
+
+async function searchAccounts() {
+  accountPage.value = 1
+  await loadAccounts()
 }
 
 async function loadBacktests() {
@@ -167,6 +227,10 @@ async function searchActiveTab() {
     await searchStrategies()
     return
   }
+  if (activeTab.value === 'accounts') {
+    await searchAccounts()
+    return
+  }
   if (activeTab.value === 'backtests') {
     await searchBacktests()
   }
@@ -182,6 +246,51 @@ async function deleteStrategy(strategy: SavedStrategy) {
   await loadStrategies()
 }
 
+function resetAccountForm() {
+  editingAccountId.value = null
+  accountForm.value = {
+    name: '',
+    description: '',
+    market: 'A_SHARE',
+    initialCash: 100000
+  }
+}
+
+async function submitAccount() {
+  const payload = {
+    name: accountForm.value.name.trim(),
+    description: accountForm.value.description.trim() || null,
+    market: accountForm.value.market,
+    initialCash: Number(accountForm.value.initialCash)
+  }
+
+  if (editingAccountId.value) {
+    await apiClient.put(`/simulation-accounts/${editingAccountId.value}`, payload)
+  } else {
+    await apiClient.post('/simulation-accounts', payload)
+  }
+  await loadAccounts()
+  resetAccountForm()
+}
+
+function editAccount(account: SimulationAccount) {
+  editingAccountId.value = account.id
+  accountForm.value = {
+    name: account.name,
+    description: account.description ?? '',
+    market: account.market,
+    initialCash: account.initialCash
+  }
+}
+
+async function deleteAccount(account: SimulationAccount) {
+  await apiClient.delete(`/simulation-accounts/${account.id}`)
+  if (editingAccountId.value === account.id) {
+    resetAccountForm()
+  }
+  await loadAccounts()
+}
+
 async function openBacktest(backtest: BacktestListItem) {
   backtestDetailLoading.value = true
   backtestError.value = ''
@@ -193,6 +302,31 @@ async function openBacktest(backtest: BacktestListItem) {
   } finally {
     backtestDetailLoading.value = false
   }
+}
+
+async function changeStrategyPage(nextPage: number) {
+  if (nextPage < 1 || nextPage > strategyTotalPages.value || nextPage === strategyPage.value) {
+    return
+  }
+  strategyPage.value = nextPage
+  await loadStrategies()
+}
+
+async function changeAccountPage(nextPage: number) {
+  if (nextPage < 1 || nextPage > accountTotalPages.value || nextPage === accountPage.value) {
+    return
+  }
+  accountPage.value = nextPage
+  await loadAccounts()
+}
+
+async function changeBacktestPage(nextPage: number) {
+  if (nextPage < 1 || nextPage > backtestTotalPages.value || nextPage === backtestPage.value) {
+    return
+  }
+  backtestPage.value = nextPage
+  selectedBacktest.value = null
+  await loadBacktests()
 }
 
 function formatMarket(market: BacktestListItem['market'] | undefined) {
@@ -219,6 +353,7 @@ function formatDate(value: string | undefined) {
 
 onMounted(() => {
   void loadStrategies()
+  void loadAccounts()
   void loadBacktests()
 })
 </script>
@@ -235,6 +370,11 @@ onMounted(() => {
           v-if="activeTab === 'strategies'"
           v-model="strategyKeyword"
           placeholder="搜索策略"
+        />
+        <input
+          v-else-if="activeTab === 'accounts'"
+          v-model="accountKeyword"
+          placeholder="搜索账户、市场"
         />
         <input
           v-else
@@ -264,6 +404,14 @@ onMounted(() => {
       </button>
       <button
         type="button"
+        data-space-tab="accounts"
+        :class="{ 'is-active': activeTab === 'accounts' }"
+        @click="activeTab = 'accounts'"
+      >
+        模拟账户
+      </button>
+      <button
+        type="button"
         data-space-tab="backtests"
         :class="{ 'is-active': activeTab === 'backtests' }"
         @click="activeTab = 'backtests'"
@@ -281,6 +429,10 @@ onMounted(() => {
         <article class="space-metric">
           <small>回测总数</small>
           <strong>{{ backtestTotal }}</strong>
+        </article>
+        <article class="space-metric">
+          <small>账户总数</small>
+          <strong>{{ accountTotal }}</strong>
         </article>
         <article class="space-metric">
           <small>最佳收益</small>
@@ -310,6 +462,24 @@ onMounted(() => {
             @click="openStrategy(latestStrategy)"
           >
             打开
+          </button>
+        </article>
+        <article class="space-lane">
+          <div>
+            <small>最近账户</small>
+            <h2>{{ latestAccount?.name || '暂无账户' }}</h2>
+            <p v-if="latestAccount">
+              {{ formatMarket(latestAccount.market) }}
+              ·
+              初始资金 {{ latestAccount.initialCash }}
+            </p>
+          </div>
+          <button
+            v-if="latestAccount"
+            type="button"
+            @click="activeTab = 'accounts'"
+          >
+            管理
           </button>
         </article>
         <article class="space-lane">
@@ -372,6 +542,128 @@ onMounted(() => {
 
       <footer class="space-footer">
         <span>共 {{ strategyTotal }} 条策略</span>
+        <div class="space-pagination">
+          <button
+            type="button"
+            data-pagination="strategies-prev"
+            :disabled="strategyPage <= 1"
+            @click="changeStrategyPage(strategyPage - 1)"
+          >
+            上一页
+          </button>
+          <span>第 {{ strategyPage }} / {{ strategyTotalPages }} 页</span>
+          <button
+            type="button"
+            data-pagination="strategies-next"
+            :disabled="strategyPage >= strategyTotalPages"
+            @click="changeStrategyPage(strategyPage + 1)"
+          >
+            下一页
+          </button>
+        </div>
+      </footer>
+    </section>
+
+    <section v-else-if="activeTab === 'accounts'" class="space-section">
+      <p v-if="accountError" class="form-error">{{ accountError }}</p>
+
+      <div class="account-layout">
+        <form class="account-form" @submit.prevent="submitAccount">
+          <strong>{{ editingAccountId ? '编辑模拟账户' : '创建模拟账户' }}</strong>
+          <label>
+            <span>账户名称</span>
+            <input
+              v-model="accountForm.name"
+              class="account-name-input"
+              required
+              maxlength="80"
+              placeholder="例如 A股日内账户"
+            />
+          </label>
+          <label>
+            <span>市场</span>
+            <select v-model="accountForm.market" class="account-market-select">
+              <option value="A_SHARE">A股</option>
+              <option value="US_STOCK">美股</option>
+            </select>
+          </label>
+          <label>
+            <span>初始资金</span>
+            <input
+              v-model.number="accountForm.initialCash"
+              class="account-cash-input"
+              type="number"
+              min="1"
+              required
+            />
+          </label>
+          <label>
+            <span>备注</span>
+            <textarea
+              v-model="accountForm.description"
+              class="account-description-input"
+              maxlength="500"
+              placeholder="用途、周期或资金规则"
+            />
+          </label>
+          <div class="account-form-actions">
+            <button class="account-submit-button" type="submit" @click.prevent="submitAccount">
+              {{ editingAccountId ? '保存修改' : '创建账户' }}
+            </button>
+            <button v-if="editingAccountId" type="button" @click="resetAccountForm">
+              取消
+            </button>
+          </div>
+        </form>
+
+        <div class="account-list">
+          <p v-if="accountLoading" class="space-muted">正在加载模拟账户</p>
+          <p v-else-if="accounts.length === 0" class="space-muted">暂无模拟账户</p>
+          <article v-for="account in accounts" v-else :key="account.id" class="account-item">
+            <div>
+              <h2>{{ account.name }}</h2>
+              <p>{{ account.description || '无描述' }}</p>
+              <small>
+                {{ formatMarket(account.market) }}
+                ·
+                初始资金 {{ account.initialCash }}
+                ·
+                更新于 {{ formatDate(account.updatedAt) }}
+              </small>
+            </div>
+            <div class="strategy-item-actions">
+              <button class="account-edit-button" type="button" @click="editAccount(account)">
+                编辑
+              </button>
+              <button class="account-delete-button" type="button" @click="deleteAccount(account)">
+                删除
+              </button>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <footer class="space-footer">
+        <span>共 {{ accountTotal }} 个账户</span>
+        <div class="space-pagination">
+          <button
+            type="button"
+            data-pagination="accounts-prev"
+            :disabled="accountPage <= 1"
+            @click="changeAccountPage(accountPage - 1)"
+          >
+            上一页
+          </button>
+          <span>第 {{ accountPage }} / {{ accountTotalPages }} 页</span>
+          <button
+            type="button"
+            data-pagination="accounts-next"
+            :disabled="accountPage >= accountTotalPages"
+            @click="changeAccountPage(accountPage + 1)"
+          >
+            下一页
+          </button>
+        </div>
       </footer>
     </section>
 
@@ -452,6 +744,25 @@ onMounted(() => {
 
       <footer class="space-footer">
         <span>共 {{ backtestTotal }} 条回测</span>
+        <div class="space-pagination">
+          <button
+            type="button"
+            data-pagination="backtests-prev"
+            :disabled="backtestPage <= 1"
+            @click="changeBacktestPage(backtestPage - 1)"
+          >
+            上一页
+          </button>
+          <span>第 {{ backtestPage }} / {{ backtestTotalPages }} 页</span>
+          <button
+            type="button"
+            data-pagination="backtests-next"
+            :disabled="backtestPage >= backtestTotalPages"
+            @click="changeBacktestPage(backtestPage + 1)"
+          >
+            下一页
+          </button>
+        </div>
       </footer>
     </section>
   </section>
