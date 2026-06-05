@@ -519,7 +519,8 @@ input {
 }
 
 .strategy-review-modal small,
-.draft-status {
+.draft-status,
+.draft-storage-hint {
   color: #a89bc1;
   font-size: 12px;
 }
@@ -556,6 +557,11 @@ input {
 
 .draft-status {
   margin: 0;
+}
+
+.draft-storage-hint {
+  margin: -2px 0 0;
+  line-height: 1.55;
 }
 
 .strategy-review-body {

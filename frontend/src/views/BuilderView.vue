@@ -922,18 +922,18 @@ function restoreStrategyDraft(draft: unknown) {
     transform.scale = typeof draft.viewport.scale === 'number' ? draft.viewport.scale : 1
   }
 
-  draftStatus.value = '草稿已加载'
+  draftStatus.value = '已从本机浏览器加载草稿'
 }
 
 function saveDraft() {
   localStorage.setItem(STRATEGY_DRAFT_STORAGE_KEY, strategyJson.value)
-  draftStatus.value = '草稿已保存到本机'
+  draftStatus.value = '草稿已保存到本机浏览器'
 }
 
 function loadDraft() {
   const rawDraft = localStorage.getItem(STRATEGY_DRAFT_STORAGE_KEY)
   if (!rawDraft) {
-    draftStatus.value = '暂无本地草稿'
+    draftStatus.value = '暂无本机浏览器草稿'
     return
   }
 
@@ -1763,6 +1763,9 @@ function clearCanvas() {
           <button class="save-draft-button" type="button" @click="saveDraft">保存草稿</button>
           <button class="load-draft-button" type="button" @click="loadDraft">加载草稿</button>
         </div>
+        <p class="draft-storage-hint">
+          本地草稿保存在本机浏览器，不会同步到账户；清理浏览器数据后可能丢失。
+        </p>
         <p class="draft-status">{{ draftStatus }}</p>
 
         <div class="strategy-review-body">

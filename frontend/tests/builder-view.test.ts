@@ -415,8 +415,12 @@ describe('builder view', () => {
     await dropBlock(wrapper, 'buy', 260, 170)
     await openReviewModal()
 
+    expect(wrapper.find('.draft-storage-hint').text()).toContain('本机浏览器')
+    expect(wrapper.find('.draft-storage-hint').text()).toContain('不会同步到账户')
+
     await wrapper.find('.save-draft-button').trigger('click')
     expect(localStorage.getItem('sts.builder.strategyDraft.v1')).toContain('"nodes"')
+    expect(wrapper.find('.draft-status').text()).toContain('本机浏览器')
 
     await wrapper.find('.clear-canvas-button').trigger('click')
     expect(wrapper.findAll('.canvas-block')).toHaveLength(0)
@@ -426,7 +430,7 @@ describe('builder view', () => {
     const placedBlocks = wrapper.findAll('.canvas-block')
     expect(placedBlocks).toHaveLength(1)
     expect(placedBlocks[0].text()).toContain('买入')
-    expect(wrapper.find('.draft-status').text()).toContain('已加载')
+    expect(wrapper.find('.draft-status').text()).toContain('已从本机浏览器加载草稿')
   })
 
   it('validates whether the strategy draft can run', async () => {
