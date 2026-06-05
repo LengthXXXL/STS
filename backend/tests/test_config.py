@@ -1,6 +1,13 @@
 from app.core.config import Settings
 
 
+def test_settings_uses_backend_env_file():
+    env_file = Settings.model_config["env_file"]
+
+    assert env_file.name == ".env"
+    assert env_file.parent.name == "backend"
+
+
 def test_settings_reads_database_url():
     settings = Settings(database_url="mysql+pymysql://sts:sts@localhost:3306/sts")
 
