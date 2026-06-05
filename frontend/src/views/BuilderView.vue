@@ -70,6 +70,7 @@ const blockDefinitions: BlockDefinition[] = [
 ]
 
 const canvasRef = ref<HTMLElement | null>(null)
+const libraryRef = ref<HTMLElement | null>(null)
 const transform = reactive<CanvasTransform>({ x: 0, y: 0, scale: 1 })
 const libraryOffset = reactive({ x: 0, y: 0 })
 const placedBlocks = ref<PlacedBlock[]>([])
@@ -234,6 +235,10 @@ function addBlockAtClientPoint(block: BlockDefinition, clientX: number, clientY:
     return
   }
 
+  if (isPointInsideFloatingLibrary(clientX, clientY)) {
+    return
+  }
+
   const point = screenToCanvasPoint(clientX, clientY, toCanvasRect(rect), transform)
   const position = snapBlockPosition(point)
   placedBlocks.value.push({
@@ -244,6 +249,20 @@ function addBlockAtClientPoint(block: BlockDefinition, clientX: number, clientY:
     x: Math.round(position.x),
     y: Math.round(position.y)
   })
+}
+
+function isPointInsideFloatingLibrary(clientX: number, clientY: number) {
+  const libraryRect = libraryRef.value?.getBoundingClientRect()
+  if (!libraryRect) {
+    return false
+  }
+
+  return (
+    clientX >= libraryRect.left &&
+    clientX <= libraryRect.right &&
+    clientY >= libraryRect.top &&
+    clientY <= libraryRect.bottom
+  )
 }
 
 function selectBlock(blockId: string) {
@@ -701,6 +720,7 @@ function toggleSnap() {
     </div>
 
     <aside
+      ref="libraryRef"
       class="block-library floating-block-library"
       :class="{ 'is-dragging': isDraggingLibrary }"
       :style="libraryStyle"

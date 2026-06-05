@@ -31,6 +31,22 @@ describe('builder view', () => {
     })
   }
 
+  function mockLibraryRect(wrapper: ReturnType<typeof mount>) {
+    const library = wrapper.find('.floating-block-library')
+    library.element.getBoundingClientRect = vi.fn(() => ({
+      left: 300,
+      top: 80,
+      width: 280,
+      height: 420,
+      right: 580,
+      bottom: 500,
+      x: 300,
+      y: 80,
+      toJSON: () => ({})
+    }))
+    return library
+  }
+
   it('renders a dotted canvas with a floating block library', () => {
     const wrapper = mount(BuilderView)
 
@@ -97,6 +113,21 @@ describe('builder view', () => {
     const placedBlocks = wrapper.findAll('.canvas-block')
     expect(placedBlocks).toHaveLength(1)
     expect(placedBlocks[0].text()).toContain('买入')
+  })
+
+  it('does not add a block when library drag ends inside the library panel', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    mockLibraryRect(wrapper)
+
+    await wrapper
+      .find('[data-block-id="buy"]')
+      .trigger('mousedown', { button: 0, clientX: 410, clientY: 220 })
+    window.dispatchEvent(new MouseEvent('mouseup', { clientX: 410, clientY: 220 }))
+    await nextTick()
+
+    expect(wrapper.findAll('.canvas-block')).toHaveLength(0)
+    expect(wrapper.find('.drag-preview').exists()).toBe(false)
   })
 
   it('cancels mouse block dragging when the window loses focus', async () => {
