@@ -111,19 +111,83 @@ class YahooChartMarketDataProvider:
         return candles
 
 
+class EastMoneyMarketDataProvider:
+    base_url = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
+
+    def __init__(self, fetch_json: Callable[[str], dict[str, Any]] | None = None):
+        self.fetch_json = fetch_json or _fetch_json
+
+    def get_intraday_candles(self, config: BacktestConfig) -> list[MarketCandle]:
+        if config.market != "A_SHARE":
+            raise MarketDataUnavailableError("EastMoney provider only supports A-shares")
+
+        try:
+            payload = self.fetch_json(self._build_url(config))
+        except Exception as exc:
+            raise MarketDataUnavailableError("EastMoney request failed") from exc
+        return self._parse_response(payload)
+
+    def _build_url(self, config: BacktestConfig) -> str:
+        query = urlencode(
+            {
+                "secid": _eastmoney_secid(config.symbol),
+                "fields1": "f1,f2,f3,f4,f5,f6",
+                "fields2": "f51,f52,f53,f54,f55,f56",
+                "klt": _eastmoney_timeframe(config.timeframe),
+                "fqt": "1",
+                "beg": _compact_date(config.startDate),
+                "end": _compact_date(config.endDate),
+            }
+        )
+        return f"{self.base_url}?{query}"
+
+    def _parse_response(self, payload: dict[str, Any]) -> list[MarketCandle]:
+        data = payload.get("data") if isinstance(payload, dict) else None
+        klines = data.get("klines") if isinstance(data, dict) else None
+        if not klines:
+            raise MarketDataUnavailableError("EastMoney response contains no klines")
+
+        candles: list[MarketCandle] = []
+        for raw_kline in klines:
+            parts = raw_kline.split(",")
+            if len(parts) < 3:
+                continue
+            try:
+                candles.append(
+                    MarketCandle(
+                        time=parts[0],
+                        close=round(float(parts[2]), 4),
+                    )
+                )
+            except ValueError:
+                continue
+
+        if not candles:
+            raise MarketDataUnavailableError("EastMoney response contains no usable candles")
+        return candles
+
+
 class DefaultMarketDataProvider:
     def __init__(
         self,
         yahoo_provider: MarketDataProvider | None = None,
+        eastmoney_provider: MarketDataProvider | None = None,
         fallback_provider: MarketDataProvider | None = None,
     ):
         self.yahoo_provider = yahoo_provider or YahooChartMarketDataProvider()
+        self.eastmoney_provider = eastmoney_provider or EastMoneyMarketDataProvider()
         self.fallback_provider = fallback_provider or LocalMarketDataProvider()
 
     def get_intraday_candles(self, config: BacktestConfig) -> list[MarketCandle]:
         if config.market == "US_STOCK":
             try:
                 return self.yahoo_provider.get_intraday_candles(config)
+            except MarketDataUnavailableError:
+                return self.fallback_provider.get_intraday_candles(config)
+
+        if config.market == "A_SHARE":
+            try:
+                return self.eastmoney_provider.get_intraday_candles(config)
             except MarketDataUnavailableError:
                 return self.fallback_provider.get_intraday_candles(config)
 
@@ -149,6 +213,22 @@ def _fetch_json(url: str) -> dict[str, Any]:
 
 def _start_of_day_timestamp(date_value: str) -> int:
     return int(datetime.fromisoformat(date_value).replace(tzinfo=timezone.utc).timestamp())
+
+
+def _eastmoney_secid(symbol: str) -> str:
+    code = symbol.split(".")[0]
+    suffix = symbol.split(".")[1].upper() if "." in symbol else ""
+    if suffix == "SH" or (not suffix and code.startswith(("5", "6", "9"))):
+        return f"1.{code}"
+    return f"0.{code}"
+
+
+def _eastmoney_timeframe(timeframe: str) -> str:
+    return "1" if timeframe == "1m" else "5"
+
+
+def _compact_date(date_value: str) -> str:
+    return date_value.replace("-", "")
 
 
 def _zoneinfo_or_utc(timezone_name: str | None):

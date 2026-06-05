@@ -3,6 +3,7 @@ import pytest
 from app.schemas.backtest import BacktestConfig
 from app.services.market_data_service import (
     DefaultMarketDataProvider,
+    EastMoneyMarketDataProvider,
     LocalMarketDataProvider,
     MarketCandle,
     MarketDataUnavailableError,
@@ -101,6 +102,61 @@ def test_yahoo_provider_wraps_fetch_errors_as_unavailable():
         provider.get_intraday_candles(_config(market="US_STOCK", symbol="AAPL"))
 
 
+def test_eastmoney_provider_maps_a_share_symbol_and_parses_klines():
+    requested_urls = []
+
+    def fetch_json(url):
+        requested_urls.append(url)
+        return {
+            "data": {
+                "klines": [
+                    "2026-01-01 09:35,10.10,10.25,10.30,10.00,1200",
+                    "2026-01-01 09:40,10.25,10.45678,10.50,10.20,1500",
+                ]
+            }
+        }
+
+    provider = EastMoneyMarketDataProvider(fetch_json=fetch_json)
+
+    candles = provider.get_intraday_candles(
+        _config(market="A_SHARE", symbol="000001.SZ", timeframe="5m")
+    )
+
+    assert "secid=0.000001" in requested_urls[0]
+    assert "klt=5" in requested_urls[0]
+    assert "beg=20260101" in requested_urls[0]
+    assert "end=20260102" in requested_urls[0]
+    assert candles == [
+        MarketCandle(time="2026-01-01 09:35", close=10.25),
+        MarketCandle(time="2026-01-01 09:40", close=10.4568),
+    ]
+
+
+def test_eastmoney_provider_maps_shanghai_symbols():
+    requested_urls = []
+
+    def fetch_json(url):
+        requested_urls.append(url)
+        return {"data": {"klines": ["2026-01-01 09:31,8.10,8.20,8.30,8.00,1200"]}}
+
+    provider = EastMoneyMarketDataProvider(fetch_json=fetch_json)
+
+    provider.get_intraday_candles(_config(market="A_SHARE", symbol="600000.SH", timeframe="1m"))
+
+    assert "secid=1.600000" in requested_urls[0]
+    assert "klt=1" in requested_urls[0]
+
+
+def test_eastmoney_provider_wraps_fetch_errors_as_unavailable():
+    def fetch_json(url):
+        raise OSError("network down")
+
+    provider = EastMoneyMarketDataProvider(fetch_json=fetch_json)
+
+    with pytest.raises(MarketDataUnavailableError):
+        provider.get_intraday_candles(_config(market="A_SHARE", symbol="000001.SZ"))
+
+
 def test_default_provider_falls_back_when_yahoo_is_unavailable():
     class BrokenProvider:
         def get_intraday_candles(self, config):
@@ -124,6 +180,25 @@ def test_default_provider_falls_back_when_yahoo_is_unavailable():
     candles = provider.get_intraday_candles(config)
 
     assert fallback_provider.received_config == config
+    assert candles == [MarketCandle(time="2026-01-01 09:35", close=10)]
+
+
+def test_default_provider_uses_eastmoney_for_a_share_before_fallback():
+    class EastMoneyProvider:
+        def __init__(self):
+            self.received_config = None
+
+        def get_intraday_candles(self, config):
+            self.received_config = config
+            return [MarketCandle(time="2026-01-01 09:35", close=10)]
+
+    eastmoney_provider = EastMoneyProvider()
+    provider = DefaultMarketDataProvider(eastmoney_provider=eastmoney_provider)
+    config = _config(market="A_SHARE", symbol="000001.SZ")
+
+    candles = provider.get_intraday_candles(config)
+
+    assert eastmoney_provider.received_config == config
     assert candles == [MarketCandle(time="2026-01-01 09:35", close=10)]
 
 
