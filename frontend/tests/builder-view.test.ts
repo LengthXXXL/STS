@@ -384,6 +384,25 @@ describe('builder view', () => {
     expect(wrapper.find('.draft-status').text()).toContain('已加载')
   })
 
+  it('validates whether the strategy draft can run', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+
+    expect(wrapper.find('.validation-summary').text()).toContain('需完善')
+    expect(wrapper.find('.validation-issues').text()).toContain('请至少放置一个积木')
+
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    expect(wrapper.find('.validation-summary').text()).toContain('可运行')
+    expect(wrapper.find('.validation-empty').text()).toContain('基础规则已通过')
+
+    await wrapper.find('.canvas-block').trigger('click')
+    await wrapper.find('[data-param-key="sizePercent"]').setValue('')
+
+    expect(wrapper.find('.validation-summary').text()).toContain('需完善')
+    expect(wrapper.find('.validation-issues').text()).toContain('买入 的 买入仓位 不能为空')
+  })
+
   it('clears placed blocks, connections, and context menu from the canvas controls', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)

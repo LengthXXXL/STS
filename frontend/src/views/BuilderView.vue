@@ -62,6 +62,11 @@ interface StrategyEdge {
   to: string
 }
 
+interface ValidationIssue {
+  id: string
+  message: string
+}
+
 interface Connection {
   id: string
   fromBlockId: string
@@ -333,6 +338,40 @@ const strategyDraft = computed<StrategyDraft>(() => ({
 }))
 
 const strategyJson = computed(() => JSON.stringify(strategyDraft.value, null, 2))
+
+const validationIssues = computed<ValidationIssue[]>(() => {
+  if (strategyDraft.value.nodes.length === 0) {
+    return [{ id: 'empty-nodes', message: '请至少放置一个积木' }]
+  }
+
+  const issues: ValidationIssue[] = []
+  const hasTradeAction = strategyDraft.value.nodes.some((node) =>
+    ['buy', 'sell', 'clear'].includes(node.type)
+  )
+
+  if (!hasTradeAction) {
+    issues.push({ id: 'missing-trade-action', message: '策略至少需要一个买入、卖出或清仓动作' })
+  }
+
+  strategyDraft.value.nodes.forEach((node) => {
+    const definition = blockDefinitions.find((block) => block.id === node.type)
+    definition?.fields.forEach((field) => {
+      const value = node.params[field.key]
+      if (value === undefined || value.trim() === '') {
+        issues.push({
+          id: `${node.id}-${field.key}-empty`,
+          message: `${node.label} 的 ${field.label} 不能为空`
+        })
+      }
+    })
+  })
+
+  return issues
+})
+
+const validationSummary = computed(() =>
+  validationIssues.value.length > 0 ? '需完善' : '可运行'
+)
 
 const connectionPaths = computed(() =>
   connections.value
@@ -1257,6 +1296,13 @@ function clearCanvas() {
         <button class="load-draft-button" type="button" @click="loadDraft">加载草稿</button>
       </div>
       <p class="draft-status">{{ draftStatus }}</p>
+      <section class="validation-card" :class="{ 'is-ready': validationIssues.length === 0 }">
+        <strong class="validation-summary">策略校验：{{ validationSummary }}</strong>
+        <p v-if="validationIssues.length === 0" class="validation-empty">基础规则已通过</p>
+        <ul v-else class="validation-issues">
+          <li v-for="issue in validationIssues" :key="issue.id">{{ issue.message }}</li>
+        </ul>
+      </section>
       <pre class="strategy-json-preview">{{ strategyJson }}</pre>
     </aside>
 

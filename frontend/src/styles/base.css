@@ -507,6 +507,35 @@ input {
   margin: 0;
 }
 
+.validation-card {
+  border: 1px solid rgba(255, 139, 167, 0.38);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgba(64, 25, 40, 0.42);
+}
+
+.validation-card.is-ready {
+  border-color: rgba(94, 230, 200, 0.38);
+  background: rgba(18, 59, 54, 0.34);
+}
+
+.validation-summary {
+  display: block;
+  color: #f7f2ff;
+  font-size: 13px;
+}
+
+.validation-empty,
+.validation-issues {
+  margin: 6px 0 0;
+  color: #d9d1e8;
+  font-size: 12px;
+}
+
+.validation-issues {
+  padding-left: 18px;
+}
+
 .strategy-json-preview {
   min-height: 120px;
   max-height: 220px;
