@@ -1,3 +1,9 @@
+<script setup lang="ts">
+import { useAuthStore } from './stores/auth'
+
+const authStore = useAuthStore()
+</script>
+
 <template>
   <div class="app-shell">
     <aside class="side-nav" aria-label="主导航">
@@ -14,8 +20,14 @@
           <span class="section-title">Simulated Trading System</span>
         </div>
         <div class="account-actions">
-          <RouterLink to="/login">登录</RouterLink>
-          <RouterLink to="/register">注册</RouterLink>
+          <template v-if="authStore.isAuthenticated && authStore.user">
+            <span>{{ authStore.user.username }}</span>
+            <button type="button" @click="authStore.logout">退出</button>
+          </template>
+          <template v-else>
+            <RouterLink to="/login">登录</RouterLink>
+            <RouterLink to="/register">注册</RouterLink>
+          </template>
         </div>
       </header>
 
