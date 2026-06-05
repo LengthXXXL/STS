@@ -1,6 +1,6 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { apiClient } from '../src/api/http'
 import { useAuthStore } from '../src/stores/auth'
@@ -12,6 +12,8 @@ vi.mock('../src/api/http', () => ({
     put: vi.fn()
   }
 }))
+
+enableAutoUnmount(afterEach)
 
 describe('builder view', () => {
   beforeEach(() => {
@@ -484,12 +486,17 @@ describe('builder view', () => {
   it('asks anonymous users to log in before saving to personal space', async () => {
     const wrapper = mount(BuilderView)
     await dropBlock(wrapper, 'buy', 260, 170)
+    const authRequiredListener = vi.fn()
+    window.addEventListener('sts:auth-required', authRequiredListener)
 
     window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action: 'save' } }))
     await nextTick()
 
     expect(apiClient.post).not.toHaveBeenCalled()
     expect(wrapper.find('.strategy-save-status').text()).toContain('请先登录')
+    expect(authRequiredListener).toHaveBeenCalledOnce()
+
+    window.removeEventListener('sts:auth-required', authRequiredListener)
   })
 
   it('validates whether the strategy draft can run', async () => {

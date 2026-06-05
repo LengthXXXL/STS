@@ -14,6 +14,10 @@ input {
   font: inherit;
 }
 
+button {
+  font: inherit;
+}
+
 .app-shell {
   min-height: 100vh;
   display: grid;
@@ -92,6 +96,8 @@ input {
   display: flex;
   align-items: center;
   gap: 12px;
+  min-width: 0;
+  flex: 0 0 auto;
 }
 
 .account-actions a {
@@ -104,6 +110,14 @@ input {
 .account-actions span {
   color: #f7f2ff;
   font-weight: 700;
+}
+
+.account-username {
+  display: inline-block;
+  max-width: 6ch;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
 }
 
 .content-area {
@@ -992,6 +1006,7 @@ input {
   border-radius: 6px;
   padding: 8px 12px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .auth-card button:disabled {
@@ -1002,6 +1017,105 @@ input {
 .form-error {
   margin: 0;
   color: #ff8ba7;
+}
+
+.auth-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(5, 5, 7, 0.64);
+  backdrop-filter: blur(18px);
+}
+
+.auth-modal {
+  width: min(420px, 100%);
+  border: 1px solid rgba(124, 77, 255, 0.42);
+  border-radius: 8px;
+  padding: 18px;
+  color: #f7f2ff;
+  background:
+    linear-gradient(180deg, rgba(25, 21, 34, 0.98), rgba(9, 8, 13, 0.98)),
+    #111019;
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.52);
+}
+
+.auth-modal header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.auth-modal small {
+  color: #a89bc1;
+  font-size: 12px;
+}
+
+.auth-modal h2 {
+  margin: 2px 0 0;
+}
+
+.auth-modal-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  color: #f7f2ff;
+  background: #191522;
+  cursor: pointer;
+}
+
+.auth-modal-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 18px 0;
+}
+
+.auth-modal-tabs button {
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #d9d1e8;
+  background: #191522;
+  cursor: pointer;
+}
+
+.auth-modal-tabs button[aria-pressed="true"] {
+  border-color: rgba(124, 77, 255, 0.68);
+  color: #fff;
+  background: #302157;
+}
+
+.auth-modal form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-modal label {
+  display: grid;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.auth-modal input {
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #f7f2ff;
+  background: #09080d;
+}
+
+.auth-modal-submit {
+  border: 1px solid #7c4dff;
+  border-radius: 6px;
+  padding: 10px 12px;
+  color: #fff;
+  background: #6d3df2;
+  cursor: pointer;
 }
 
 @media (max-width: 560px) {

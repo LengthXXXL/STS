@@ -1,9 +1,11 @@
-import { mount } from '@vue/test-utils'
+import { enableAutoUnmount, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { nextTick } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App.vue'
 import { useAuthStore } from '../src/stores/auth'
+
+enableAutoUnmount(afterEach)
 
 describe('app shell', () => {
   beforeEach(() => {
@@ -31,11 +33,18 @@ describe('app shell', () => {
 
     authStore.setSession({
       token: 'token-123',
-      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+      user: {
+        id: 1,
+        username: 'super_long_alice_123456',
+        email: 'alice@example.com',
+        roles: ['user']
+      }
     })
     await nextTick()
 
-    expect(wrapper.text()).toContain('alice')
+    const username = wrapper.find('.account-username')
+    expect(username.text()).toBe('123456')
+    expect(username.attributes('title')).toBe('super_long_alice_123456')
     expect(wrapper.text()).toContain('退出')
     expect(wrapper.text()).not.toContain('注册')
 
@@ -46,6 +55,34 @@ describe('app shell', () => {
     expect(authStore.user).toBeNull()
     expect(authStore.token).toBeNull()
     expect(localStorage.getItem('sts_access_token')).toBeNull()
+  })
+
+  it('opens the login and register modal from account actions and auth-required events', async () => {
+    const wrapper = mount(App, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          RouterView: { template: '<main />' }
+        }
+      }
+    })
+
+    await wrapper.find('.account-login-button').trigger('click')
+    expect(wrapper.find('.auth-modal').exists()).toBe(true)
+    expect(wrapper.find('.auth-modal').text()).toContain('登录')
+
+    await wrapper.find('.auth-register-tab').trigger('click')
+    expect(wrapper.find('.auth-modal').text()).toContain('创建账户')
+
+    await wrapper.find('.auth-modal-close').trigger('click')
+    expect(wrapper.find('.auth-modal').exists()).toBe(false)
+
+    window.dispatchEvent(new CustomEvent('sts:auth-required'))
+    await nextTick()
+
+    expect(wrapper.find('.auth-modal').exists()).toBe(true)
+    expect(wrapper.find('.auth-login-tab').attributes('aria-pressed')).toBe('true')
   })
 
   it('dispatches builder actions from the top bar', async () => {

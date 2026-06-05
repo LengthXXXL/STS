@@ -1,11 +1,39 @@
 <script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import AuthModal from './components/AuthModal.vue'
 import { useAuthStore } from './stores/auth'
 
+type AuthMode = 'login' | 'register'
+
 const authStore = useAuthStore()
+const isAuthModalOpen = ref(false)
+const authModalMode = ref<AuthMode>('login')
+
+const displayedUsername = computed(() => {
+  const username = authStore.user?.username ?? ''
+  return username.length > 6 ? username.slice(-6) : username
+})
 
 function dispatchBuilderAction(action: 'save' | 'backtest' | 'publish') {
   window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action } }))
 }
+
+function openAuthModal(mode: AuthMode = 'login') {
+  authModalMode.value = mode
+  isAuthModalOpen.value = true
+}
+
+function handleAuthRequired() {
+  openAuthModal('login')
+}
+
+onMounted(() => {
+  window.addEventListener('sts:auth-required', handleAuthRequired)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('sts:auth-required', handleAuthRequired)
+})
 </script>
 
 <template>
@@ -46,12 +74,18 @@ function dispatchBuilderAction(action: 'save' | 'backtest' | 'publish') {
         </div>
         <div class="account-actions">
           <template v-if="authStore.isAuthenticated && authStore.user">
-            <span>{{ authStore.user.username }}</span>
+            <span class="account-username" :title="authStore.user.username">
+              {{ displayedUsername }}
+            </span>
             <button type="button" @click="authStore.logout">退出</button>
           </template>
           <template v-else>
-            <RouterLink to="/login">登录</RouterLink>
-            <RouterLink to="/register">注册</RouterLink>
+            <button class="account-login-button" type="button" @click="openAuthModal('login')">
+              登录
+            </button>
+            <button class="account-register-button" type="button" @click="openAuthModal('register')">
+              注册
+            </button>
           </template>
         </div>
       </header>
@@ -60,5 +94,7 @@ function dispatchBuilderAction(action: 'save' | 'backtest' | 'publish') {
         <RouterView />
       </div>
     </main>
+
+    <AuthModal v-model="isAuthModalOpen" :initial-mode="authModalMode" />
   </div>
 </template>

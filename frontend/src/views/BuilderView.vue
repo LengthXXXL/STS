@@ -993,6 +993,7 @@ async function saveStrategyToSpace() {
 
   if (!authStore.isAuthenticated) {
     strategySaveStatus.value = '请先登录后再保存策略到个人空间'
+    window.dispatchEvent(new CustomEvent('sts:auth-required'))
     return
   }
 
