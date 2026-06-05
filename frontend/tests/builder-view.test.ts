@@ -107,16 +107,33 @@ describe('builder view', () => {
     const inspector = wrapper.find('.block-inspector')
     expect(inspector.exists()).toBe(true)
     expect(inspector.text()).toContain('买入')
-    expect(inspector.text()).toContain('股票代码')
+    expect(inspector.text()).not.toContain('股票代码')
+    expect(inspector.text()).toContain('买入仓位')
 
-    const symbolInput = wrapper.find('[data-param-key="symbol"]')
-    expect((symbolInput.element as HTMLInputElement).value).toBe('000001.SZ')
+    const sizeInput = wrapper.find('[data-param-key="sizePercent"]')
+    expect((sizeInput.element as HTMLInputElement).value).toBe('20')
 
-    await symbolInput.setValue('AAPL')
+    await sizeInput.setValue('35')
 
-    expect((wrapper.find('[data-param-key="symbol"]').element as HTMLInputElement).value).toBe(
-      'AAPL'
+    expect((wrapper.find('[data-param-key="sizePercent"]').element as HTMLInputElement).value).toBe(
+      '35'
     )
+  })
+
+  it('filters the block library by the search keyword', async () => {
+    const wrapper = mount(BuilderView)
+
+    expect(wrapper.findAll('.library-block')).toHaveLength(6)
+
+    await wrapper.find('.block-library-search').setValue('止损')
+
+    const visibleBlocks = wrapper.findAll('.library-block')
+    expect(visibleBlocks).toHaveLength(1)
+    expect(visibleBlocks[0].text()).toContain('止损')
+
+    await wrapper.find('.block-library-search').setValue('动作')
+
+    expect(wrapper.findAll('.library-block')).toHaveLength(3)
   })
 
   it('adds a block when a library block is pointer-dragged onto the canvas', async () => {

@@ -81,7 +81,6 @@ const blockDefinitions: BlockDefinition[] = [
     category: '动作',
     tone: 'action',
     fields: [
-      { key: 'symbol', label: '股票代码', type: 'text', defaultValue: '000001.SZ' },
       {
         key: 'sizePercent',
         label: '买入仓位',
@@ -227,6 +226,7 @@ const draggingBlock = ref<{ block: BlockDefinition; x: number; y: number } | nul
 const activeConnection = ref<ActiveConnection | null>(null)
 const selectedBlockId = ref<string | null>(null)
 const contextMenu = ref<ContextMenuState | null>(null)
+const blockSearchQuery = ref('')
 const isPanning = ref(false)
 const isDraggingLibrary = ref(false)
 const isSnapEnabled = ref(true)
@@ -272,6 +272,19 @@ const selectedBlockDefinition = computed(() => {
 })
 
 const selectedBlockFields = computed(() => selectedBlockDefinition.value?.fields ?? [])
+
+const filteredBlockDefinitions = computed(() => {
+  const keyword = blockSearchQuery.value.trim().toLowerCase()
+  if (!keyword) {
+    return blockDefinitions
+  }
+
+  return blockDefinitions.filter((block) => {
+    return [block.label, block.category, block.id].some((text) =>
+      text.toLowerCase().includes(keyword)
+    )
+  })
+})
 
 const connectionPaths = computed(() =>
   connections.value
@@ -986,10 +999,10 @@ function clearCanvas() {
         <h2>积木库</h2>
         <span aria-hidden="true">••</span>
       </header>
-      <input placeholder="搜索积木" />
+      <input v-model="blockSearchQuery" class="block-library-search" placeholder="搜索积木" />
       <nav>
         <button
-          v-for="block in blockDefinitions"
+          v-for="block in filteredBlockDefinitions"
           :key="block.id"
           class="library-block"
           :class="`library-block--${block.tone}`"
