@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import {
   dragOffsetFromPointer,
   screenToCanvasPoint,
@@ -84,6 +84,8 @@ interface BacktestConfig {
   endDate: string
   initialCash: number
 }
+
+type ReviewMode = 'backtest' | 'publish'
 
 interface Connection {
   id: string
@@ -277,6 +279,7 @@ const draftStatus = ref('尚未保存')
 const isPanning = ref(false)
 const isDraggingLibrary = ref(false)
 const isSnapEnabled = ref(true)
+const reviewModalMode = ref<ReviewMode | null>(null)
 const backtestSettings = reactive<BacktestSettings>({
   market: 'A_SHARE',
   symbol: '000001.SZ',
@@ -445,6 +448,22 @@ const backtestSummary = computed(() =>
 )
 
 const backtestJson = computed(() => JSON.stringify(backtestConfig.value, null, 2))
+
+const reviewModalTitle = computed(() =>
+  reviewModalMode.value === 'publish' ? '发布前检查' : '运行回测前检查'
+)
+
+const reviewPrimaryLabel = computed(() =>
+  reviewModalMode.value === 'publish' ? '确认发布' : '开始回测'
+)
+
+const reviewPrimaryDisabled = computed(() => {
+  if (reviewModalMode.value === 'publish') {
+    return validationIssues.value.length > 0
+  }
+
+  return backtestIssues.value.length > 0
+})
 
 const connectionPaths = computed(() =>
   connections.value
@@ -667,6 +686,28 @@ function loadDraft() {
     restoreStrategyDraft(JSON.parse(rawDraft))
   } catch {
     draftStatus.value = '草稿读取失败'
+  }
+}
+
+function openReviewModal(mode: ReviewMode) {
+  reviewModalMode.value = mode
+  contextMenu.value = null
+}
+
+function closeReviewModal() {
+  reviewModalMode.value = null
+}
+
+function handleBuilderAction(event: Event) {
+  const detail = (event as CustomEvent<{ action?: string }>).detail
+
+  if (detail?.action === 'save') {
+    saveDraft()
+    return
+  }
+
+  if (detail?.action === 'backtest' || detail?.action === 'publish') {
+    openReviewModal(detail.action)
   }
 }
 
@@ -1023,7 +1064,12 @@ function startMouseBlockDrag(block: BlockDefinition, event: MouseEvent) {
   window.addEventListener('blur', cancelMouseBlockDrag)
 }
 
+onMounted(() => {
+  window.addEventListener('sts:builder-action', handleBuilderAction)
+})
+
 onBeforeUnmount(() => {
+  window.removeEventListener('sts:builder-action', handleBuilderAction)
   removeMouseBlockDragListeners()
   removePointerBlockDragListeners()
 })
@@ -1098,7 +1144,8 @@ function startCanvasPan(event: PointerEvent) {
       [
         '.floating-block-library',
         '.block-inspector',
-        '.strategy-draft-panel',
+        '.strategy-review-modal',
+        '.strategy-review-backdrop',
         '.canvas-block',
         '.canvas-controls'
       ].join(', ')
@@ -1362,88 +1409,6 @@ function clearCanvas() {
       </footer>
     </aside>
 
-    <aside
-      class="strategy-draft-panel"
-      aria-label="策略数据"
-      @pointerdown.stop
-      @click.stop
-      @contextmenu.stop
-    >
-      <header>
-        <div>
-          <small>策略数据</small>
-          <h2>JSON 预览</h2>
-        </div>
-      </header>
-      <div class="draft-actions">
-        <button class="save-draft-button" type="button" @click="saveDraft">保存草稿</button>
-        <button class="load-draft-button" type="button" @click="loadDraft">加载草稿</button>
-      </div>
-      <p class="draft-status">{{ draftStatus }}</p>
-      <section class="validation-card" :class="{ 'is-ready': validationIssues.length === 0 }">
-        <strong class="validation-summary">策略校验：{{ validationSummary }}</strong>
-        <p v-if="validationIssues.length === 0" class="validation-empty">基础规则已通过</p>
-        <ul v-else class="validation-issues">
-          <li v-for="issue in validationIssues" :key="issue.id">{{ issue.message }}</li>
-        </ul>
-      </section>
-      <section class="backtest-card" :class="{ 'is-ready': backtestIssues.length === 0 }">
-        <strong class="backtest-summary">回测设置：{{ backtestSummary }}</strong>
-        <form class="backtest-form" @submit.prevent>
-          <label>
-            <span>市场</span>
-            <select v-model="backtestSettings.market" data-backtest-key="market">
-              <option value="A_SHARE">A股</option>
-              <option value="US_STOCK">美股</option>
-            </select>
-          </label>
-          <label>
-            <span>股票代码</span>
-            <input v-model="backtestSettings.symbol" data-backtest-key="symbol" />
-          </label>
-          <label>
-            <span>K线周期</span>
-            <select v-model="backtestSettings.timeframe" data-backtest-key="timeframe">
-              <option value="5m">5分钟</option>
-              <option value="1m">1分钟</option>
-            </select>
-          </label>
-          <label>
-            <span>开始日期</span>
-            <input
-              v-model="backtestSettings.startDate"
-              data-backtest-key="startDate"
-              type="date"
-            />
-          </label>
-          <label>
-            <span>结束日期</span>
-            <input
-              v-model="backtestSettings.endDate"
-              data-backtest-key="endDate"
-              type="date"
-            />
-          </label>
-          <label>
-            <span>初始资金</span>
-            <input
-              v-model="backtestSettings.initialCash"
-              data-backtest-key="initialCash"
-              type="number"
-              min="1"
-              step="1000"
-            />
-          </label>
-        </form>
-        <p v-if="backtestIssues.length === 0" class="backtest-empty">回测配置已准备</p>
-        <ul v-else class="backtest-issues">
-          <li v-for="issue in backtestIssues" :key="issue.id">{{ issue.message }}</li>
-        </ul>
-        <pre class="backtest-config-preview">{{ backtestJson }}</pre>
-      </section>
-      <pre class="strategy-json-preview">{{ strategyJson }}</pre>
-    </aside>
-
     <div class="canvas-controls" @pointerdown.stop>
       <button type="button" aria-label="缩小画布" @click="zoomBy(-1)">-</button>
       <span>{{ zoomLabel }}</span>
@@ -1465,6 +1430,131 @@ function clearCanvas() {
       >
         清屏
       </button>
+    </div>
+
+    <div
+      v-if="reviewModalMode"
+      class="strategy-review-backdrop"
+      @click.self="closeReviewModal"
+      @pointerdown.stop
+      @wheel.stop
+    >
+      <aside
+        class="strategy-review-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="strategy-review-title"
+        @click.stop
+        @pointerdown.stop
+        @contextmenu.stop
+      >
+        <header class="strategy-review-header">
+          <div>
+            <small>策略数据</small>
+            <h2 id="strategy-review-title">{{ reviewModalTitle }}</h2>
+          </div>
+          <button
+            class="strategy-review-close"
+            type="button"
+            aria-label="关闭策略预览"
+            @click="closeReviewModal"
+          >
+            ×
+          </button>
+        </header>
+
+        <div class="draft-actions">
+          <button class="save-draft-button" type="button" @click="saveDraft">保存草稿</button>
+          <button class="load-draft-button" type="button" @click="loadDraft">加载草稿</button>
+        </div>
+        <p class="draft-status">{{ draftStatus }}</p>
+
+        <div class="strategy-review-body">
+          <div class="strategy-review-column">
+            <section class="validation-card" :class="{ 'is-ready': validationIssues.length === 0 }">
+              <strong class="validation-summary">策略校验：{{ validationSummary }}</strong>
+              <p v-if="validationIssues.length === 0" class="validation-empty">基础规则已通过</p>
+              <ul v-else class="validation-issues">
+                <li v-for="issue in validationIssues" :key="issue.id">{{ issue.message }}</li>
+              </ul>
+            </section>
+
+            <section class="backtest-card" :class="{ 'is-ready': backtestIssues.length === 0 }">
+              <strong class="backtest-summary">回测设置：{{ backtestSummary }}</strong>
+              <form class="backtest-form" @submit.prevent>
+                <label>
+                  <span>市场</span>
+                  <select v-model="backtestSettings.market" data-backtest-key="market">
+                    <option value="A_SHARE">A股</option>
+                    <option value="US_STOCK">美股</option>
+                  </select>
+                </label>
+                <label>
+                  <span>股票代码</span>
+                  <input v-model="backtestSettings.symbol" data-backtest-key="symbol" />
+                </label>
+                <label>
+                  <span>K线周期</span>
+                  <select v-model="backtestSettings.timeframe" data-backtest-key="timeframe">
+                    <option value="5m">5分钟</option>
+                    <option value="1m">1分钟</option>
+                  </select>
+                </label>
+                <label>
+                  <span>开始日期</span>
+                  <input
+                    v-model="backtestSettings.startDate"
+                    data-backtest-key="startDate"
+                    type="date"
+                  />
+                </label>
+                <label>
+                  <span>结束日期</span>
+                  <input
+                    v-model="backtestSettings.endDate"
+                    data-backtest-key="endDate"
+                    type="date"
+                  />
+                </label>
+                <label>
+                  <span>初始资金</span>
+                  <input
+                    v-model="backtestSettings.initialCash"
+                    data-backtest-key="initialCash"
+                    type="number"
+                    min="1"
+                    step="1000"
+                  />
+                </label>
+              </form>
+              <p v-if="backtestIssues.length === 0" class="backtest-empty">回测配置已准备</p>
+              <ul v-else class="backtest-issues">
+                <li v-for="issue in backtestIssues" :key="issue.id">{{ issue.message }}</li>
+              </ul>
+            </section>
+          </div>
+
+          <div class="strategy-review-column">
+            <section class="review-preview-section">
+              <strong>回测配置 JSON</strong>
+              <pre class="backtest-config-preview">{{ backtestJson }}</pre>
+            </section>
+            <section class="review-preview-section">
+              <strong>策略 JSON</strong>
+              <pre class="strategy-json-preview">{{ strategyJson }}</pre>
+            </section>
+          </div>
+        </div>
+
+        <footer class="strategy-review-footer">
+          <button class="review-secondary-button" type="button" @click="closeReviewModal">
+            继续搭建
+          </button>
+          <button class="review-primary-button" type="button" :disabled="reviewPrimaryDisabled">
+            {{ reviewPrimaryLabel }}
+          </button>
+        </footer>
+      </aside>
     </div>
 
     <div

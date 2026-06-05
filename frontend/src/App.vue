@@ -2,6 +2,10 @@
 import { useAuthStore } from './stores/auth'
 
 const authStore = useAuthStore()
+
+function dispatchBuilderAction(action: 'save' | 'backtest' | 'publish') {
+  window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action } }))
+}
 </script>
 
 <template>
@@ -18,9 +22,27 @@ const authStore = useAuthStore()
       <header class="top-bar">
         <div class="top-actions">
           <span class="section-title">策略工作台</span>
-          <button type="button">保存策略</button>
-          <button type="button">运行回测</button>
-          <button type="button">发布</button>
+          <button
+            type="button"
+            data-builder-action="save"
+            @click="dispatchBuilderAction('save')"
+          >
+            保存策略
+          </button>
+          <button
+            type="button"
+            data-builder-action="backtest"
+            @click="dispatchBuilderAction('backtest')"
+          >
+            运行回测
+          </button>
+          <button
+            type="button"
+            data-builder-action="publish"
+            @click="dispatchBuilderAction('publish')"
+          >
+            发布
+          </button>
         </div>
         <div class="account-actions">
           <template v-if="authStore.isAuthenticated && authStore.user">

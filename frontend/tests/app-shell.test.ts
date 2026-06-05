@@ -1,7 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { nextTick } from 'vue'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import App from '../src/App.vue'
 import { useAuthStore } from '../src/stores/auth'
 
@@ -46,5 +46,30 @@ describe('app shell', () => {
     expect(authStore.user).toBeNull()
     expect(authStore.token).toBeNull()
     expect(localStorage.getItem('sts_access_token')).toBeNull()
+  })
+
+  it('dispatches builder actions from the top bar', async () => {
+    const wrapper = mount(App, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          RouterView: { template: '<main />' }
+        }
+      }
+    })
+    const receivedActions: string[] = []
+    const listener = vi.fn((event: Event) => {
+      receivedActions.push((event as CustomEvent<{ action: string }>).detail.action)
+    })
+    window.addEventListener('sts:builder-action', listener)
+
+    await wrapper.find('[data-builder-action="save"]').trigger('click')
+    await wrapper.find('[data-builder-action="backtest"]').trigger('click')
+    await wrapper.find('[data-builder-action="publish"]').trigger('click')
+
+    expect(receivedActions).toEqual(['save', 'backtest', 'publish'])
+
+    window.removeEventListener('sts:builder-action', listener)
   })
 })

@@ -31,6 +31,11 @@ describe('builder view', () => {
     })
   }
 
+  async function openReviewModal(action: 'backtest' | 'publish' = 'backtest') {
+    window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action } }))
+    await nextTick()
+  }
+
   function mockLibraryRect(wrapper: ReturnType<typeof mount>) {
     const library = wrapper.find('.floating-block-library')
     library.element.getBoundingClientRect = vi.fn(() => ({
@@ -65,10 +70,33 @@ describe('builder view', () => {
 
     expect(wrapper.find('.builder-canvas').exists()).toBe(true)
     expect(wrapper.find('.floating-block-library').exists()).toBe(true)
+    expect(wrapper.find('.strategy-draft-panel').exists()).toBe(false)
+    expect(wrapper.find('.strategy-review-modal').exists()).toBe(false)
     expect(wrapper.text()).toContain('积木库')
     expect(wrapper.text()).toContain('买入')
     expect(wrapper.text()).toContain('止损')
     expect(wrapper.text()).toContain('风控')
+  })
+
+  it('shows strategy preview only when running a backtest or publishing', async () => {
+    const wrapper = mount(BuilderView)
+
+    expect(wrapper.find('.strategy-review-modal').exists()).toBe(false)
+
+    await openReviewModal('backtest')
+
+    expect(wrapper.find('.strategy-review-modal').exists()).toBe(true)
+    expect(wrapper.find('.strategy-review-modal').text()).toContain('运行回测前检查')
+    expect(wrapper.find('.strategy-json-preview').exists()).toBe(true)
+    expect(wrapper.find('.backtest-config-preview').exists()).toBe(true)
+
+    await wrapper.find('.strategy-review-close').trigger('click')
+    expect(wrapper.find('.strategy-review-modal').exists()).toBe(false)
+
+    await openReviewModal('publish')
+
+    expect(wrapper.find('.strategy-review-modal').exists()).toBe(true)
+    expect(wrapper.find('.strategy-review-modal').text()).toContain('发布前检查')
   })
 
   it('adds a block to the canvas when a library block is dropped', async () => {
@@ -345,6 +373,8 @@ describe('builder view', () => {
     await outputPort.trigger('pointerdown', { pointerId: 3, clientX: 288, clientY: 194 })
     await inputPorts[1].trigger('pointerup', { pointerId: 3, clientX: 460, clientY: 260 })
 
+    await openReviewModal()
+
     const strategy = JSON.parse(wrapper.find('.strategy-json-preview').text())
 
     expect(strategy.version).toBe(1)
@@ -369,6 +399,7 @@ describe('builder view', () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
 
     await wrapper.find('.save-draft-button').trigger('click')
     expect(localStorage.getItem('sts.builder.strategyDraft.v1')).toContain('"nodes"')
@@ -387,6 +418,7 @@ describe('builder view', () => {
   it('validates whether the strategy draft can run', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
+    await openReviewModal()
 
     expect(wrapper.find('.validation-summary').text()).toContain('需完善')
     expect(wrapper.find('.validation-issues').text()).toContain('请至少放置一个积木')
@@ -407,6 +439,7 @@ describe('builder view', () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
 
     const initialConfig = JSON.parse(wrapper.find('.backtest-config-preview').text())
     expect(initialConfig).toMatchObject({
@@ -440,6 +473,7 @@ describe('builder view', () => {
   it('validates backtest settings before running', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
+    await openReviewModal()
 
     expect(wrapper.find('.backtest-summary').text()).toContain('需完善')
     expect(wrapper.find('.backtest-issues').text()).toContain('策略校验通过后才能运行回测')
