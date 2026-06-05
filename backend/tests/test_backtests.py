@@ -138,3 +138,64 @@ def test_run_backtest_persists_owned_task_trades_and_equity_curve(client, db_ses
     assert trades[0].price == payload["trades"][0]["price"]
     assert len(equity_points) == len(payload["equityCurve"])
     assert equity_points[-1].equity == payload["equityCurve"][-1]["equity"]
+
+
+def test_list_backtests_only_returns_current_user_records(client):
+    alice_token = register_and_token(client, "alice-backtest", "alice-backtest@example.com")
+    bob_token = register_and_token(client, "bob-backtest", "bob-backtest@example.com")
+
+    alice_response = client.post(
+        "/api/backtests/run",
+        json=_backtest_payload(),
+        headers=auth_headers(alice_token),
+    )
+    assert alice_response.status_code == 200
+
+    bob_payload = _backtest_payload()
+    bob_payload["config"]["symbol"] = "600000.SH"
+    bob_response = client.post(
+        "/api/backtests/run",
+        json=bob_payload,
+        headers=auth_headers(bob_token),
+    )
+    assert bob_response.status_code == 200
+
+    alice_list = client.get(
+        "/api/backtests?keyword=000001&page=1&pageSize=10",
+        headers=auth_headers(alice_token),
+    )
+    bob_list = client.get("/api/backtests", headers=auth_headers(bob_token))
+
+    assert alice_list.status_code == 200
+    assert bob_list.status_code == 200
+    assert alice_list.json()["total"] == 1
+    assert alice_list.json()["items"][0]["symbol"] == "000001.SZ"
+    assert bob_list.json()["total"] == 1
+    assert bob_list.json()["items"][0]["symbol"] == "600000.SH"
+
+
+def test_backtest_detail_requires_owner(client):
+    alice_token = register_and_token(client, "alice-detail", "alice-detail@example.com")
+    bob_token = register_and_token(client, "bob-detail", "bob-detail@example.com")
+
+    response = client.post(
+        "/api/backtests/run",
+        json=_backtest_payload(),
+        headers=auth_headers(alice_token),
+    )
+    assert response.status_code == 200
+
+    alice_list = client.get("/api/backtests", headers=auth_headers(alice_token))
+    assert alice_list.status_code == 200
+    task_id = alice_list.json()["items"][0]["id"]
+
+    alice_detail = client.get(f"/api/backtests/{task_id}", headers=auth_headers(alice_token))
+    bob_detail = client.get(f"/api/backtests/{task_id}", headers=auth_headers(bob_token))
+
+    assert alice_detail.status_code == 200
+    detail = alice_detail.json()
+    assert detail["id"] == task_id
+    assert detail["config"]["symbol"] == "000001.SZ"
+    assert detail["summary"]["tradeCount"] == len(detail["trades"])
+    assert detail["equityCurve"][-1]["equity"] == detail["summary"]["endingEquity"]
+    assert bob_detail.status_code == 404

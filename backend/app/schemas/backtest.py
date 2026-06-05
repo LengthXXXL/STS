@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class StrategyNode(BaseModel):
@@ -69,6 +69,42 @@ class EquityPoint(BaseModel):
 class BacktestRunResponse(BaseModel):
     runId: str
     status: Literal["COMPLETED"]
+    config: BacktestConfig
+    summary: BacktestSummary
+    trades: list[BacktestTrade]
+    equityCurve: list[EquityPoint]
+
+
+class BacktestRecordListItem(BaseModel):
+    id: int
+    run_id: str = Field(alias="runId")
+    status: str
+    market: str
+    symbol: str
+    timeframe: str
+    start_date: str = Field(alias="startDate")
+    end_date: str = Field(alias="endDate")
+    total_return_percent: float = Field(alias="totalReturnPercent")
+    max_drawdown_percent: float = Field(alias="maxDrawdownPercent")
+    win_rate_percent: float = Field(alias="winRatePercent")
+    ending_equity: float = Field(alias="endingEquity")
+    trade_count: int = Field(alias="tradeCount")
+    created_at: str = Field(alias="createdAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class BacktestRecordListResponse(BaseModel):
+    items: list[BacktestRecordListItem]
+    total: int
+    page: int
+    page_size: int = Field(alias="pageSize")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class BacktestRecordDetailResponse(BacktestRecordListItem):
+    strategy: StrategyDraft
     config: BacktestConfig
     summary: BacktestSummary
     trades: list[BacktestTrade]

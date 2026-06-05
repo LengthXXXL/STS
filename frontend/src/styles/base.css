@@ -179,7 +179,10 @@ button {
 }
 
 .space-search button,
-.strategy-item-actions button {
+.strategy-item-actions button,
+.space-tabs button,
+.backtest-open-button,
+.space-lane button {
   border: 1px solid #3a3150;
   border-radius: 6px;
   padding: 9px 12px;
@@ -188,12 +191,96 @@ button {
   cursor: pointer;
 }
 
+.space-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid rgba(58, 49, 80, 0.78);
+  padding-bottom: 10px;
+}
+
+.space-tabs button {
+  color: #bcb1d1;
+  background: rgba(9, 8, 13, 0.48);
+}
+
+.space-tabs button.is-active {
+  border-color: rgba(124, 77, 255, 0.78);
+  color: #fff;
+  background: #302157;
+  box-shadow: 0 0 22px rgba(124, 77, 255, 0.18);
+}
+
+.space-overview {
+  display: grid;
+  gap: 14px;
+}
+
+.space-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.space-metric,
+.space-lane,
+.space-detail-panel {
+  border: 1px solid rgba(58, 49, 80, 0.82);
+  border-radius: 8px;
+  background: rgba(9, 8, 13, 0.54);
+}
+
+.space-metric {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+}
+
+.space-metric small,
+.space-lane small,
+.backtest-detail-metrics small {
+  color: #9e91b8;
+}
+
+.space-metric strong {
+  font-size: 24px;
+}
+
+.space-overview-lanes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.space-lane {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+}
+
+.space-lane h2 {
+  margin: 4px 0 6px;
+  font-size: 17px;
+}
+
+.space-lane p {
+  margin: 0;
+  color: #a89bc1;
+}
+
+.space-section {
+  display: grid;
+  gap: 12px;
+}
+
 .strategy-list {
   display: grid;
   gap: 10px;
 }
 
-.strategy-item {
+.strategy-item,
+.backtest-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -204,12 +291,14 @@ button {
   background: rgba(9, 8, 13, 0.54);
 }
 
-.strategy-item h2 {
+.strategy-item h2,
+.backtest-item h2 {
   margin: 0 0 6px;
   font-size: 17px;
 }
 
-.strategy-item p {
+.strategy-item p,
+.backtest-item p {
   margin: 0 0 8px;
 }
 
@@ -223,10 +312,81 @@ button {
   background: #302157 !important;
 }
 
+.backtest-open-button {
+  border-color: rgba(94, 230, 200, 0.42);
+  background: rgba(21, 57, 53, 0.76);
+}
+
 .strategy-delete-button {
   color: #ffe4ea !important;
   border-color: rgba(255, 139, 167, 0.48) !important;
   background: rgba(64, 25, 40, 0.72) !important;
+}
+
+.backtest-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(320px, 0.92fr);
+  gap: 12px;
+}
+
+.backtest-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.backtest-item small {
+  color: #a89bc1;
+}
+
+.space-detail-panel {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 14px;
+}
+
+.space-detail-panel strong {
+  font-size: 17px;
+}
+
+.space-detail-panel > span {
+  color: #cfc7dc;
+}
+
+.backtest-detail-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.backtest-detail-metrics span {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(58, 49, 80, 0.72);
+  border-radius: 6px;
+  padding: 10px;
+  background: rgba(17, 16, 25, 0.72);
+}
+
+.space-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.space-table th,
+.space-table td {
+  border-bottom: 1px solid rgba(58, 49, 80, 0.72);
+  padding: 8px 6px;
+  text-align: left;
+}
+
+.space-table th {
+  color: #a89bc1;
+  font-weight: 600;
 }
 
 .block-library button {
@@ -1219,6 +1379,34 @@ button {
 
   .backtest-form label:nth-child(2) {
     grid-column: auto;
+  }
+
+  .space-header,
+  .space-lane,
+  .strategy-item,
+  .backtest-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .space-search {
+    width: 100%;
+  }
+
+  .space-search input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .space-tabs {
+    overflow-x: auto;
+  }
+
+  .space-overview-grid,
+  .space-overview-lanes,
+  .backtest-layout,
+  .backtest-detail-metrics {
+    grid-template-columns: 1fr;
   }
 
   .strategy-review-backdrop {
