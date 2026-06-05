@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta
 
 from app.schemas.backtest import (
     BacktestRunRequest,
@@ -9,12 +8,11 @@ from app.schemas.backtest import (
     EquityPoint,
     StrategyNode,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class MarketCandle:
-    time: str
-    close: float
+from app.services.market_data_service import (
+    LocalMarketDataProvider,
+    MarketCandle,
+    MarketDataProvider,
+)
 
 
 @dataclass(slots=True)
@@ -23,10 +21,13 @@ class Position:
     average_price: float = 0
 
 
-def run_backtest(request: BacktestRunRequest) -> BacktestRunResponse:
-    """Run a deterministic local backtest until real market data is connected."""
+def run_backtest(
+    request: BacktestRunRequest,
+    market_data_provider: MarketDataProvider | None = None,
+) -> BacktestRunResponse:
+    provider = market_data_provider or LocalMarketDataProvider()
 
-    return run_backtest_with_candles(request, generate_deterministic_candles(request))
+    return run_backtest_with_candles(request, provider.get_intraday_candles(request.config))
 
 
 def run_backtest_with_candles(
@@ -156,23 +157,6 @@ def run_backtest_with_candles(
         closed_trade_count=closed_trade_count,
         closed_trade_wins=closed_trade_wins,
     )
-
-
-def generate_deterministic_candles(request: BacktestRunRequest) -> list[MarketCandle]:
-    base_price = 10.2 if request.config.market == "A_SHARE" else 186.4
-    minute_step = 1 if request.config.timeframe == "1m" else 5
-    price_factors = [1, 1.025, 0.992, 1.055, 1.038, 1.073]
-    session_start = datetime.fromisoformat(f"{request.config.startDate}T09:30:00")
-
-    return [
-        MarketCandle(
-            time=(session_start + timedelta(minutes=minute_step * (index + 1))).strftime(
-                "%Y-%m-%d %H:%M"
-            ),
-            close=round(base_price * factor, 4),
-        )
-        for index, factor in enumerate(price_factors)
-    ]
 
 
 @dataclass(frozen=True, slots=True)

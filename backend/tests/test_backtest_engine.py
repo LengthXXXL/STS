@@ -1,7 +1,7 @@
 from app.schemas.backtest import BacktestRunRequest
 from app.services.backtest_service import (
     MarketCandle,
-    generate_deterministic_candles,
+    run_backtest,
     run_backtest_with_candles,
 )
 
@@ -112,7 +112,17 @@ def test_engine_applies_stop_loss_and_cooldown_before_reentering():
     assert result.summary.maxDrawdownPercent > 0
 
 
-def test_generated_candles_use_valid_intraday_times():
+class StaticMarketDataProvider:
+    def __init__(self, candles):
+        self.candles = candles
+        self.received_config = None
+
+    def get_intraday_candles(self, config):
+        self.received_config = config
+        return self.candles
+
+
+def test_run_backtest_uses_injected_market_data_provider():
     request = _request(
         [
             {
@@ -125,7 +135,15 @@ def test_generated_candles_use_valid_intraday_times():
             }
         ]
     )
+    provider = StaticMarketDataProvider(
+        [
+            MarketCandle(time="2026-01-01 09:35", close=10.0),
+            MarketCandle(time="2026-01-01 09:40", close=11.0),
+        ]
+    )
 
-    candles = generate_deterministic_candles(request)
+    result = run_backtest(request, market_data_provider=provider)
 
-    assert candles[-1].time == "2026-01-01 10:00"
+    assert provider.received_config == request.config
+    assert result.trades[0].price == 10
+    assert result.trades[-1].price == 11
