@@ -1,12 +1,25 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, backtests, health, simulation_accounts, strategies
+import app.models  # noqa: F401
+from app.api import auth, backtests, custom_blocks, health, simulation_accounts, strategies
 from app.core.config import get_settings
+from app.core.database import Base, engine
 
 settings = get_settings()
 
-app = FastAPI(title=settings.app_name, version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    if settings.environment == "development":
+        Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -19,5 +32,6 @@ app.add_middleware(
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(backtests.router, prefix="/api")
+app.include_router(custom_blocks.router, prefix="/api")
 app.include_router(simulation_accounts.router, prefix="/api")
 app.include_router(strategies.router, prefix="/api")

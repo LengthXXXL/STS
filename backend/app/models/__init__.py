@@ -1,4 +1,5 @@
 from app.models.backtest import BacktestEquityPointRecord, BacktestTask, BacktestTradeRecord
+from app.models.custom_block import CustomBlock
 from app.models.market_data import MarketKlineCache
 from app.models.simulation_account import SimulationAccount
 from app.models.strategy import Strategy
@@ -8,6 +9,7 @@ __all__ = [
     "BacktestEquityPointRecord",
     "BacktestTask",
     "BacktestTradeRecord",
+    "CustomBlock",
     "MarketKlineCache",
     "Role",
     "SimulationAccount",

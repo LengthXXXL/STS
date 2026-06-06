@@ -279,12 +279,14 @@ button {
 }
 
 .strategy-list,
+.custom-block-list,
 .account-list {
   display: grid;
   gap: 10px;
 }
 
 .strategy-item,
+.custom-block-item,
 .account-item,
 .backtest-item {
   display: flex;
@@ -304,6 +306,7 @@ button {
 }
 
 .strategy-item h2,
+.custom-block-item h2,
 .account-item h2,
 .backtest-item h2 {
   margin: 0 0 6px;
@@ -311,6 +314,7 @@ button {
 }
 
 .strategy-item p,
+.custom-block-item p,
 .account-item p,
 .backtest-item p {
   margin: 0 0 8px;
@@ -332,10 +336,27 @@ button {
 }
 
 .strategy-delete-button,
+.custom-block-delete-button,
 .account-delete-button {
   color: #ffe4ea !important;
   border-color: rgba(255, 139, 167, 0.48) !important;
   background: rgba(64, 25, 40, 0.72) !important;
+}
+
+.custom-block-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.custom-block-tags span {
+  border: 1px solid rgba(124, 77, 255, 0.34);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #d8ceff;
+  background: rgba(48, 33, 87, 0.44);
+  font-size: 12px;
 }
 
 .account-edit-button {

@@ -17,6 +17,7 @@ from app.core.database import Base
 
 if TYPE_CHECKING:
     from app.models.backtest import BacktestTask
+    from app.models.custom_block import CustomBlock
     from app.models.simulation_account import SimulationAccount
     from app.models.strategy import Strategy
 
@@ -56,6 +57,10 @@ class User(Base):
         cascade="all, delete-orphan",
     )
     simulation_accounts: Mapped[list["SimulationAccount"]] = relationship(
+        back_populates="owner",
+        cascade="all, delete-orphan",
+    )
+    custom_blocks: Mapped[list["CustomBlock"]] = relationship(
         back_populates="owner",
         cascade="all, delete-orphan",
     )

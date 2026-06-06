@@ -10,7 +10,7 @@ import {
   type StrategyDraftPayload
 } from '../stores/strategyWorkspace'
 
-type SpaceTab = 'overview' | 'strategies' | 'accounts' | 'backtests'
+type SpaceTab = 'overview' | 'strategies' | 'custom-blocks' | 'accounts' | 'backtests'
 
 interface StrategyListResponse {
   items: SavedStrategy[]
@@ -58,6 +58,26 @@ interface SimulationAccount {
 
 interface SimulationAccountListResponse {
   items: SimulationAccount[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+interface CustomBlock {
+  id: number
+  ownerId: number
+  name: string
+  description: string | null
+  category: string
+  tags: string[]
+  template: StrategyDraftPayload
+  reviewStatus: 'private' | 'pending_review' | 'approved' | 'rejected'
+  createdAt: string
+  updatedAt: string
+}
+
+interface CustomBlockListResponse {
+  items: CustomBlock[]
   total: number
   page: number
   pageSize: number
@@ -148,24 +168,30 @@ const authStore = useAuthStore()
 const workspaceStore = useStrategyWorkspaceStore()
 const activeTab = ref<SpaceTab>(spaceTabFromQuery(route.query.tab))
 const strategies = ref<SavedStrategy[]>([])
+const customBlocks = ref<CustomBlock[]>([])
 const accounts = ref<SimulationAccount[]>([])
 const backtests = ref<BacktestListItem[]>([])
 const selectedBacktest = ref<BacktestDetail | null>(null)
 const strategyKeyword = ref('')
+const customBlockKeyword = ref('')
 const accountKeyword = ref('')
 const backtestKeyword = ref('')
 const strategyPage = ref(1)
+const customBlockPage = ref(1)
 const accountPage = ref(1)
 const backtestPage = ref(1)
 const pageSize = 10
 const strategyTotal = ref(0)
+const customBlockTotal = ref(0)
 const accountTotal = ref(0)
 const backtestTotal = ref(0)
 const strategyLoading = ref(false)
+const customBlockLoading = ref(false)
 const accountLoading = ref(false)
 const backtestLoading = ref(false)
 const backtestDetailLoading = ref(false)
 const strategyError = ref('')
+const customBlockError = ref('')
 const accountError = ref('')
 const backtestError = ref('')
 const editingAccountId = ref<number | null>(null)
@@ -184,6 +210,7 @@ function spaceTabFromQuery(tab: unknown): SpaceTab {
   if (
     value === 'overview' ||
     value === 'strategies' ||
+    value === 'custom-blocks' ||
     value === 'accounts' ||
     value === 'backtests'
   ) {
@@ -211,9 +238,13 @@ const lowestDrawdownBacktest = computed(() =>
 )
 
 const latestStrategy = computed(() => strategies.value[0] ?? null)
+const latestCustomBlock = computed(() => customBlocks.value[0] ?? null)
 const latestAccount = computed(() => accounts.value[0] ?? null)
 const latestBacktest = computed(() => backtests.value[0] ?? null)
 const strategyTotalPages = computed(() => Math.max(1, Math.ceil(strategyTotal.value / pageSize)))
+const customBlockTotalPages = computed(() =>
+  Math.max(1, Math.ceil(customBlockTotal.value / pageSize))
+)
 const accountTotalPages = computed(() => Math.max(1, Math.ceil(accountTotal.value / pageSize)))
 const backtestTotalPages = computed(() => Math.max(1, Math.ceil(backtestTotal.value / pageSize)))
 const selectedEquityChart = computed(() => {
@@ -337,6 +368,31 @@ async function searchStrategies() {
   await loadStrategies()
 }
 
+async function loadCustomBlocks() {
+  customBlockLoading.value = true
+  customBlockError.value = ''
+  try {
+    const response = await apiClient.get<CustomBlockListResponse>('/custom-blocks', {
+      params: {
+        keyword: customBlockKeyword.value.trim(),
+        page: customBlockPage.value,
+        pageSize
+      }
+    })
+    customBlocks.value = response.data.items
+    customBlockTotal.value = response.data.total
+  } catch {
+    customBlockError.value = '自定义积木加载失败，请确认已登录'
+  } finally {
+    customBlockLoading.value = false
+  }
+}
+
+async function searchCustomBlocks() {
+  customBlockPage.value = 1
+  await loadCustomBlocks()
+}
+
 async function loadAccounts() {
   accountLoading.value = true
   accountError.value = ''
@@ -389,7 +445,7 @@ async function loadBacktests() {
 }
 
 async function loadSpaceData() {
-  await Promise.all([loadStrategies(), loadAccounts(), loadBacktests()])
+  await Promise.all([loadStrategies(), loadCustomBlocks(), loadAccounts(), loadBacktests()])
 }
 
 async function searchBacktests() {
@@ -401,6 +457,10 @@ async function searchBacktests() {
 async function searchActiveTab() {
   if (activeTab.value === 'strategies') {
     await searchStrategies()
+    return
+  }
+  if (activeTab.value === 'custom-blocks') {
+    await searchCustomBlocks()
     return
   }
   if (activeTab.value === 'accounts') {
@@ -420,6 +480,11 @@ function openStrategy(strategy: SavedStrategy) {
 async function deleteStrategy(strategy: SavedStrategy) {
   await apiClient.delete(`/strategies/${strategy.id}`)
   await loadStrategies()
+}
+
+async function deleteCustomBlock(block: CustomBlock) {
+  await apiClient.delete(`/custom-blocks/${block.id}`)
+  await loadCustomBlocks()
 }
 
 function resetAccountForm() {
@@ -528,6 +593,18 @@ async function changeStrategyPage(nextPage: number) {
   await loadStrategies()
 }
 
+async function changeCustomBlockPage(nextPage: number) {
+  if (
+    nextPage < 1 ||
+    nextPage > customBlockTotalPages.value ||
+    nextPage === customBlockPage.value
+  ) {
+    return
+  }
+  customBlockPage.value = nextPage
+  await loadCustomBlocks()
+}
+
 async function changeAccountPage(nextPage: number) {
   if (nextPage < 1 || nextPage > accountTotalPages.value || nextPage === accountPage.value) {
     return
@@ -571,6 +648,16 @@ function formatAmount(value: number | undefined) {
 
 function formatDate(value: string | undefined) {
   return value ? value.slice(0, 10) : '-'
+}
+
+function formatReviewStatus(status: CustomBlock['reviewStatus']) {
+  const labels: Record<CustomBlock['reviewStatus'], string> = {
+    private: '私有模板',
+    pending_review: '待审核',
+    approved: '已公开',
+    rejected: '未通过'
+  }
+  return labels[status] ?? '私有模板'
 }
 
 function formatTradeSide(side: BacktestTrade['side']) {
@@ -655,6 +742,11 @@ onMounted(() => {
           placeholder="搜索策略"
         />
         <input
+          v-else-if="activeTab === 'custom-blocks'"
+          v-model="customBlockKeyword"
+          placeholder="搜索积木名称、分类"
+        />
+        <input
           v-else-if="activeTab === 'accounts'"
           v-model="accountKeyword"
           placeholder="搜索账户、市场"
@@ -687,6 +779,14 @@ onMounted(() => {
       </button>
       <button
         type="button"
+        data-space-tab="custom-blocks"
+        :class="{ 'is-active': activeTab === 'custom-blocks' }"
+        @click="activeTab = 'custom-blocks'"
+      >
+        我的积木
+      </button>
+      <button
+        type="button"
         data-space-tab="accounts"
         :class="{ 'is-active': activeTab === 'accounts' }"
         @click="activeTab = 'accounts'"
@@ -708,6 +808,10 @@ onMounted(() => {
         <article class="space-metric">
           <small>策略总数</small>
           <strong>{{ strategyTotal }}</strong>
+        </article>
+        <article class="space-metric">
+          <small>积木总数</small>
+          <strong>{{ customBlockTotal }}</strong>
         </article>
         <article class="space-metric">
           <small>回测总数</small>
@@ -745,6 +849,26 @@ onMounted(() => {
             @click="openStrategy(latestStrategy)"
           >
             打开
+          </button>
+        </article>
+        <article class="space-lane">
+          <div>
+            <small>最近积木</small>
+            <h2>{{ latestCustomBlock?.name || '暂无积木' }}</h2>
+            <p v-if="latestCustomBlock">
+              {{ latestCustomBlock.category }}
+              ·
+              {{ latestCustomBlock.template.nodes.length }} 个积木
+              ·
+              {{ formatReviewStatus(latestCustomBlock.reviewStatus) }}
+            </p>
+          </div>
+          <button
+            v-if="latestCustomBlock"
+            type="button"
+            @click="activeTab = 'custom-blocks'"
+          >
+            管理
           </button>
         </article>
         <article class="space-lane">
@@ -840,6 +964,61 @@ onMounted(() => {
             data-pagination="strategies-next"
             :disabled="strategyPage >= strategyTotalPages"
             @click="changeStrategyPage(strategyPage + 1)"
+          >
+            下一页
+          </button>
+        </div>
+      </footer>
+    </section>
+
+    <section v-else-if="activeTab === 'custom-blocks'" class="space-section">
+      <p v-if="customBlockError" class="form-error">{{ customBlockError }}</p>
+      <p v-else-if="customBlockLoading" class="space-muted">正在加载自定义积木</p>
+      <p v-else-if="customBlocks.length === 0" class="space-muted">暂无自定义积木</p>
+
+      <div v-else class="custom-block-list">
+        <article v-for="block in customBlocks" :key="block.id" class="custom-block-item">
+          <div>
+            <h2>{{ block.name }}</h2>
+            <p>{{ block.description || '无描述' }}</p>
+            <small>
+              {{ block.category }}
+              ·
+              {{ formatReviewStatus(block.reviewStatus) }}
+              ·
+              {{ block.template.nodes.length }} 个积木
+              ·
+              更新于 {{ formatDate(block.updatedAt) }}
+            </small>
+            <div v-if="block.tags.length" class="custom-block-tags">
+              <span v-for="tag in block.tags" :key="tag">{{ tag }}</span>
+            </div>
+          </div>
+          <div class="strategy-item-actions">
+            <button class="custom-block-delete-button" type="button" @click="deleteCustomBlock(block)">
+              删除
+            </button>
+          </div>
+        </article>
+      </div>
+
+      <footer class="space-footer">
+        <span>共 {{ customBlockTotal }} 个积木</span>
+        <div class="space-pagination">
+          <button
+            type="button"
+            data-pagination="custom-blocks-prev"
+            :disabled="customBlockPage <= 1"
+            @click="changeCustomBlockPage(customBlockPage - 1)"
+          >
+            上一页
+          </button>
+          <span>第 {{ customBlockPage }} / {{ customBlockTotalPages }} 页</span>
+          <button
+            type="button"
+            data-pagination="custom-blocks-next"
+            :disabled="customBlockPage >= customBlockTotalPages"
+            @click="changeCustomBlockPage(customBlockPage + 1)"
           >
             下一页
           </button>

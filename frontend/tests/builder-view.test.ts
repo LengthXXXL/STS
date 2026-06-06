@@ -620,6 +620,47 @@ describe('builder view', () => {
     window.removeEventListener('sts:auth-required', authRequiredListener)
   })
 
+  it('saves the current canvas as a private custom block template', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        id: 21,
+        ownerId: 1,
+        name: '未命名积木模板',
+        description: null,
+        category: '自定义',
+        tags: [],
+        template: {},
+        reviewStatus: 'private',
+        createdAt: '2026-06-06T11:00:00',
+        updatedAt: '2026-06-06T11:00:00'
+      }
+    })
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    await openReviewModal('publish')
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/custom-blocks', {
+      name: '未命名积木模板',
+      description: null,
+      category: '自定义',
+      tags: [],
+      template: expect.objectContaining({
+        version: 1,
+        nodes: expect.arrayContaining([expect.objectContaining({ type: 'buy' })])
+      })
+    })
+    expect(wrapper.find('.draft-status').text()).toContain('已保存到我的积木')
+  })
+
   it('validates whether the strategy draft can run', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)

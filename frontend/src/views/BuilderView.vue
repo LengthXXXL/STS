@@ -141,6 +141,11 @@ interface SavedStrategyResponse {
   backtestConfig: BacktestConfig | null
 }
 
+interface CustomBlockResponse {
+  id: number
+  name: string
+}
+
 type ReviewMode = 'backtest' | 'publish'
 
 interface Connection {
@@ -554,6 +559,7 @@ const isLibraryCollapsed = ref(false)
 const isSnapEnabled = ref(true)
 const reviewModalMode = ref<ReviewMode | null>(null)
 const isBacktestRunning = ref(false)
+const isCustomBlockSaving = ref(false)
 const backtestRunError = ref('')
 const backtestRunResult = ref<BacktestRunResult | null>(null)
 const backtestPersistStatus = ref('')
@@ -751,12 +757,12 @@ const reviewModalTitle = computed(() =>
 )
 
 const reviewPrimaryLabel = computed(() =>
-  reviewModalMode.value === 'publish' ? '确认发布' : '开始回测'
+  reviewModalMode.value === 'publish' ? '保存为积木' : '开始回测'
 )
 
 const reviewPrimaryDisabled = computed(() => {
   if (reviewModalMode.value === 'publish') {
-    return validationIssues.value.length > 0
+    return validationIssues.value.length > 0 || isCustomBlockSaving.value
   }
 
   return backtestIssues.value.length > 0
@@ -1153,13 +1159,53 @@ function openPersonalBacktests() {
   })
 }
 
+async function saveCustomBlockTemplate() {
+  if (!authStore.isAuthenticated) {
+    draftStatus.value = '请先登录后再保存自定义积木'
+    window.dispatchEvent(new CustomEvent('sts:auth-required'))
+    return
+  }
+
+  if (validationIssues.value.length > 0) {
+    draftStatus.value = validationIssues.value[0].message
+    return
+  }
+
+  if (isCustomBlockSaving.value) {
+    return
+  }
+
+  isCustomBlockSaving.value = true
+  draftStatus.value = '正在保存到我的积木'
+
+  const templateName =
+    currentStrategyName.value === DEFAULT_STRATEGY_NAME
+      ? '未命名积木模板'
+      : `${currentStrategyName.value}模板`
+
+  try {
+    const response = await apiClient.post<CustomBlockResponse>('/custom-blocks', {
+      name: templateName,
+      description: null,
+      category: '自定义',
+      tags: [],
+      template: strategyDraft.value
+    })
+    draftStatus.value = `已保存到我的积木：${response.data.name}`
+  } catch {
+    draftStatus.value = '保存自定义积木失败，请稍后重试'
+  } finally {
+    isCustomBlockSaving.value = false
+  }
+}
+
 async function handleReviewPrimaryAction() {
   if (reviewModalMode.value === 'backtest') {
     await runBacktest()
     return
   }
 
-  draftStatus.value = '发布接口待接入，当前仅完成发布前检查'
+  await saveCustomBlockTemplate()
 }
 
 function handleBuilderAction(event: Event) {
@@ -2141,10 +2187,10 @@ function clearCanvas() {
           <button
             class="review-primary-button"
             type="button"
-            :disabled="reviewPrimaryDisabled || isBacktestRunning"
+            :disabled="reviewPrimaryDisabled || isBacktestRunning || isCustomBlockSaving"
             @click="handleReviewPrimaryAction"
           >
-            {{ isBacktestRunning ? '回测中' : reviewPrimaryLabel }}
+            {{ isBacktestRunning ? '回测中' : isCustomBlockSaving ? '保存中' : reviewPrimaryLabel }}
           </button>
         </footer>
       </aside>

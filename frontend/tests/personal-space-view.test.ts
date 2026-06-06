@@ -99,6 +99,19 @@ const savedAccount = {
   updatedAt: '2026-06-06T09:00:00'
 }
 
+const savedCustomBlock = {
+  id: 21,
+  ownerId: 1,
+  name: '突破止盈模板',
+  description: '买入后按收益目标退出',
+  category: '风控',
+  tags: ['止盈', '模板'],
+  template: savedStrategy.strategy,
+  reviewStatus: 'private',
+  createdAt: '2026-06-06T11:00:00',
+  updatedAt: '2026-06-06T11:30:00'
+}
+
 const backtestDetail = {
   ...savedBacktest,
   strategy: savedStrategy.strategy,
@@ -164,6 +177,16 @@ function mockPersonalSpaceRequests() {
         }
       })
     }
+    if (url === '/custom-blocks') {
+      return Promise.resolve({
+        data: {
+          items: [savedCustomBlock],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
     if (url === '/backtests/11') {
       return Promise.resolve({ data: backtestDetail })
     }
@@ -199,6 +222,16 @@ function mockPersonalSpaceRequestsWithDelayedBacktestDetail() {
       return Promise.resolve({
         data: {
           items: [savedAccount],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
+    if (url === '/custom-blocks') {
+      return Promise.resolve({
+        data: {
+          items: [savedCustomBlock],
           total: 1,
           page: 1,
           pageSize: 10
@@ -241,14 +274,19 @@ describe('personal space view', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/simulation-accounts', {
       params: { keyword: '', page: 1, pageSize: 10 }
     })
+    expect(apiClient.get).toHaveBeenCalledWith('/custom-blocks', {
+      params: { keyword: '', page: 1, pageSize: 10 }
+    })
     expect(wrapper.text()).toContain('概览')
     expect(wrapper.text()).toContain('我的策略')
+    expect(wrapper.text()).toContain('我的积木')
     expect(wrapper.text()).toContain('模拟账户')
     expect(wrapper.text()).toContain('我的回测')
     expect(wrapper.text()).toContain('策略总数')
     expect(wrapper.text()).toContain('账户总数')
     expect(wrapper.text()).toContain('回测总数')
     expect(wrapper.text()).toContain('五分钟突破策略')
+    expect(wrapper.text()).toContain('突破止盈模板')
     expect(wrapper.text()).toContain('A股日内账户')
     expect(wrapper.text()).toContain('000001.SZ')
 
@@ -265,7 +303,7 @@ describe('personal space view', () => {
     const wrapper = mount(PersonalSpaceView)
 
     await flushPromises()
-    expect(apiClient.get).toHaveBeenCalledTimes(3)
+    expect(apiClient.get).toHaveBeenCalledTimes(4)
 
     mockPersonalSpaceRequests()
     const authStore = useAuthStore()
@@ -281,7 +319,7 @@ describe('personal space view', () => {
     await nextTick()
     await flushPromises()
 
-    expect(apiClient.get).toHaveBeenCalledTimes(6)
+    expect(apiClient.get).toHaveBeenCalledTimes(8)
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('A股日内账户')
     expect(wrapper.text()).toContain('000001.SZ')
@@ -310,6 +348,28 @@ describe('personal space view', () => {
 
     expect(apiClient.delete).toHaveBeenCalledWith('/strategies/7')
     expect(apiClient.get).toHaveBeenCalledWith('/strategies', {
+      params: { keyword: '', page: 1, pageSize: 10 }
+    })
+  })
+
+  it('shows and deletes custom block templates from the list', async () => {
+    mockPersonalSpaceRequests()
+    vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: null })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="custom-blocks"]').trigger('click')
+
+    expect(wrapper.text()).toContain('突破止盈模板')
+    expect(wrapper.text()).toContain('风控')
+    expect(wrapper.text()).toContain('止盈')
+    expect(wrapper.text()).toContain('私有模板')
+    expect(wrapper.text()).toContain('2 个积木')
+
+    await wrapper.find('.custom-block-delete-button').trigger('click')
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/custom-blocks/21')
+    expect(apiClient.get).toHaveBeenCalledWith('/custom-blocks', {
       params: { keyword: '', page: 1, pageSize: 10 }
     })
   })
