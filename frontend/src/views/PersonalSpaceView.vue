@@ -74,6 +74,20 @@ interface EquityPoint {
   equity: number
 }
 
+interface ChartDataPoint {
+  time: string
+  value: number
+}
+
+interface BacktestChartModel {
+  points: string
+  startLabel: string
+  endLabel: string
+  minLabel: string
+  maxLabel: string
+  latestLabel: string
+}
+
 interface BacktestDetail extends BacktestListItem {
   summary: {
     totalReturnPercent: number
@@ -143,6 +157,34 @@ const latestBacktest = computed(() => backtests.value[0] ?? null)
 const strategyTotalPages = computed(() => Math.max(1, Math.ceil(strategyTotal.value / pageSize)))
 const accountTotalPages = computed(() => Math.max(1, Math.ceil(accountTotal.value / pageSize)))
 const backtestTotalPages = computed(() => Math.max(1, Math.ceil(backtestTotal.value / pageSize)))
+const selectedEquityChart = computed(() => {
+  const curve = selectedBacktest.value?.equityCurve ?? []
+  return buildChartModel(
+    curve.map((point) => ({ time: point.time, value: point.equity })),
+    {
+      highValueAtTop: true,
+      formatLabel: (value) => formatAmount(value)
+    }
+  )
+})
+const selectedDrawdownChart = computed(() => {
+  const curve = selectedBacktest.value?.equityCurve ?? []
+  let peak = 0
+  const drawdownPoints = curve.map<ChartDataPoint>((point) => {
+    peak = Math.max(peak, point.equity)
+    const drawdown = peak > 0 ? ((peak - point.equity) / peak) * 100 : 0
+    return {
+      time: point.time,
+      value: drawdown
+    }
+  })
+
+  return buildChartModel(drawdownPoints, {
+    highValueAtTop: false,
+    minValue: 0,
+    formatLabel: (value) => formatPercent(value)
+  })
+})
 
 async function loadStrategies() {
   strategyLoading.value = true
@@ -355,8 +397,55 @@ function formatPercent(value: number | undefined) {
     .replace(/(\.\d)0$/, '$1')}%`
 }
 
+function formatAmount(value: number | undefined) {
+  return Number(value ?? 0).toLocaleString('zh-CN', {
+    maximumFractionDigits: 2
+  })
+}
+
 function formatDate(value: string | undefined) {
   return value ? value.slice(0, 10) : '-'
+}
+
+function buildChartModel(
+  points: ChartDataPoint[],
+  options: {
+    highValueAtTop: boolean
+    formatLabel: (value: number) => string
+    minValue?: number
+    maxValue?: number
+  }
+): BacktestChartModel | null {
+  if (points.length === 0) {
+    return null
+  }
+
+  const chartWidth = 320
+  const chartHeight = 120
+  const padding = 16
+  const values = points.map((point) => point.value)
+  const minValue = options.minValue ?? Math.min(...values)
+  const maxValue = options.maxValue ?? Math.max(...values)
+  const range = maxValue - minValue
+  const linePoints = points.map((point, index) => {
+    const x =
+      points.length === 1
+        ? chartWidth / 2
+        : padding + (index / (points.length - 1)) * (chartWidth - padding * 2)
+    const normalized = range === 0 ? 0.5 : (point.value - minValue) / range
+    const yRatio = options.highValueAtTop ? 1 - normalized : normalized
+    const y = padding + yRatio * (chartHeight - padding * 2)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  })
+
+  return {
+    points: linePoints.join(' '),
+    startLabel: points[0].time,
+    endLabel: points[points.length - 1].time,
+    minLabel: options.formatLabel(minValue),
+    maxLabel: options.formatLabel(maxValue),
+    latestLabel: options.formatLabel(points[points.length - 1].value)
+  }
 }
 
 watch(
@@ -738,6 +827,68 @@ onMounted(() => {
             <p v-if="selectedBacktest.simulationAccountName" class="space-muted">
               账户 {{ selectedBacktest.simulationAccountName }}
             </p>
+            <div
+              v-if="selectedEquityChart || selectedDrawdownChart"
+              class="backtest-chart-grid"
+            >
+              <article v-if="selectedEquityChart" class="backtest-chart-card">
+                <header>
+                  <span>权益曲线</span>
+                  <small>{{ selectedEquityChart.latestLabel }}</small>
+                </header>
+                <svg
+                  class="backtest-line-chart"
+                  viewBox="0 0 320 120"
+                  role="img"
+                  aria-label="权益曲线"
+                >
+                  <line x1="16" y1="16" x2="304" y2="16" />
+                  <line x1="16" y1="60" x2="304" y2="60" />
+                  <line x1="16" y1="104" x2="304" y2="104" />
+                  <polyline
+                    data-testid="equity-chart-line"
+                    class="backtest-line-chart__line backtest-line-chart__line--equity"
+                    :points="selectedEquityChart.points"
+                  />
+                </svg>
+                <footer>
+                  <span>{{ selectedEquityChart.startLabel }}</span>
+                  <span>{{ selectedEquityChart.endLabel }}</span>
+                </footer>
+                <small>
+                  低 {{ selectedEquityChart.minLabel }} · 高 {{ selectedEquityChart.maxLabel }}
+                </small>
+              </article>
+
+              <article v-if="selectedDrawdownChart" class="backtest-chart-card">
+                <header>
+                  <span>回撤曲线</span>
+                  <small>{{ selectedDrawdownChart.latestLabel }}</small>
+                </header>
+                <svg
+                  class="backtest-line-chart"
+                  viewBox="0 0 320 120"
+                  role="img"
+                  aria-label="回撤曲线"
+                >
+                  <line x1="16" y1="16" x2="304" y2="16" />
+                  <line x1="16" y1="60" x2="304" y2="60" />
+                  <line x1="16" y1="104" x2="304" y2="104" />
+                  <polyline
+                    data-testid="drawdown-chart-line"
+                    class="backtest-line-chart__line backtest-line-chart__line--drawdown"
+                    :points="selectedDrawdownChart.points"
+                  />
+                </svg>
+                <footer>
+                  <span>{{ selectedDrawdownChart.startLabel }}</span>
+                  <span>{{ selectedDrawdownChart.endLabel }}</span>
+                </footer>
+                <small>
+                  低 {{ selectedDrawdownChart.minLabel }} · 高 {{ selectedDrawdownChart.maxLabel }}
+                </small>
+              </article>
+            </div>
             <table class="space-table">
               <thead>
                 <tr>

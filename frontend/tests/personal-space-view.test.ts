@@ -262,6 +262,10 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('买入积木触发')
     expect(wrapper.text()).toContain('账户 A股日内账户')
     expect(wrapper.text()).toContain('107350')
+    expect(wrapper.text()).toContain('权益曲线')
+    expect(wrapper.text()).toContain('回撤曲线')
+    expect(wrapper.find('[data-testid="equity-chart-line"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="drawdown-chart-line"]').exists()).toBe(true)
   })
 
   it('creates, edits and deletes a simulation account', async () => {

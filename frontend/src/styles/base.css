@@ -459,6 +459,68 @@ button {
   background: rgba(17, 16, 25, 0.72);
 }
 
+.backtest-chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.backtest-chart-card {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  border: 1px solid rgba(58, 49, 80, 0.72);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(17, 16, 25, 0.72);
+}
+
+.backtest-chart-card header,
+.backtest-chart-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.backtest-chart-card header span {
+  font-weight: 700;
+}
+
+.backtest-chart-card small,
+.backtest-chart-card footer {
+  color: #9e91b8;
+  font-size: 12px;
+}
+
+.backtest-line-chart {
+  width: 100%;
+  aspect-ratio: 8 / 3;
+  overflow: visible;
+}
+
+.backtest-line-chart line {
+  stroke: rgba(88, 78, 111, 0.42);
+  stroke-width: 1;
+}
+
+.backtest-line-chart__line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 3;
+}
+
+.backtest-line-chart__line--equity {
+  stroke: #5ee6c8;
+  filter: drop-shadow(0 0 8px rgba(94, 230, 200, 0.22));
+}
+
+.backtest-line-chart__line--drawdown {
+  stroke: #ff8ba7;
+  filter: drop-shadow(0 0 8px rgba(255, 139, 167, 0.2));
+}
+
 .space-table {
   width: 100%;
   border-collapse: collapse;
@@ -1437,6 +1499,18 @@ button {
   color: #d7c8ff;
 }
 
+@media (max-width: 860px) {
+  .backtest-layout,
+  .backtest-chart-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .backtest-item {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 @media (max-width: 560px) {
   .app-shell {
     grid-template-columns: 72px minmax(0, 1fr);
@@ -1504,6 +1578,7 @@ button {
   .space-overview-lanes,
   .account-layout,
   .backtest-layout,
+  .backtest-chart-grid,
   .backtest-detail-metrics {
     grid-template-columns: 1fr;
   }
