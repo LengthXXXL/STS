@@ -1,4 +1,5 @@
 from sqlalchemy import Select, func, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.custom_block import CustomBlock
@@ -26,9 +27,13 @@ def create_custom_block(
     owner: User,
     request: CustomBlockCreate,
 ) -> CustomBlockResponse:
+    name = request.name.strip()
+    if _custom_block_name_exists(db, owner, name):
+        raise ValueError("Custom block name already exists")
+
     block = CustomBlock(
         owner_id=owner.id,
-        name=request.name.strip(),
+        name=name,
         description=request.description.strip() if request.description else None,
         category=request.category.strip(),
         tags=_normalize_tags(request.tags),
@@ -36,7 +41,7 @@ def create_custom_block(
         review_status="private",
     )
     db.add(block)
-    db.commit()
+    _commit_custom_block_change(db)
     db.refresh(block)
     return custom_block_to_response(block)
 
@@ -87,12 +92,16 @@ def update_custom_block(
     if block is None:
         return None
 
-    block.name = request.name.strip()
+    name = request.name.strip()
+    if _custom_block_name_exists(db, owner, name, exclude_id=block.id):
+        raise ValueError("Custom block name already exists")
+
+    block.name = name
     block.description = request.description.strip() if request.description else None
     block.category = request.category.strip()
     block.tags = _normalize_tags(request.tags)
     block.template = request.template.model_dump(by_alias=True)
-    db.commit()
+    _commit_custom_block_change(db)
     db.refresh(block)
     return custom_block_to_response(block)
 
@@ -109,6 +118,29 @@ def delete_custom_block(db: Session, owner: User, block_id: int) -> bool:
 
 def _owned_custom_block_statement(owner: User) -> Select[tuple[CustomBlock]]:
     return select(CustomBlock).where(CustomBlock.owner_id == owner.id)
+
+
+def _custom_block_name_exists(
+    db: Session,
+    owner: User,
+    name: str,
+    *,
+    exclude_id: int | None = None,
+) -> bool:
+    statement = _owned_custom_block_statement(owner).where(
+        func.lower(CustomBlock.name) == name.lower()
+    )
+    if exclude_id is not None:
+        statement = statement.where(CustomBlock.id != exclude_id)
+    return db.scalar(select(func.count()).select_from(statement.subquery())) > 0
+
+
+def _commit_custom_block_change(db: Session) -> None:
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise ValueError("Custom block name already exists") from exc
 
 
 def _normalize_tags(tags: list[str]) -> list[str]:

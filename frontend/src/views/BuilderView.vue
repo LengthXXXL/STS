@@ -712,6 +712,15 @@ const filteredCustomBlocks = computed(() => {
   })
 })
 
+const customBlockNameCounts = computed(() => {
+  const counts = new Map<string, number>()
+  customBlockLibrary.value.forEach((block) => {
+    const nameKey = normalizedCustomBlockName(block.name)
+    counts.set(nameKey, (counts.get(nameKey) ?? 0) + 1)
+  })
+  return counts
+})
+
 const strategyDraft = computed<StrategyDraft>(() => ({
   version: 1,
   nodes: placedBlocks.value.map((block) => ({
@@ -1283,6 +1292,23 @@ function customBlockTags() {
     .slice(0, 12)
 }
 
+function normalizedCustomBlockName(name: string) {
+  return name.trim().toLowerCase()
+}
+
+function customBlockDisplayName(block: CustomBlockTemplate) {
+  const duplicateCount = customBlockNameCounts.value.get(normalizedCustomBlockName(block.name)) ?? 0
+  return duplicateCount > 1 ? `${block.name} #${block.id}` : block.name
+}
+
+function responseStatusFromError(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('response' in error)) {
+    return null
+  }
+
+  return (error as { response?: { status?: number } }).response?.status ?? null
+}
+
 async function saveCustomBlockTemplate() {
   if (!authStore.isAuthenticated) {
     customBlockStatus.value = '请先登录后再保存自定义积木'
@@ -1325,8 +1351,11 @@ async function saveCustomBlockTemplate() {
     })
     customBlockStatus.value = `已保存到我的积木：${response.data.name}`
     void loadCustomBlockLibrary()
-  } catch {
-    customBlockStatus.value = '保存自定义积木失败，请稍后重试'
+  } catch (error) {
+    customBlockStatus.value =
+      responseStatusFromError(error) === 409
+        ? '已存在同名积木，请换一个名称'
+        : '保存自定义积木失败，请稍后重试'
   } finally {
     isCustomBlockSaving.value = false
   }
@@ -2190,7 +2219,7 @@ function clearCanvas() {
               @pointercancel.stop="cancelPointerBlockDrag"
               @mousedown.stop="startMouseCustomBlockDrag(block, $event)"
             >
-              <span>{{ block.name }}</span>
+              <span>{{ customBlockDisplayName(block) }}</span>
               <small>{{ block.template.nodes.length }}个</small>
             </button>
           </div>

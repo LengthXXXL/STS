@@ -88,6 +88,70 @@ def test_custom_block_requires_login(client):
     assert response.status_code == 401
 
 
+def test_custom_block_name_must_be_unique_for_current_user(client):
+    token = register_and_token(client, "alice", "alice@example.com")
+
+    first_response = client.post(
+        "/api/custom-blocks",
+        json=custom_block_payload("突破模板"),
+        headers=auth_headers(token),
+    )
+    duplicate_payload = custom_block_payload("  突破模板  ")
+    duplicate_response = client.post(
+        "/api/custom-blocks",
+        json=duplicate_payload,
+        headers=auth_headers(token),
+    )
+
+    assert first_response.status_code == 201
+    assert duplicate_response.status_code == 409
+    assert duplicate_response.json()["detail"] == "Custom block name already exists"
+
+
+def test_custom_block_name_can_repeat_across_different_users(client):
+    alice_token = register_and_token(client, "alice", "alice@example.com")
+    bob_token = register_and_token(client, "bob", "bob@example.com")
+
+    alice_response = client.post(
+        "/api/custom-blocks",
+        json=custom_block_payload("突破模板"),
+        headers=auth_headers(alice_token),
+    )
+    bob_response = client.post(
+        "/api/custom-blocks",
+        json=custom_block_payload("突破模板"),
+        headers=auth_headers(bob_token),
+    )
+
+    assert alice_response.status_code == 201
+    assert bob_response.status_code == 201
+
+
+def test_custom_block_update_rejects_duplicate_name_for_current_user(client):
+    token = register_and_token(client, "alice", "alice@example.com")
+    first_response = client.post(
+        "/api/custom-blocks",
+        json=custom_block_payload("突破模板"),
+        headers=auth_headers(token),
+    )
+    second_response = client.post(
+        "/api/custom-blocks",
+        json=custom_block_payload("止盈模板"),
+        headers=auth_headers(token),
+    )
+
+    update_response = client.put(
+        f"/api/custom-blocks/{second_response.json()['id']}",
+        json=custom_block_payload("突破模板"),
+        headers=auth_headers(token),
+    )
+
+    assert first_response.status_code == 201
+    assert second_response.status_code == 201
+    assert update_response.status_code == 409
+    assert update_response.json()["detail"] == "Custom block name already exists"
+
+
 def test_custom_block_list_only_returns_current_users_items(client):
     alice_token = register_and_token(client, "alice", "alice@example.com")
     bob_token = register_and_token(client, "bob", "bob@example.com")

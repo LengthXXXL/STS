@@ -313,6 +313,26 @@ describe('builder view', () => {
     expect(wrapper.find('.custom-library-block').text()).toContain('突破止盈模板')
   })
 
+  it('disambiguates historical duplicate custom block names in the library', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    mockCustomBlockLibrary([
+      { ...savedCustomBlockTemplate, id: 21, name: '未命名积木模板' },
+      { ...savedCustomBlockTemplate, id: 22, name: '未命名积木模板' }
+    ])
+
+    const wrapper = mount(BuilderView)
+    await flushPromises()
+
+    const customBlocks = wrapper.findAll('.custom-library-block')
+    expect(customBlocks).toHaveLength(2)
+    expect(customBlocks[0].text()).toContain('未命名积木模板 #21')
+    expect(customBlocks[1].text()).toContain('未命名积木模板 #22')
+  })
+
   it('inserts a custom block template with remapped nodes and connections', async () => {
     const authStore = useAuthStore()
     authStore.setSession({
@@ -822,6 +842,25 @@ describe('builder view', () => {
       })
     })
     expect(wrapper.find('.custom-block-status').text()).toContain('已保存到我的积木')
+  })
+
+  it('shows a clear message when a custom block name already exists', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    vi.mocked(apiClient.post).mockRejectedValueOnce({ response: { status: 409 } })
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    await wrapper.find('.custom-block-create-button').trigger('click')
+    await wrapper.find('.custom-block-name-input').setValue('重复模板')
+    await wrapper.find('.custom-block-save-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.custom-block-status').text()).toContain('已存在同名积木')
   })
 
   it('validates whether the strategy draft can run', async () => {

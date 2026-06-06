@@ -27,7 +27,10 @@ def create(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CustomBlockResponse:
-    return create_custom_block(db, current_user, request)
+    try:
+        return create_custom_block(db, current_user, request)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.get("", response_model=CustomBlockListResponse)
@@ -67,7 +70,10 @@ def update(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CustomBlockResponse:
-    block = update_custom_block(db, current_user, block_id, request)
+    try:
+        block = update_custom_block(db, current_user, block_id, request)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if block is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Custom block not found")
     return block
