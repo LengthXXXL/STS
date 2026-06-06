@@ -5,7 +5,15 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 import app.models  # noqa: F401
-from app.api import auth, backtests, custom_blocks, health, simulation_accounts, strategies
+from app.api import (
+    auth,
+    backtests,
+    custom_blocks,
+    health,
+    shared_blocks,
+    simulation_accounts,
+    strategies,
+)
 from app.core.config import get_settings
 from app.core.database import Base, engine
 
@@ -33,5 +41,6 @@ app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(backtests.router, prefix="/api")
 app.include_router(custom_blocks.router, prefix="/api")
+app.include_router(shared_blocks.router, prefix="/api")
 app.include_router(simulation_accounts.router, prefix="/api")
 app.include_router(strategies.router, prefix="/api")

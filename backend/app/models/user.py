@@ -18,6 +18,11 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.backtest import BacktestTask
     from app.models.custom_block import CustomBlock
+    from app.models.shared_block import (
+        RecommendationEvent,
+        SharedBlockFavorite,
+        SharedBlockImport,
+    )
     from app.models.simulation_account import SimulationAccount
     from app.models.strategy import Strategy
 
@@ -62,6 +67,18 @@ class User(Base):
     )
     custom_blocks: Mapped[list["CustomBlock"]] = relationship(
         back_populates="owner",
+        cascade="all, delete-orphan",
+    )
+    shared_block_favorites: Mapped[list["SharedBlockFavorite"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    shared_block_imports: Mapped[list["SharedBlockImport"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    recommendation_events: Mapped[list["RecommendationEvent"]] = relationship(
+        back_populates="user",
         cascade="all, delete-orphan",
     )
 

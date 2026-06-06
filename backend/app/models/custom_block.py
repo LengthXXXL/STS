@@ -1,10 +1,18 @@
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
+
+if TYPE_CHECKING:
+    from app.models.shared_block import (
+        RecommendationEvent,
+        SharedBlockFavorite,
+        SharedBlockImport,
+        SharedBlockStats,
+    )
 
 
 class CustomBlock(Base):
@@ -28,3 +36,26 @@ class CustomBlock(Base):
     )
 
     owner = relationship("User", back_populates="custom_blocks")
+    shared_stats: Mapped["SharedBlockStats | None"] = relationship(
+        back_populates="custom_block",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+    shared_favorites: Mapped[list["SharedBlockFavorite"]] = relationship(
+        back_populates="custom_block",
+        cascade="all, delete-orphan",
+    )
+    source_shared_imports: Mapped[list["SharedBlockImport"]] = relationship(
+        back_populates="source_custom_block",
+        cascade="all, delete-orphan",
+        foreign_keys="SharedBlockImport.source_custom_block_id",
+    )
+    imported_shared_imports: Mapped[list["SharedBlockImport"]] = relationship(
+        back_populates="imported_custom_block",
+        cascade="all, delete-orphan",
+        foreign_keys="SharedBlockImport.imported_custom_block_id",
+    )
+    recommendation_events: Mapped[list["RecommendationEvent"]] = relationship(
+        back_populates="custom_block",
+        cascade="all, delete-orphan",
+    )
