@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   dragOffsetFromPointer,
@@ -146,6 +146,26 @@ interface CustomBlockResponse {
   name: string
 }
 
+interface CustomBlockTemplate {
+  id: number
+  ownerId: number
+  name: string
+  description: string | null
+  category: string
+  tags: string[]
+  template: StrategyDraft
+  reviewStatus: 'private' | 'pending_review' | 'approved' | 'rejected'
+  createdAt: string
+  updatedAt: string
+}
+
+interface CustomBlockListResponse {
+  items: CustomBlockTemplate[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 type ReviewMode = 'backtest' | 'publish'
 
 interface CustomBlockForm {
@@ -186,6 +206,10 @@ interface PlacedBlockDragState {
   startBlock: CanvasPoint
   hasMoved: boolean
 }
+
+type LibraryDragSource =
+  | { type: 'builtin'; block: BlockDefinition }
+  | { type: 'custom'; block: CustomBlockTemplate }
 
 const BLOCK_WIDTH = 132
 const BLOCK_HEIGHT = 44
@@ -555,7 +579,12 @@ const transform = reactive<CanvasTransform>({ x: 0, y: 0, scale: 1 })
 const libraryOffset = reactive({ x: 0, y: 0 })
 const placedBlocks = ref<PlacedBlock[]>([])
 const connections = ref<Connection[]>([])
-const draggingBlock = ref<{ block: BlockDefinition; x: number; y: number } | null>(null)
+const draggingBlock = ref<{
+  label: string
+  tone: BlockDefinition['tone']
+  x: number
+  y: number
+} | null>(null)
 const activeConnection = ref<ActiveConnection | null>(null)
 const selectedBlockId = ref<string | null>(null)
 const inspectedBlockId = ref<string | null>(null)
@@ -588,6 +617,9 @@ const customBlockForm = reactive<CustomBlockForm>({
   tags: ''
 })
 const customBlockStatus = ref('')
+const customBlockLibrary = ref<CustomBlockTemplate[]>([])
+const customBlockLibraryLoading = ref(false)
+const customBlockLibraryError = ref('')
 const backtestSettings = reactive<BacktestSettings>({
   market: 'A_SHARE',
   symbol: '000001.SZ',
@@ -599,7 +631,7 @@ const backtestSettings = reactive<BacktestSettings>({
 
 let panState: DragState | null = null
 let libraryDragState: DragState | null = null
-let blockDragState: { block: BlockDefinition; pointerId: number | null } | null = null
+let blockDragState: { source: LibraryDragSource; pointerId: number | null } | null = null
 let blockDragPointerTarget: HTMLElement | null = null
 let placedBlockDragState: PlacedBlockDragState | null = null
 let ignoredPlacedBlockClickId: string | null = null
@@ -661,6 +693,24 @@ const filteredBlockGroups = computed(() =>
     }))
     .filter((group) => group.blocks.length > 0)
 )
+
+const filteredCustomBlocks = computed(() => {
+  const keyword = blockSearchQuery.value.trim().toLowerCase()
+  if (!keyword) {
+    return customBlockLibrary.value
+  }
+
+  return customBlockLibrary.value.filter((block) => {
+    const nodeLabels = block.template.nodes.map((node) => node.label || node.type)
+    return [
+      block.name,
+      block.description ?? '',
+      block.category,
+      ...block.tags,
+      ...nodeLabels
+    ].some((text) => text.toLowerCase().includes(keyword))
+  })
+})
 
 const strategyDraft = computed<StrategyDraft>(() => ({
   version: 1,
@@ -1038,6 +1088,28 @@ async function loadSimulationAccounts() {
   }
 }
 
+async function loadCustomBlockLibrary() {
+  if (!authStore.isAuthenticated) {
+    customBlockLibrary.value = []
+    customBlockLibraryError.value = ''
+    return
+  }
+
+  customBlockLibraryLoading.value = true
+  customBlockLibraryError.value = ''
+  try {
+    const response = await apiClient.get<CustomBlockListResponse>('/custom-blocks', {
+      params: { page: 1, pageSize: 50 }
+    })
+    customBlockLibrary.value = response.data.items
+  } catch {
+    customBlockLibrary.value = []
+    customBlockLibraryError.value = '我的积木加载失败'
+  } finally {
+    customBlockLibraryLoading.value = false
+  }
+}
+
 function applySelectedSimulationAccount() {
   const account = simulationAccounts.value.find(
     (item) => String(item.id) === selectedSimulationAccountId.value
@@ -1252,6 +1324,7 @@ async function saveCustomBlockTemplate() {
       template: strategyDraft.value
     })
     customBlockStatus.value = `已保存到我的积木：${response.data.name}`
+    void loadCustomBlockLibrary()
   } catch {
     customBlockStatus.value = '保存自定义积木失败，请稍后重试'
   } finally {
@@ -1293,14 +1366,27 @@ function startBlockDrag(block: BlockDefinition, event: DragEvent) {
   }
 }
 
-function beginBlockDrag(
-  block: BlockDefinition,
+function libraryDragLabel(source: LibraryDragSource) {
+  return source.type === 'builtin' ? source.block.label : source.block.name
+}
+
+function libraryDragTone(source: LibraryDragSource): BlockDefinition['tone'] {
+  return source.type === 'builtin' ? source.block.tone : 'condition'
+}
+
+function beginLibraryDrag(
+  source: LibraryDragSource,
   clientX: number,
   clientY: number,
   pointerId: number | null
 ) {
-  blockDragState = { block, pointerId }
-  draggingBlock.value = { block, x: clientX, y: clientY }
+  blockDragState = { source, pointerId }
+  draggingBlock.value = {
+    label: libraryDragLabel(source),
+    tone: libraryDragTone(source),
+    x: clientX,
+    y: clientY
+  }
 }
 
 function updateBlockDrag(clientX: number, clientY: number) {
@@ -1309,7 +1395,8 @@ function updateBlockDrag(clientX: number, clientY: number) {
   }
 
   draggingBlock.value = {
-    block: blockDragState.block,
+    label: libraryDragLabel(blockDragState.source),
+    tone: libraryDragTone(blockDragState.source),
     x: clientX,
     y: clientY
   }
@@ -1320,7 +1407,11 @@ function finishBlockDrag(clientX: number, clientY: number) {
     return
   }
 
-  addBlockAtClientPoint(blockDragState.block, clientX, clientY)
+  if (blockDragState.source.type === 'builtin') {
+    addBlockAtClientPoint(blockDragState.source.block, clientX, clientY)
+  } else {
+    addCustomBlockAtClientPoint(blockDragState.source.block, clientX, clientY)
+  }
   draggingBlock.value = null
   blockDragState = null
 }
@@ -1357,6 +1448,74 @@ function addBlockAtClientPoint(block: BlockDefinition, clientX: number, clientY:
     y: Math.round(position.y),
     params: createDefaultParams(block)
   })
+}
+
+function addCustomBlockAtClientPoint(block: CustomBlockTemplate, clientX: number, clientY: number) {
+  const rect = canvasRef.value?.getBoundingClientRect()
+  if (
+    !rect ||
+    clientX < rect.left ||
+    clientX > rect.right ||
+    clientY < rect.top ||
+    clientY > rect.bottom
+  ) {
+    return
+  }
+
+  if (isPointInsideFloatingLibrary(clientX, clientY)) {
+    return
+  }
+
+  const templateNodes = block.template.nodes
+    .map((node) => ({
+      node,
+      definition: blockDefinitions.find((definition) => definition.id === node.type)
+    }))
+    .filter((item): item is { node: StrategyNode; definition: BlockDefinition } =>
+      Boolean(item.definition)
+    )
+
+  if (templateNodes.length === 0) {
+    return
+  }
+
+  const minX = Math.min(...templateNodes.map((item) => item.node.x))
+  const minY = Math.min(...templateNodes.map((item) => item.node.y))
+  const point = screenToCanvasPoint(clientX, clientY, toCanvasRect(rect), transform)
+  const position = snapBlockPosition(point)
+  const seed = `${block.id}-${Date.now()}-${placedBlocks.value.length}`
+  const nodeIdMap = new Map<string, string>()
+  const nextBlocks = templateNodes.map((item, index) => {
+    const nextId = `${item.node.type}-${seed}-${index}`
+    nodeIdMap.set(item.node.id, nextId)
+    return {
+      id: nextId,
+      blockId: item.definition.id,
+      label: item.definition.label,
+      tone: item.definition.tone,
+      x: Math.round(position.x + item.node.x - minX),
+      y: Math.round(position.y + item.node.y - minY),
+      params: normalizeBlockParams(item.definition, item.node.params)
+    }
+  })
+
+  const nextConnections = block.template.edges.reduce<Connection[]>((items, edge, index) => {
+    const fromBlockId = nodeIdMap.get(edge.from)
+    const toBlockId = nodeIdMap.get(edge.to)
+    if (!fromBlockId || !toBlockId) {
+      return items
+    }
+
+    items.push({
+      id: `${fromBlockId}-${toBlockId}-${index}`,
+      fromBlockId,
+      toBlockId
+    })
+    return items
+  }, [])
+
+  placedBlocks.value.push(...nextBlocks)
+  connections.value.push(...nextConnections)
 }
 
 function isPointInsideFloatingLibrary(clientX: number, clientY: number) {
@@ -1556,7 +1715,22 @@ function startPointerBlockDrag(block: BlockDefinition, event: PointerEvent) {
   }
 
   event.preventDefault()
-  beginBlockDrag(block, event.clientX, event.clientY, event.pointerId)
+  beginLibraryDrag({ type: 'builtin', block }, event.clientX, event.clientY, event.pointerId)
+  blockDragPointerTarget = event.currentTarget as HTMLElement
+  blockDragPointerTarget.setPointerCapture?.(event.pointerId)
+  window.addEventListener('pointermove', movePointerBlockDrag, true)
+  window.addEventListener('pointerup', endPointerBlockDrag, true)
+  window.addEventListener('pointercancel', cancelPointerBlockDrag, true)
+  window.addEventListener('blur', cancelPointerBlockDrag)
+}
+
+function startPointerCustomBlockDrag(block: CustomBlockTemplate, event: PointerEvent) {
+  if (event.button !== 0) {
+    return
+  }
+
+  event.preventDefault()
+  beginLibraryDrag({ type: 'custom', block }, event.clientX, event.clientY, event.pointerId)
   blockDragPointerTarget = event.currentTarget as HTMLElement
   blockDragPointerTarget.setPointerCapture?.(event.pointerId)
   window.addEventListener('pointermove', movePointerBlockDrag, true)
@@ -1653,7 +1827,19 @@ function startMouseBlockDrag(block: BlockDefinition, event: MouseEvent) {
   }
 
   event.preventDefault()
-  beginBlockDrag(block, event.clientX, event.clientY, null)
+  beginLibraryDrag({ type: 'builtin', block }, event.clientX, event.clientY, null)
+  window.addEventListener('mousemove', moveMouseBlockDrag)
+  window.addEventListener('mouseup', endMouseBlockDrag)
+  window.addEventListener('blur', cancelMouseBlockDrag)
+}
+
+function startMouseCustomBlockDrag(block: CustomBlockTemplate, event: MouseEvent) {
+  if (event.button !== 0 || blockDragState) {
+    return
+  }
+
+  event.preventDefault()
+  beginLibraryDrag({ type: 'custom', block }, event.clientX, event.clientY, null)
   window.addEventListener('mousemove', moveMouseBlockDrag)
   window.addEventListener('mouseup', endMouseBlockDrag)
   window.addEventListener('blur', cancelMouseBlockDrag)
@@ -1662,7 +1848,21 @@ function startMouseBlockDrag(block: BlockDefinition, event: MouseEvent) {
 onMounted(() => {
   window.addEventListener('sts:builder-action', handleBuilderAction)
   loadWorkspaceStrategy()
+  void loadCustomBlockLibrary()
 })
+
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated) => {
+    if (isAuthenticated) {
+      void loadCustomBlockLibrary()
+      return
+    }
+
+    customBlockLibrary.value = []
+    customBlockLibraryError.value = ''
+  }
+)
 
 onBeforeUnmount(() => {
   window.removeEventListener('sts:builder-action', handleBuilderAction)
@@ -1909,10 +2109,10 @@ function clearCanvas() {
     <div
       v-if="draggingBlock"
       class="drag-preview"
-      :class="`drag-preview--${draggingBlock.block.tone}`"
+      :class="`drag-preview--${draggingBlock.tone}`"
       :style="{ left: `${draggingBlock.x}px`, top: `${draggingBlock.y}px` }"
     >
-      {{ draggingBlock.block.label }}
+      {{ draggingBlock.label }}
     </div>
 
     <p v-if="strategySaveStatus" class="strategy-save-status">{{ strategySaveStatus }}</p>
@@ -1963,6 +2163,38 @@ function clearCanvas() {
         placeholder="搜索积木"
       />
       <nav v-if="!isLibraryCollapsed" class="block-library-groups">
+        <section class="custom-block-library-section" aria-label="我的积木">
+          <h3>我的积木</h3>
+          <p v-if="!authStore.isAuthenticated" class="custom-block-library-hint">
+            登录后可使用自己的积木
+          </p>
+          <p v-else-if="customBlockLibraryLoading" class="custom-block-library-hint">
+            正在加载我的积木
+          </p>
+          <p v-else-if="customBlockLibraryError" class="custom-block-library-hint">
+            {{ customBlockLibraryError }}
+          </p>
+          <p v-else-if="filteredCustomBlocks.length === 0" class="custom-block-library-hint">
+            暂无匹配的自定义积木
+          </p>
+          <div v-else class="block-library-group-items">
+            <button
+              v-for="block in filteredCustomBlocks"
+              :key="block.id"
+              class="library-block custom-library-block library-block--condition"
+              :data-custom-block-id="block.id"
+              draggable="false"
+              @pointerdown.stop="startPointerCustomBlockDrag(block, $event)"
+              @pointermove.stop="movePointerBlockDrag"
+              @pointerup.stop="endPointerBlockDrag"
+              @pointercancel.stop="cancelPointerBlockDrag"
+              @mousedown.stop="startMouseCustomBlockDrag(block, $event)"
+            >
+              <span>{{ block.name }}</span>
+              <small>{{ block.template.nodes.length }}个</small>
+            </button>
+          </div>
+        </section>
         <section
           v-for="group in filteredBlockGroups"
           :key="group.category"

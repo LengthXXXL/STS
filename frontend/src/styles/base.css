@@ -1098,16 +1098,29 @@ button {
   gap: 14px;
 }
 
-.block-library-group {
+.block-library-group,
+.custom-block-library-section {
   display: grid;
   gap: 8px;
 }
 
-.block-library-group h3 {
+.block-library-group h3,
+.custom-block-library-section h3 {
   margin: 0;
   color: #bfb3ff;
   font-size: 12px;
   font-weight: 700;
+}
+
+.custom-block-library-hint {
+  margin: 0;
+  border: 1px solid rgba(124, 77, 255, 0.22);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: #a89bc1;
+  background: rgba(20, 18, 28, 0.66);
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .block-library-group-items {

@@ -93,6 +93,65 @@ describe('builder view', () => {
     window.dispatchEvent(event)
   }
 
+  const savedCustomBlockTemplate = {
+    id: 21,
+    ownerId: 1,
+    name: '突破止盈模板',
+    description: '买入后按目标止盈',
+    category: '风控',
+    tags: ['止盈'],
+    template: {
+      version: 1,
+      nodes: [
+        {
+          id: 'template-buy',
+          type: 'buy',
+          label: '买入',
+          x: 0,
+          y: 0,
+          params: { sizePercent: '30', orderType: 'market' }
+        },
+        {
+          id: 'template-take-profit',
+          type: 'take-profit',
+          label: '止盈',
+          x: 180,
+          y: 0,
+          params: { profitRate: '5', sellPercent: '100' }
+        }
+      ],
+      edges: [{ id: 'template-edge', from: 'template-buy', to: 'template-take-profit' }],
+      viewport: { x: 0, y: 0, scale: 1 }
+    },
+    reviewStatus: 'private',
+    createdAt: '2026-06-06T11:00:00',
+    updatedAt: '2026-06-06T11:30:00'
+  }
+
+  function mockCustomBlockLibrary(items = [savedCustomBlockTemplate]) {
+    vi.mocked(apiClient.get).mockImplementation((url) => {
+      if (url === '/custom-blocks') {
+        return Promise.resolve({
+          data: {
+            items,
+            total: items.length,
+            page: 1,
+            pageSize: 50
+          }
+        })
+      }
+
+      return Promise.resolve({
+        data: {
+          items: [],
+          total: 0,
+          page: 1,
+          pageSize: 50
+        }
+      })
+    })
+  }
+
   it('renders a dotted canvas with a floating block library', () => {
     const wrapper = mount(BuilderView)
 
@@ -228,6 +287,63 @@ describe('builder view', () => {
     await wrapper.find('.block-library-search').setValue('动作')
 
     expect(wrapper.findAll('.library-block')).toHaveLength(3)
+  })
+
+  it('loads authenticated custom block templates into the block library', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    mockCustomBlockLibrary()
+
+    const wrapper = mount(BuilderView)
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenCalledWith('/custom-blocks', {
+      params: { page: 1, pageSize: 50 }
+    })
+    expect(wrapper.text()).toContain('我的积木')
+    expect(wrapper.text()).toContain('突破止盈模板')
+    expect(wrapper.find('[data-custom-block-id="21"]').exists()).toBe(true)
+
+    await wrapper.find('.block-library-search').setValue('止盈模板')
+
+    expect(wrapper.findAll('.custom-library-block')).toHaveLength(1)
+    expect(wrapper.find('.custom-library-block').text()).toContain('突破止盈模板')
+  })
+
+  it('inserts a custom block template with remapped nodes and connections', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    mockCustomBlockLibrary()
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await flushPromises()
+
+    await wrapper
+      .find('[data-custom-block-id="21"]')
+      .trigger('mousedown', { button: 0, clientX: 410, clientY: 220 })
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 260, clientY: 170 }))
+    window.dispatchEvent(new MouseEvent('mouseup', { clientX: 260, clientY: 170 }))
+    await nextTick()
+
+    const placedBlocks = wrapper.findAll('.canvas-block')
+    expect(placedBlocks).toHaveLength(2)
+    expect(placedBlocks[0].text()).toContain('买入')
+    expect(placedBlocks[1].text()).toContain('止盈')
+
+    await openReviewModal('publish')
+    const strategy = JSON.parse(wrapper.find('.strategy-json-preview').text())
+
+    expect(strategy.nodes).toHaveLength(2)
+    expect(strategy.edges).toHaveLength(1)
+    expect(strategy.nodes.map((node: { id: string }) => node.id)).not.toContain('template-buy')
+    expect(strategy.edges[0].from).toBe(strategy.nodes[0].id)
+    expect(strategy.edges[0].to).toBe(strategy.nodes[1].id)
   })
 
   it('adds a block when a library block is pointer-dragged onto the canvas', async () => {
@@ -857,13 +973,18 @@ describe('builder view', () => {
       token: 'token-123',
       user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
     })
-    vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: {
-        items: [],
-        total: 0,
-        page: 1,
-        pageSize: 10
+    vi.mocked(apiClient.get).mockImplementation((url) => {
+      if (url === '/simulation-accounts' || url === '/custom-blocks') {
+        return Promise.resolve({
+          data: {
+            items: [],
+            total: 0,
+            page: 1,
+            pageSize: 50
+          }
+        })
       }
+      return Promise.reject(new Error(`Unexpected GET ${url}`))
     })
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: {
@@ -919,24 +1040,39 @@ describe('builder view', () => {
         roles: ['user']
       }
     })
-    vi.mocked(apiClient.get).mockResolvedValueOnce({
-      data: {
-        items: [
-          {
-            id: 3,
-            ownerId: 1,
-            name: '美股一分钟账户',
-            description: '美股短线测试',
-            market: 'US_STOCK',
-            initialCash: 50000,
-            createdAt: '2026-06-06T09:00:00',
-            updatedAt: '2026-06-06T09:00:00'
+    vi.mocked(apiClient.get).mockImplementation((url) => {
+      if (url === '/custom-blocks') {
+        return Promise.resolve({
+          data: {
+            items: [],
+            total: 0,
+            page: 1,
+            pageSize: 50
           }
-        ],
-        total: 1,
-        page: 1,
-        pageSize: 10
+        })
       }
+      if (url === '/simulation-accounts') {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                id: 3,
+                ownerId: 1,
+                name: '美股一分钟账户',
+                description: '美股短线测试',
+                market: 'US_STOCK',
+                initialCash: 50000,
+                createdAt: '2026-06-06T09:00:00',
+                updatedAt: '2026-06-06T09:00:00'
+              }
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 50
+          }
+        })
+      }
+      return Promise.reject(new Error(`Unexpected GET ${url}`))
     })
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: {
