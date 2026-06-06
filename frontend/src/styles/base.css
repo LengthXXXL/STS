@@ -297,6 +297,12 @@ button {
   background: rgba(9, 8, 13, 0.54);
 }
 
+.backtest-item.is-selected {
+  border-color: rgba(124, 77, 255, 0.78);
+  background: rgba(24, 19, 35, 0.78);
+  box-shadow: 0 0 0 1px rgba(124, 77, 255, 0.18), 0 18px 36px rgba(0, 0, 0, 0.22);
+}
+
 .strategy-item h2,
 .account-item h2,
 .backtest-item h2 {
@@ -442,6 +448,27 @@ button {
 
 .space-detail-panel > span {
   color: #cfc7dc;
+}
+
+.detail-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.backtest-close-button {
+  border: 1px solid rgba(124, 77, 255, 0.58);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: #f7f2ff;
+  background: rgba(48, 33, 87, 0.82);
+  cursor: pointer;
+}
+
+.backtest-close-button:hover {
+  border-color: rgba(184, 156, 255, 0.78);
+  background: rgba(83, 49, 169, 0.86);
 }
 
 .backtest-detail-metrics {

@@ -454,6 +454,11 @@ async function deleteAccount(account: SimulationAccount) {
 }
 
 async function openBacktest(backtest: BacktestListItem) {
+  if (isSelectedBacktest(backtest) && !backtestDetailLoading.value) {
+    closeBacktestDetail()
+    return
+  }
+
   backtestDetailLoading.value = true
   backtestError.value = ''
   try {
@@ -464,6 +469,15 @@ async function openBacktest(backtest: BacktestListItem) {
   } finally {
     backtestDetailLoading.value = false
   }
+}
+
+function isSelectedBacktest(backtest: BacktestListItem) {
+  return selectedBacktest.value?.id === backtest.id
+}
+
+function closeBacktestDetail() {
+  selectedBacktest.value = null
+  backtestError.value = ''
 }
 
 async function changeStrategyPage(nextPage: number) {
@@ -896,7 +910,12 @@ onMounted(() => {
 
       <div v-else class="backtest-layout">
         <div class="backtest-list">
-          <article v-for="backtest in backtests" :key="backtest.id" class="backtest-item">
+          <article
+            v-for="backtest in backtests"
+            :key="backtest.id"
+            class="backtest-item"
+            :class="{ 'is-selected': isSelectedBacktest(backtest) }"
+          >
             <div>
               <h2>{{ backtest.symbol }}</h2>
               <p>
@@ -919,14 +938,19 @@ onMounted(() => {
               </small>
             </div>
             <button class="backtest-open-button" type="button" @click="openBacktest(backtest)">
-              查看
+              {{ isSelectedBacktest(backtest) ? '收起' : '查看' }}
             </button>
           </article>
         </div>
 
         <aside class="space-detail-panel" :aria-busy="backtestDetailLoading">
           <template v-if="selectedBacktest">
-            <strong>回测详情</strong>
+            <header class="detail-panel-header">
+              <strong>回测详情</strong>
+              <button class="backtest-close-button" type="button" @click="closeBacktestDetail">
+                收起
+              </button>
+            </header>
             <div class="backtest-detail-metrics">
               <span>
                 <small>收益</small>

@@ -313,6 +313,9 @@ describe('personal space view', () => {
     await flushPromises()
 
     expect(apiClient.get).toHaveBeenCalledWith('/backtests/11')
+    expect(wrapper.find('.backtest-item.is-selected').exists()).toBe(true)
+    expect(wrapper.find('.backtest-open-button').text()).toBe('收起')
+    expect(wrapper.find('.backtest-close-button').exists()).toBe(true)
     expect(wrapper.text()).toContain('回测详情')
     expect(wrapper.text()).toContain('买入积木触发')
     expect(wrapper.text()).toContain('账户 A股日内账户')
@@ -336,6 +339,30 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('2 个')
     expect(wrapper.text()).toContain('买入 x1')
     expect(wrapper.text()).toContain('止损 x1')
+  })
+
+  it('closes an opened backtest detail from the panel or selected list item', async () => {
+    mockPersonalSpaceRequests()
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="backtests"]').trigger('click')
+    await wrapper.find('.backtest-open-button').trigger('click')
+    await flushPromises()
+
+    await wrapper.find('.backtest-close-button').trigger('click')
+
+    expect(wrapper.text()).toContain('选择一条回测记录')
+    expect(wrapper.find('.backtest-item.is-selected').exists()).toBe(false)
+    expect(wrapper.find('.backtest-open-button').text()).toBe('查看')
+
+    await wrapper.find('.backtest-open-button').trigger('click')
+    await flushPromises()
+    await wrapper.find('.backtest-open-button').trigger('click')
+
+    expect(wrapper.text()).toContain('选择一条回测记录')
+    expect(wrapper.find('.backtest-item.is-selected').exists()).toBe(false)
+    expect(wrapper.find('.backtest-open-button').text()).toBe('查看')
   })
 
   it('keeps the detail panel stable while loading a backtest detail', async () => {
