@@ -15,6 +15,7 @@ from app.services.custom_block_service import (
     delete_custom_block,
     get_custom_block,
     list_custom_blocks,
+    publish_custom_block,
     update_custom_block,
 )
 
@@ -49,6 +50,21 @@ def list_current_user_custom_blocks(
         page_size=page_size,
     )
     return CustomBlockListResponse(items=items, total=total, page=page, pageSize=page_size)
+
+
+@router.post("/{block_id}/publish", response_model=CustomBlockResponse)
+def publish(
+    block_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> CustomBlockResponse:
+    try:
+        block = publish_custom_block(db, current_user, block_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    if block is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Custom block not found")
+    return block
 
 
 @router.get("/{block_id}", response_model=CustomBlockResponse)

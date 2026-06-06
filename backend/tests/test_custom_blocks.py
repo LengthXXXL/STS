@@ -1,3 +1,4 @@
+from app.models.custom_block import CustomBlock
 from tests.test_strategies import auth_headers, register_and_token, strategy_payload
 
 
@@ -80,6 +81,81 @@ def test_custom_block_crud_flow_for_current_user(client):
         headers=auth_headers(token),
     )
     assert missing_response.status_code == 404
+
+
+def test_custom_block_owner_can_publish_private_block(client):
+    token = register_and_token(client, "alice", "alice@example.com")
+    create_response = client.post(
+        "/api/custom-blocks",
+        json=custom_block_payload("发布模板"),
+        headers=auth_headers(token),
+    )
+    assert create_response.status_code == 201
+
+    publish_response = client.post(
+        f"/api/custom-blocks/{create_response.json()['id']}/publish",
+        headers=auth_headers(token),
+    )
+
+    assert publish_response.status_code == 200
+    assert publish_response.json()["reviewStatus"] == "pending_review"
+
+
+def test_custom_block_publish_rejects_non_owner(client):
+    alice_token = register_and_token(client, "alice", "alice@example.com")
+    bob_token = register_and_token(client, "bob", "bob@example.com")
+    create_response = client.post(
+        "/api/custom-blocks",
+        json=custom_block_payload("Alice 发布模板"),
+        headers=auth_headers(alice_token),
+    )
+    assert create_response.status_code == 201
+
+    publish_response = client.post(
+        f"/api/custom-blocks/{create_response.json()['id']}/publish",
+        headers=auth_headers(bob_token),
+    )
+
+    assert publish_response.status_code == 404
+
+
+def test_custom_block_publish_rejects_pending_or_approved(client, db_session):
+    token = register_and_token(client, "alice", "alice@example.com")
+    create_response = client.post(
+        "/api/custom-blocks",
+        json=custom_block_payload("只允许发布一次"),
+        headers=auth_headers(token),
+    )
+    assert create_response.status_code == 201
+    block_id = create_response.json()["id"]
+    first_publish = client.post(
+        f"/api/custom-blocks/{block_id}/publish", headers=auth_headers(token)
+    )
+    second_publish = client.post(
+        f"/api/custom-blocks/{block_id}/publish", headers=auth_headers(token)
+    )
+
+    assert first_publish.status_code == 200
+    assert second_publish.status_code == 409
+    assert second_publish.json()["detail"] == "Custom block is already submitted or public"
+
+    approved_create_response = client.post(
+        "/api/custom-blocks",
+        json=custom_block_payload("已批准模板"),
+        headers=auth_headers(token),
+    )
+    assert approved_create_response.status_code == 201
+    approved_block_id = approved_create_response.json()["id"]
+    approved_block = db_session.get(CustomBlock, approved_block_id)
+    approved_block.review_status = "approved"
+    db_session.commit()
+
+    approved_publish = client.post(
+        f"/api/custom-blocks/{approved_block_id}/publish", headers=auth_headers(token)
+    )
+
+    assert approved_publish.status_code == 409
+    assert approved_publish.json()["detail"] == "Custom block is already submitted or public"
 
 
 def test_custom_block_requires_login(client):

@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 
 from app.models.custom_block import CustomBlock
 from app.models.user import User
-from app.schemas.custom_block import CustomBlockCreate, CustomBlockResponse, CustomBlockUpdate
+from app.schemas.custom_block import (
+    CustomBlockCreate,
+    CustomBlockResponse,
+    CustomBlockUpdate,
+)
+
+PUBLISHABLE_REVIEW_STATUSES = {"private", "rejected"}
 
 
 def custom_block_to_response(block: CustomBlock) -> CustomBlockResponse:
@@ -79,6 +85,19 @@ def get_custom_block(db: Session, owner: User, block_id: int) -> CustomBlockResp
     block = db.scalar(_owned_custom_block_statement(owner).where(CustomBlock.id == block_id))
     if block is None:
         return None
+    return custom_block_to_response(block)
+
+
+def publish_custom_block(db: Session, owner: User, block_id: int) -> CustomBlockResponse | None:
+    block = db.scalar(_owned_custom_block_statement(owner).where(CustomBlock.id == block_id))
+    if block is None:
+        return None
+    if block.review_status not in PUBLISHABLE_REVIEW_STATUSES:
+        raise ValueError("Custom block is already submitted or public")
+
+    block.review_status = "pending_review"
+    _commit_custom_block_change(db)
+    db.refresh(block)
     return custom_block_to_response(block)
 
 
