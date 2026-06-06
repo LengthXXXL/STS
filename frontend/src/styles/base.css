@@ -506,6 +506,28 @@ button {
   color: #9e91b8;
 }
 
+.snapshot-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.backtest-replay-button {
+  border: 1px solid rgba(94, 230, 200, 0.42);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: #f3fffb;
+  background: rgba(21, 57, 53, 0.76);
+  cursor: pointer;
+}
+
+.backtest-replay-button:hover {
+  border-color: rgba(119, 255, 225, 0.68);
+  background: rgba(28, 82, 74, 0.86);
+}
+
 .snapshot-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

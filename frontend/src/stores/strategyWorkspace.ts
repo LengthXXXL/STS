@@ -36,6 +36,7 @@ export interface BacktestConfigPayload {
   startDate: string
   endDate: string
   initialCash: number
+  simulationAccountId?: number
 }
 
 export interface SavedStrategy {
@@ -50,22 +51,64 @@ export interface SavedStrategy {
   backtestConfig: BacktestConfigPayload | null
 }
 
+export interface WorkspaceStrategyDraft {
+  source: 'saved-strategy' | 'backtest-snapshot'
+  name: string
+  description: string | null
+  strategy: StrategyDraftPayload
+  backtestConfig: BacktestConfigPayload | null
+  savedStrategyId?: number | null
+  statusMessage: string
+}
+
 export const useStrategyWorkspaceStore = defineStore('strategyWorkspace', () => {
   const pendingStrategy = ref<SavedStrategy | null>(null)
+  const pendingWorkspaceDraft = ref<WorkspaceStrategyDraft | null>(null)
 
   function openStrategy(strategy: SavedStrategy) {
     pendingStrategy.value = strategy
+    pendingWorkspaceDraft.value = {
+      source: 'saved-strategy',
+      name: strategy.name,
+      description: strategy.description,
+      strategy: strategy.strategy,
+      backtestConfig: strategy.backtestConfig,
+      savedStrategyId: strategy.id,
+      statusMessage: `已打开个人空间策略：${strategy.name}`
+    }
+  }
+
+  function openBacktestSnapshot(draft: Omit<WorkspaceStrategyDraft, 'source'>) {
+    pendingStrategy.value = null
+    pendingWorkspaceDraft.value = {
+      ...draft,
+      source: 'backtest-snapshot',
+      savedStrategyId: null
+    }
+  }
+
+  function consumePendingWorkspaceDraft() {
+    const draft = pendingWorkspaceDraft.value
+    pendingWorkspaceDraft.value = null
+    pendingStrategy.value = null
+    return draft
   }
 
   function consumePendingStrategy() {
     const strategy = pendingStrategy.value
     pendingStrategy.value = null
+    if (pendingWorkspaceDraft.value?.source === 'saved-strategy') {
+      pendingWorkspaceDraft.value = null
+    }
     return strategy
   }
 
   return {
     pendingStrategy,
+    pendingWorkspaceDraft,
     openStrategy,
+    openBacktestSnapshot,
+    consumePendingWorkspaceDraft,
     consumePendingStrategy
   }
 })

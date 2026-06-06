@@ -480,6 +480,32 @@ function closeBacktestDetail() {
   backtestError.value = ''
 }
 
+function replaySelectedBacktestStrategy() {
+  const backtest = selectedBacktest.value
+  if (!backtest) {
+    return
+  }
+
+  workspaceStore.openBacktestSnapshot({
+    name: `回测复盘：${backtest.symbol} ${formatTimeframe(backtest.timeframe)}`,
+    description: `来自回测记录 ${backtest.runId}`,
+    strategy: backtest.strategy,
+    backtestConfig: {
+      market: backtest.config.market,
+      symbol: backtest.config.symbol,
+      timeframe: backtest.config.timeframe,
+      startDate: backtest.config.startDate,
+      endDate: backtest.config.endDate,
+      initialCash: backtest.config.initialCash,
+      ...(backtest.simulationAccountId
+        ? { simulationAccountId: backtest.simulationAccountId }
+        : {})
+    },
+    statusMessage: `已载入回测策略快照：${backtest.symbol}`
+  })
+  void router.push('/')
+}
+
 async function changeStrategyPage(nextPage: number) {
   if (nextPage < 1 || nextPage > strategyTotalPages.value || nextPage === strategyPage.value) {
     return
@@ -971,7 +997,16 @@ onMounted(() => {
             <section class="backtest-snapshot">
               <header>
                 <strong>回测快照</strong>
-                <small>策略积木 {{ selectedBacktest.strategy.nodes.length }} 个</small>
+                <div class="snapshot-header-actions">
+                  <small>策略积木 {{ selectedBacktest.strategy.nodes.length }} 个</small>
+                  <button
+                    class="backtest-replay-button"
+                    type="button"
+                    @click="replaySelectedBacktestStrategy"
+                  >
+                    复盘策略
+                  </button>
+                </div>
               </header>
               <dl class="snapshot-grid">
                 <div v-for="field in selectedBacktestSnapshotFields" :key="field.label">

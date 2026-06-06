@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { apiClient } from '../src/api/http'
 import { useAuthStore } from '../src/stores/auth'
+import { useStrategyWorkspaceStore } from '../src/stores/strategyWorkspace'
 import BuilderView from '../src/views/BuilderView.vue'
 
 vi.mock('../src/api/http', () => ({
@@ -508,6 +509,91 @@ describe('builder view', () => {
       })
     })
     expect(wrapper.find('.strategy-save-status').text()).toContain('已保存到个人空间')
+  })
+
+  it('loads a backtest strategy snapshot as a new editable strategy', async () => {
+    const workspaceStore = useStrategyWorkspaceStore()
+    workspaceStore.openBacktestSnapshot({
+      name: '回测复盘：000001.SZ 5分钟',
+      description: '来自回测记录 11',
+      strategy: {
+        version: 1,
+        nodes: [
+          {
+            id: 'buy-1',
+            type: 'buy',
+            label: '买入',
+            x: 72,
+            y: 96,
+            params: { sizePercent: '20', orderType: 'market' }
+          },
+          {
+            id: 'stop-loss-1',
+            type: 'stop-loss',
+            label: '止损',
+            x: 220,
+            y: 96,
+            params: { lossPercent: '3', sellPercent: '100' }
+          }
+        ],
+        edges: [{ id: 'edge-1', from: 'buy-1', to: 'stop-loss-1' }],
+        viewport: { x: 12, y: 24, scale: 1.2 }
+      },
+      backtestConfig: {
+        market: 'A_SHARE',
+        symbol: '000001.SZ',
+        timeframe: '5m',
+        startDate: '2026-01-01',
+        endDate: '2026-03-01',
+        initialCash: 100000,
+        simulationAccountId: 3
+      },
+      statusMessage: '已载入回测策略快照：000001.SZ'
+    })
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        id: 12,
+        name: '回测复盘：000001.SZ 5分钟',
+        description: null,
+        strategy: {},
+        backtestConfig: null,
+        ownerId: 1,
+        isPublic: false,
+        createdAt: '2026-06-06T12:00:00',
+        updatedAt: '2026-06-06T12:00:00'
+      }
+    })
+    expect(workspaceStore.pendingWorkspaceDraft?.source).toBe('backtest-snapshot')
+    const wrapper = mount(BuilderView)
+    await nextTick()
+
+    expect(wrapper.findAll('.canvas-block')).toHaveLength(2)
+    expect(wrapper.text()).toContain('买入')
+    expect(wrapper.text()).toContain('止损')
+    expect(wrapper.find('.strategy-save-status').text()).toContain('回测策略快照')
+    expect(workspaceStore.pendingWorkspaceDraft).toBeNull()
+
+    window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action: 'save' } }))
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/strategies', {
+      name: '回测复盘：000001.SZ 5分钟',
+      description: null,
+      strategy: expect.objectContaining({
+        nodes: expect.arrayContaining([expect.objectContaining({ type: 'buy' })])
+      }),
+      backtestConfig: expect.objectContaining({
+        symbol: '000001.SZ',
+        timeframe: '5m',
+        simulationAccountId: 3
+      })
+    })
+    expect(apiClient.put).not.toHaveBeenCalled()
   })
 
   it('asks anonymous users to log in before saving to personal space', async () => {

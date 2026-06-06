@@ -341,6 +341,31 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('止损 x1')
   })
 
+  it('opens a backtest strategy snapshot in the builder workspace', async () => {
+    mockPersonalSpaceRequests()
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="backtests"]').trigger('click')
+    await wrapper.find('.backtest-open-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.backtest-replay-button').exists()).toBe(true)
+
+    await wrapper.find('.backtest-replay-button').trigger('click')
+
+    const workspaceStore = useStrategyWorkspaceStore()
+    expect(workspaceStore.pendingWorkspaceDraft?.source).toBe('backtest-snapshot')
+    expect(workspaceStore.pendingWorkspaceDraft?.name).toContain('回测复盘')
+    expect(workspaceStore.pendingWorkspaceDraft?.strategy.nodes[0].type).toBe('buy')
+    expect(workspaceStore.pendingWorkspaceDraft?.backtestConfig).toMatchObject({
+      symbol: '000001.SZ',
+      timeframe: '5m',
+      simulationAccountId: 3
+    })
+    expect(pushMock).toHaveBeenCalledWith('/')
+  })
+
   it('closes an opened backtest detail from the panel or selected list item', async () => {
     mockPersonalSpaceRequests()
     const wrapper = mount(PersonalSpaceView)

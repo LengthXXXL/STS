@@ -1023,16 +1023,17 @@ function applySelectedSimulationAccount() {
 }
 
 function loadWorkspaceStrategy() {
-  const savedStrategy = strategyWorkspaceStore.consumePendingStrategy()
-  if (!savedStrategy) {
+  const workspaceDraft = strategyWorkspaceStore.consumePendingWorkspaceDraft()
+  if (!workspaceDraft) {
     return
   }
 
-  restoreStrategyDraft(savedStrategy.strategy, `已打开个人空间策略：${savedStrategy.name}`)
-  applyBacktestConfig(savedStrategy.backtestConfig)
-  currentStrategyId.value = savedStrategy.id
-  currentStrategyName.value = savedStrategy.name
-  strategySaveStatus.value = `已打开个人空间策略：${savedStrategy.name}`
+  restoreStrategyDraft(workspaceDraft.strategy, workspaceDraft.statusMessage)
+  applyBacktestConfig(workspaceDraft.backtestConfig)
+  currentStrategyId.value =
+    workspaceDraft.source === 'saved-strategy' ? workspaceDraft.savedStrategyId ?? null : null
+  currentStrategyName.value = workspaceDraft.name
+  strategySaveStatus.value = workspaceDraft.statusMessage
 }
 
 function saveDraft() {
