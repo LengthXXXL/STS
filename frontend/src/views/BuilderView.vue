@@ -558,6 +558,7 @@ const connections = ref<Connection[]>([])
 const draggingBlock = ref<{ block: BlockDefinition; x: number; y: number } | null>(null)
 const activeConnection = ref<ActiveConnection | null>(null)
 const selectedBlockId = ref<string | null>(null)
+const inspectedBlockId = ref<string | null>(null)
 const contextMenu = ref<ContextMenuState | null>(null)
 const blockSearchQuery = ref('')
 const draftStatus = ref('尚未保存')
@@ -620,11 +621,11 @@ const libraryStyle = computed(() => ({
 const zoomLabel = computed(() => `${Math.round(transform.scale * 100)}%`)
 
 const selectedBlock = computed(() => {
-  if (!selectedBlockId.value) {
+  if (!inspectedBlockId.value) {
     return null
   }
 
-  return findPlacedBlock(selectedBlockId.value) ?? null
+  return findPlacedBlock(inspectedBlockId.value) ?? null
 })
 
 const selectedBlockDefinition = computed(() => {
@@ -977,6 +978,7 @@ function restoreStrategyDraft(draft: unknown, successStatus = '已从本机浏�
   placedBlocks.value = nextBlocks
   connections.value = nextConnections
   selectedBlockId.value = null
+  inspectedBlockId.value = null
   contextMenu.value = null
   activeConnection.value = null
   placedBlockDragState = null
@@ -1179,6 +1181,7 @@ function openPersonalBacktests() {
 function openCustomBlockModal() {
   contextMenu.value = null
   selectedBlockId.value = null
+  inspectedBlockId.value = null
   customBlockForm.name =
     currentStrategyName.value === DEFAULT_STRATEGY_NAME
       ? '未命名积木模板'
@@ -1388,15 +1391,21 @@ function deleteBlock(blockId: string) {
   if (selectedBlockId.value === blockId) {
     selectedBlockId.value = null
   }
+
+  if (inspectedBlockId.value === blockId) {
+    inspectedBlockId.value = null
+  }
 }
 
 function deleteConnection(connectionId: string) {
   connections.value = connections.value.filter((connection) => connection.id !== connectionId)
 }
 
-function ignoreBlockContextMenu(event: MouseEvent) {
+function openBlockInspector(blockId: string, event: MouseEvent) {
   event.preventDefault()
   contextMenu.value = null
+  selectedBlockId.value = blockId
+  inspectedBlockId.value = blockId
 }
 
 function openConnectionContextMenu(connectionId: string, event: MouseEvent) {
@@ -1825,6 +1834,7 @@ function clearCanvas() {
   connections.value = []
   activeConnection.value = null
   selectedBlockId.value = null
+  inspectedBlockId.value = null
   contextMenu.value = null
   placedBlockDragState = null
   currentStrategyId.value = null
@@ -1878,7 +1888,7 @@ function clearCanvas() {
         @pointermove.stop="movePlacedBlockDrag"
         @pointerup.stop="endPlacedBlockDrag"
         @pointercancel.stop="endPlacedBlockDrag"
-        @contextmenu.prevent.stop="ignoreBlockContextMenu"
+        @contextmenu.prevent.stop="openBlockInspector(block.id, $event)"
       >
         <span
           class="connection-port connection-port--input"
@@ -2087,7 +2097,7 @@ function clearCanvas() {
           <small>参数</small>
           <h2>{{ selectedBlock.label }}</h2>
         </div>
-        <button type="button" aria-label="关闭参数面板" @click="selectedBlockId = null">×</button>
+        <button type="button" aria-label="关闭参数面板" @click="inspectedBlockId = null">×</button>
       </header>
 
       <form @submit.prevent>
