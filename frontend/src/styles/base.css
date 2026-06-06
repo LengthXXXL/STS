@@ -459,6 +459,84 @@ button {
   background: rgba(17, 16, 25, 0.72);
 }
 
+.backtest-snapshot {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(58, 49, 80, 0.72);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(17, 16, 25, 0.64);
+}
+
+.backtest-snapshot header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.backtest-snapshot header small {
+  color: #9e91b8;
+}
+
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.snapshot-grid div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(58, 49, 80, 0.6);
+  border-radius: 6px;
+  padding: 9px;
+  background: rgba(9, 8, 13, 0.44);
+}
+
+.snapshot-grid dt {
+  color: #9e91b8;
+  font-size: 12px;
+}
+
+.snapshot-grid dd {
+  margin: 0;
+  color: #f7f2ff;
+  font-weight: 700;
+}
+
+.strategy-block-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.strategy-block-summary span {
+  color: #9e91b8;
+  font-size: 12px;
+}
+
+.strategy-block-summary ul {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.strategy-block-summary li {
+  border: 1px solid rgba(124, 77, 255, 0.42);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #e9e2ff;
+  background: rgba(48, 33, 87, 0.5);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .backtest-chart-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1676,6 +1754,7 @@ button {
   .account-layout,
   .backtest-layout,
   .backtest-chart-grid,
+  .snapshot-grid,
   .backtest-detail-metrics {
     grid-template-columns: 1fr;
   }

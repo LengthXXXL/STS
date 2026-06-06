@@ -42,6 +42,14 @@ const savedStrategy = {
         x: 72,
         y: 96,
         params: { sizePercent: '20', orderType: 'market' }
+      },
+      {
+        id: 'stop-loss-1',
+        type: 'stop-loss',
+        label: '止损',
+        x: 220,
+        y: 96,
+        params: { lossPercent: '3', sellPercent: '100' }
       }
     ],
     edges: [],
@@ -271,6 +279,16 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('交易复盘')
     expect(wrapper.text()).toContain('买入 1900 股')
     expect(wrapper.text()).toContain('卖出 1900 股')
+    expect(wrapper.text()).toContain('回测快照')
+    expect(wrapper.text()).toContain('市场A股')
+    expect(wrapper.text()).toContain('股票000001.SZ')
+    expect(wrapper.text()).toContain('周期5分钟')
+    expect(wrapper.text()).toContain('区间2026-01-01 至 2026-03-01')
+    expect(wrapper.text()).toContain('初始资金100,000')
+    expect(wrapper.text()).toContain('策略积木')
+    expect(wrapper.text()).toContain('2 个')
+    expect(wrapper.text()).toContain('买入 x1')
+    expect(wrapper.text()).toContain('止损 x1')
   })
 
   it('creates, edits and deletes a simulation account', async () => {

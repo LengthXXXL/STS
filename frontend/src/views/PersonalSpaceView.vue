@@ -5,7 +5,9 @@ import { apiClient } from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import {
   useStrategyWorkspaceStore,
-  type SavedStrategy
+  type BacktestConfigPayload,
+  type SavedStrategy,
+  type StrategyDraftPayload
 } from '../stores/strategyWorkspace'
 
 type SpaceTab = 'overview' | 'strategies' | 'accounts' | 'backtests'
@@ -114,7 +116,21 @@ interface TradeReviewItem {
   reason: string
 }
 
+interface SnapshotField {
+  label: string
+  value: string
+}
+
+interface StrategyBlockSummary {
+  label: string
+  count: number
+}
+
 interface BacktestDetail extends BacktestListItem {
+  strategy: StrategyDraftPayload
+  config: BacktestConfigPayload & {
+    simulationAccountId?: number | null
+  }
   summary: {
     totalReturnPercent: number
     maxDrawdownPercent: number
@@ -255,6 +271,32 @@ const selectedTradeReviews = computed<TradeReviewItem[]>(() =>
     }
   })
 )
+const selectedBacktestSnapshotFields = computed<SnapshotField[]>(() => {
+  const backtest = selectedBacktest.value
+  if (!backtest) {
+    return []
+  }
+
+  return [
+    { label: '市场', value: formatMarket(backtest.config.market) },
+    { label: '股票', value: backtest.config.symbol },
+    { label: '周期', value: formatTimeframe(backtest.config.timeframe) },
+    { label: '区间', value: `${backtest.config.startDate} 至 ${backtest.config.endDate}` },
+    { label: '初始资金', value: formatAmount(backtest.config.initialCash) },
+    { label: '模拟账户', value: backtest.simulationAccountName ?? '未绑定' }
+  ]
+})
+const selectedStrategyBlockSummaries = computed<StrategyBlockSummary[]>(() => {
+  const nodes = selectedBacktest.value?.strategy.nodes ?? []
+  const counts = nodes.reduce<Map<string, StrategyBlockSummary>>((summary, node) => {
+    const label = node.label || node.type
+    const current = summary.get(label) ?? { label, count: 0 }
+    current.count += 1
+    summary.set(label, current)
+    return summary
+  }, new Map())
+  return Array.from(counts.values()).sort((left, right) => left.label.localeCompare(right.label))
+})
 
 async function loadStrategies() {
   strategyLoading.value = true
@@ -903,6 +945,29 @@ onMounted(() => {
             <p v-if="selectedBacktest.simulationAccountName" class="space-muted">
               账户 {{ selectedBacktest.simulationAccountName }}
             </p>
+            <section class="backtest-snapshot">
+              <header>
+                <strong>回测快照</strong>
+                <small>策略积木 {{ selectedBacktest.strategy.nodes.length }} 个</small>
+              </header>
+              <dl class="snapshot-grid">
+                <div v-for="field in selectedBacktestSnapshotFields" :key="field.label">
+                  <dt>{{ field.label }}</dt>
+                  <dd>{{ field.value }}</dd>
+                </div>
+              </dl>
+              <div class="strategy-block-summary" aria-label="策略积木摘要">
+                <span>策略积木</span>
+                <ul>
+                  <li
+                    v-for="summary in selectedStrategyBlockSummaries"
+                    :key="summary.label"
+                  >
+                    {{ summary.label }} x{{ summary.count }}
+                  </li>
+                </ul>
+              </div>
+            </section>
             <div
               v-if="selectedEquityChart || selectedDrawdownChart"
               class="backtest-chart-grid"
