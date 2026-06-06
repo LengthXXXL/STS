@@ -106,7 +106,10 @@ const savedCustomBlock = {
   description: '买入后按收益目标退出',
   category: '风控',
   tags: ['止盈', '模板'],
-  template: savedStrategy.strategy,
+  template: {
+    ...savedStrategy.strategy,
+    edges: [{ id: 'custom-edge-1', from: 'buy-1', to: 'stop-loss-1' }]
+  },
   reviewStatus: 'private',
   createdAt: '2026-06-06T11:00:00',
   updatedAt: '2026-06-06T11:30:00'
@@ -145,7 +148,9 @@ const backtestDetail = {
   ]
 }
 
-function mockPersonalSpaceRequests() {
+function mockPersonalSpaceRequests(options: { customBlocks?: Array<typeof savedCustomBlock> } = {}) {
+  const customBlockItems = options.customBlocks ?? [savedCustomBlock]
+
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
     if (url === '/strategies') {
       return Promise.resolve({
@@ -180,8 +185,8 @@ function mockPersonalSpaceRequests() {
     if (url === '/custom-blocks') {
       return Promise.resolve({
         data: {
-          items: [savedCustomBlock],
-          total: 1,
+          items: customBlockItems,
+          total: customBlockItems.length,
           page: 1,
           pageSize: 10
         }
@@ -352,7 +357,7 @@ describe('personal space view', () => {
     })
   })
 
-  it('shows and deletes custom block templates from the list', async () => {
+  it('shows custom block details and deletes after confirmation', async () => {
     mockPersonalSpaceRequests()
     vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: null })
     const wrapper = mount(PersonalSpaceView)
@@ -365,13 +370,102 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('止盈')
     expect(wrapper.text()).toContain('私有模板')
     expect(wrapper.text()).toContain('2 个积木')
+    expect(wrapper.text()).toContain('1 条连接')
+    expect(wrapper.text()).toContain('买入 x1')
+    expect(wrapper.text()).toContain('止损 x1')
 
     await wrapper.find('.custom-block-delete-button').trigger('click')
+
+    expect(apiClient.delete).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('确认删除这个积木吗')
+
+    await wrapper.find('.custom-block-confirm-delete-button').trigger('click')
 
     expect(apiClient.delete).toHaveBeenCalledWith('/custom-blocks/21')
     expect(apiClient.get).toHaveBeenCalledWith('/custom-blocks', {
       params: { keyword: '', page: 1, pageSize: 10 }
     })
+  })
+
+  it('opens a custom block template in the builder workspace', async () => {
+    mockPersonalSpaceRequests()
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="custom-blocks"]').trigger('click')
+    await wrapper.find('.custom-block-use-button').trigger('click')
+
+    const workspaceStore = useStrategyWorkspaceStore()
+    expect(workspaceStore.pendingWorkspaceDraft?.source).toBe('custom-block-template')
+    expect(workspaceStore.pendingWorkspaceDraft?.name).toBe('突破止盈模板')
+    expect(workspaceStore.pendingWorkspaceDraft?.strategy.nodes[0].type).toBe('buy')
+    expect(workspaceStore.pendingWorkspaceDraft?.backtestConfig).toBeNull()
+    expect(pushMock).toHaveBeenCalledWith('/')
+  })
+
+  it('disambiguates duplicate custom block names in personal space', async () => {
+    mockPersonalSpaceRequests({
+      customBlocks: [
+        { ...savedCustomBlock, id: 21, name: '未命名积木模板' },
+        { ...savedCustomBlock, id: 22, name: '未命名积木模板' }
+      ]
+    })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="custom-blocks"]').trigger('click')
+
+    expect(wrapper.text()).toContain('未命名积木模板 #21')
+    expect(wrapper.text()).toContain('未命名积木模板 #22')
+  })
+
+  it('edits custom block metadata and handles duplicate names', async () => {
+    mockPersonalSpaceRequests()
+    vi.mocked(apiClient.put)
+      .mockResolvedValueOnce({
+        data: {
+          ...savedCustomBlock,
+          name: '突破止盈模板新版',
+          category: '动作',
+          description: '更新后的说明',
+          tags: ['突破', '止盈']
+        }
+      })
+      .mockRejectedValueOnce({ response: { status: 409 } })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="custom-blocks"]').trigger('click')
+    await wrapper.find('.custom-block-edit-button').trigger('click')
+
+    expect((wrapper.find('.custom-block-name-input').element as HTMLInputElement).value).toBe(
+      '突破止盈模板'
+    )
+    expect((wrapper.find('.custom-block-category-input').element as HTMLInputElement).value).toBe(
+      '风控'
+    )
+
+    await wrapper.find('.custom-block-name-input').setValue('突破止盈模板新版')
+    await wrapper.find('.custom-block-category-input').setValue('动作')
+    await wrapper.find('.custom-block-description-input').setValue('更新后的说明')
+    await wrapper.find('.custom-block-tags-input').setValue('突破, 止盈')
+    await wrapper.find('.custom-block-save-button').trigger('click')
+
+    expect(apiClient.put).toHaveBeenCalledWith('/custom-blocks/21', {
+      name: '突破止盈模板新版',
+      description: '更新后的说明',
+      category: '动作',
+      tags: ['突破', '止盈'],
+      template: savedCustomBlock.template
+    })
+    await flushPromises()
+
+    await wrapper.find('.custom-block-edit-button').trigger('click')
+    await wrapper.find('.custom-block-name-input').setValue('突破止盈模板')
+    await wrapper.find('.custom-block-save-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('已存在同名积木，请换一个名称')
   })
 
   it('shows saved backtests and opens a detail panel', async () => {

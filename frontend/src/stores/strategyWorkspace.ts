@@ -52,13 +52,19 @@ export interface SavedStrategy {
 }
 
 export interface WorkspaceStrategyDraft {
-  source: 'saved-strategy' | 'backtest-snapshot'
+  source: 'saved-strategy' | 'backtest-snapshot' | 'custom-block-template'
   name: string
   description: string | null
   strategy: StrategyDraftPayload
   backtestConfig: BacktestConfigPayload | null
   savedStrategyId?: number | null
   statusMessage: string
+}
+
+export interface CustomBlockWorkspaceTemplate {
+  name: string
+  description: string | null
+  template: StrategyDraftPayload
 }
 
 export const useStrategyWorkspaceStore = defineStore('strategyWorkspace', () => {
@@ -87,6 +93,19 @@ export const useStrategyWorkspaceStore = defineStore('strategyWorkspace', () => 
     }
   }
 
+  function openCustomBlockTemplate(block: CustomBlockWorkspaceTemplate) {
+    pendingStrategy.value = null
+    pendingWorkspaceDraft.value = {
+      source: 'custom-block-template',
+      name: block.name,
+      description: block.description,
+      strategy: block.template,
+      backtestConfig: null,
+      savedStrategyId: null,
+      statusMessage: `已载入我的积木：${block.name}`
+    }
+  }
+
   function consumePendingWorkspaceDraft() {
     const draft = pendingWorkspaceDraft.value
     pendingWorkspaceDraft.value = null
@@ -108,6 +127,7 @@ export const useStrategyWorkspaceStore = defineStore('strategyWorkspace', () => 
     pendingWorkspaceDraft,
     openStrategy,
     openBacktestSnapshot,
+    openCustomBlockTemplate,
     consumePendingWorkspaceDraft,
     consumePendingStrategy
   }

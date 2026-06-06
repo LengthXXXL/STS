@@ -323,11 +323,19 @@ button {
 .strategy-item-actions {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .strategy-open-button {
   border-color: rgba(124, 77, 255, 0.68) !important;
   background: #302157 !important;
+}
+
+.custom-block-use-button,
+.custom-block-edit-button {
+  border-color: rgba(124, 77, 255, 0.58) !important;
+  background: rgba(48, 33, 87, 0.82) !important;
 }
 
 .backtest-open-button {
@@ -357,6 +365,94 @@ button {
   color: #d8ceff;
   background: rgba(48, 33, 87, 0.44);
   font-size: 12px;
+}
+
+.custom-block-main {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.custom-block-node-summary {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.custom-block-node-summary span {
+  border: 1px solid rgba(94, 230, 200, 0.24);
+  border-radius: 6px;
+  padding: 4px 8px;
+  color: #d8fff7;
+  background: rgba(21, 57, 53, 0.35);
+  font-size: 12px;
+}
+
+.custom-block-edit-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 1fr));
+  gap: 10px;
+  max-width: 720px;
+  border-top: 1px solid rgba(58, 49, 80, 0.76);
+  padding-top: 12px;
+}
+
+.custom-block-edit-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.custom-block-edit-form label span {
+  color: #a89bc1;
+  font-size: 13px;
+}
+
+.custom-block-edit-form input,
+.custom-block-edit-form textarea {
+  width: 100%;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #f7f2ff;
+  background: #09080d;
+}
+
+.custom-block-edit-form textarea,
+.custom-block-edit-actions,
+.custom-block-delete-confirm {
+  grid-column: 1 / -1;
+}
+
+.custom-block-edit-form textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.custom-block-edit-actions,
+.custom-block-delete-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.custom-block-edit-form .custom-block-save-button {
+  border-color: rgba(94, 230, 200, 0.44) !important;
+  background: rgba(21, 57, 53, 0.76) !important;
+}
+
+.custom-block-delete-confirm {
+  border-top: 1px solid rgba(58, 49, 80, 0.76);
+  padding-top: 12px;
+  color: #ffdae3;
+}
+
+.custom-block-confirm-delete-button {
+  color: #ffe4ea !important;
+  border-color: rgba(255, 139, 167, 0.48) !important;
+  background: rgba(64, 25, 40, 0.72) !important;
 }
 
 .account-edit-button {
@@ -1942,6 +2038,7 @@ button {
   .space-header,
   .space-lane,
   .strategy-item,
+  .custom-block-item,
   .account-item,
   .backtest-item {
     align-items: stretch;
@@ -1963,6 +2060,7 @@ button {
 
   .space-overview-grid,
   .space-overview-lanes,
+  .custom-block-edit-form,
   .account-layout,
   .backtest-layout,
   .backtest-chart-grid,

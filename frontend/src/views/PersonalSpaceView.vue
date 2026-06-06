@@ -146,6 +146,13 @@ interface StrategyBlockSummary {
   count: number
 }
 
+interface CustomBlockForm {
+  name: string
+  description: string
+  category: string
+  tags: string
+}
+
 interface BacktestDetail extends BacktestListItem {
   strategy: StrategyDraftPayload
   config: BacktestConfigPayload & {
@@ -192,8 +199,18 @@ const backtestLoading = ref(false)
 const backtestDetailLoading = ref(false)
 const strategyError = ref('')
 const customBlockError = ref('')
+const customBlockActionError = ref('')
+const customBlockActionMessage = ref('')
 const accountError = ref('')
 const backtestError = ref('')
+const editingCustomBlockId = ref<number | null>(null)
+const confirmingCustomBlockDeleteId = ref<number | null>(null)
+const customBlockForm = ref<CustomBlockForm>({
+  name: '',
+  description: '',
+  category: '',
+  tags: ''
+})
 const editingAccountId = ref<number | null>(null)
 const accountForm = ref({
   name: '',
@@ -247,6 +264,14 @@ const customBlockTotalPages = computed(() =>
 )
 const accountTotalPages = computed(() => Math.max(1, Math.ceil(accountTotal.value / pageSize)))
 const backtestTotalPages = computed(() => Math.max(1, Math.ceil(backtestTotal.value / pageSize)))
+const customBlockNameCounts = computed(() => {
+  const counts = new Map<string, number>()
+  customBlocks.value.forEach((block) => {
+    const nameKey = normalizedCustomBlockName(block.name)
+    counts.set(nameKey, (counts.get(nameKey) ?? 0) + 1)
+  })
+  return counts
+})
 const selectedEquityChart = computed(() => {
   const curve = selectedBacktest.value?.equityCurve ?? []
   return buildChartModel(
@@ -331,8 +356,12 @@ const selectedBacktestSnapshotFields = computed<SnapshotField[]>(() => {
     { label: '模拟账户', value: backtest.simulationAccountName ?? '未绑定' }
   ]
 })
-const selectedStrategyBlockSummaries = computed<StrategyBlockSummary[]>(() => {
-  const nodes = selectedBacktest.value?.strategy.nodes ?? []
+const selectedStrategyBlockSummaries = computed<StrategyBlockSummary[]>(() =>
+  summarizeStrategyBlocks(selectedBacktest.value?.strategy)
+)
+
+function summarizeStrategyBlocks(strategy: StrategyDraftPayload | undefined) {
+  const nodes = strategy?.nodes ?? []
   const counts = nodes.reduce<Map<string, StrategyBlockSummary>>((summary, node) => {
     const label = node.label || node.type
     const current = summary.get(label) ?? { label, count: 0 }
@@ -341,7 +370,7 @@ const selectedStrategyBlockSummaries = computed<StrategyBlockSummary[]>(() => {
     return summary
   }, new Map())
   return Array.from(counts.values()).sort((left, right) => left.label.localeCompare(right.label))
-})
+}
 
 async function loadStrategies() {
   strategyLoading.value = true
@@ -477,13 +506,108 @@ function openStrategy(strategy: SavedStrategy) {
   void router.push('/')
 }
 
+function openCustomBlock(block: CustomBlock) {
+  workspaceStore.openCustomBlockTemplate({
+    name: block.name,
+    description: block.description,
+    template: block.template
+  })
+  void router.push('/')
+}
+
 async function deleteStrategy(strategy: SavedStrategy) {
   await apiClient.delete(`/strategies/${strategy.id}`)
   await loadStrategies()
 }
 
-async function deleteCustomBlock(block: CustomBlock) {
+function editCustomBlock(block: CustomBlock) {
+  editingCustomBlockId.value = block.id
+  confirmingCustomBlockDeleteId.value = null
+  customBlockActionError.value = ''
+  customBlockActionMessage.value = ''
+  customBlockForm.value = {
+    name: block.name,
+    description: block.description ?? '',
+    category: block.category,
+    tags: block.tags.join(', ')
+  }
+}
+
+function cancelCustomBlockEdit() {
+  editingCustomBlockId.value = null
+  customBlockActionError.value = ''
+  customBlockActionMessage.value = ''
+}
+
+function customBlockFormTags() {
+  return customBlockForm.value.tags
+    .split(/[，,]/)
+    .map((tag) => tag.trim())
+    .filter((tag, index, tags) => tag && tags.indexOf(tag) === index)
+    .slice(0, 12)
+}
+
+function responseStatusFromError(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('response' in error)) {
+    return null
+  }
+
+  return (error as { response?: { status?: number } }).response?.status ?? null
+}
+
+async function submitCustomBlock(block: CustomBlock) {
+  const name = customBlockForm.value.name.trim()
+  const category = customBlockForm.value.category.trim()
+
+  customBlockActionMessage.value = ''
+  customBlockActionError.value = ''
+
+  if (!name) {
+    customBlockActionError.value = '请填写积木名称'
+    return
+  }
+
+  if (!category) {
+    customBlockActionError.value = '请填写积木分类'
+    return
+  }
+
+  try {
+    await apiClient.put(`/custom-blocks/${block.id}`, {
+      name,
+      description: customBlockForm.value.description.trim() || null,
+      category,
+      tags: customBlockFormTags(),
+      template: block.template
+    })
+    editingCustomBlockId.value = null
+    customBlockActionMessage.value = `已更新自定义积木：${name}`
+    await loadCustomBlocks()
+  } catch (error) {
+    customBlockActionError.value =
+      responseStatusFromError(error) === 409
+        ? '已存在同名积木，请换一个名称'
+        : '自定义积木更新失败，请稍后重试'
+  }
+}
+
+function requestDeleteCustomBlock(block: CustomBlock) {
+  confirmingCustomBlockDeleteId.value = block.id
+  editingCustomBlockId.value = null
+  customBlockActionError.value = ''
+  customBlockActionMessage.value = ''
+}
+
+function cancelDeleteCustomBlock() {
+  confirmingCustomBlockDeleteId.value = null
+}
+
+async function confirmDeleteCustomBlock(block: CustomBlock) {
   await apiClient.delete(`/custom-blocks/${block.id}`)
+  confirmingCustomBlockDeleteId.value = null
+  if (editingCustomBlockId.value === block.id) {
+    cancelCustomBlockEdit()
+  }
   await loadCustomBlocks()
 }
 
@@ -658,6 +782,19 @@ function formatReviewStatus(status: CustomBlock['reviewStatus']) {
     rejected: '未通过'
   }
   return labels[status] ?? '私有模板'
+}
+
+function normalizedCustomBlockName(name: string) {
+  return name.trim().toLowerCase()
+}
+
+function customBlockDisplayName(block: CustomBlock) {
+  const duplicateCount = customBlockNameCounts.value.get(normalizedCustomBlockName(block.name)) ?? 0
+  return duplicateCount > 1 ? `${block.name} #${block.id}` : block.name
+}
+
+function formatConnectionCount(count: number) {
+  return `${count} 条连接`
 }
 
 function formatTradeSide(side: BacktestTrade['side']) {
@@ -854,7 +991,7 @@ onMounted(() => {
         <article class="space-lane">
           <div>
             <small>最近积木</small>
-            <h2>{{ latestCustomBlock?.name || '暂无积木' }}</h2>
+            <h2>{{ latestCustomBlock ? customBlockDisplayName(latestCustomBlock) : '暂无积木' }}</h2>
             <p v-if="latestCustomBlock">
               {{ latestCustomBlock.category }}
               ·
@@ -975,27 +1112,109 @@ onMounted(() => {
       <p v-if="customBlockError" class="form-error">{{ customBlockError }}</p>
       <p v-else-if="customBlockLoading" class="space-muted">正在加载自定义积木</p>
       <p v-else-if="customBlocks.length === 0" class="space-muted">暂无自定义积木</p>
+      <p v-if="customBlockActionError" class="form-error">{{ customBlockActionError }}</p>
+      <p v-if="customBlockActionMessage" class="space-muted">{{ customBlockActionMessage }}</p>
 
-      <div v-else class="custom-block-list">
+      <div
+        v-if="!customBlockError && !customBlockLoading && customBlocks.length > 0"
+        class="custom-block-list"
+      >
         <article v-for="block in customBlocks" :key="block.id" class="custom-block-item">
-          <div>
-            <h2>{{ block.name }}</h2>
-            <p>{{ block.description || '无描述' }}</p>
-            <small>
-              {{ block.category }}
-              ·
-              {{ formatReviewStatus(block.reviewStatus) }}
-              ·
-              {{ block.template.nodes.length }} 个积木
-              ·
-              更新于 {{ formatDate(block.updatedAt) }}
-            </small>
-            <div v-if="block.tags.length" class="custom-block-tags">
-              <span v-for="tag in block.tags" :key="tag">{{ tag }}</span>
+          <div class="custom-block-main">
+            <div>
+              <h2>{{ customBlockDisplayName(block) }}</h2>
+              <p>{{ block.description || '无描述' }}</p>
+              <small>
+                {{ block.category }}
+                ·
+                {{ formatReviewStatus(block.reviewStatus) }}
+                ·
+                {{ block.template.nodes.length }} 个积木
+                ·
+                {{ formatConnectionCount(block.template.edges.length) }}
+                ·
+                更新于 {{ formatDate(block.updatedAt) }}
+              </small>
+              <div v-if="block.tags.length" class="custom-block-tags">
+                <span v-for="tag in block.tags" :key="tag">{{ tag }}</span>
+              </div>
+              <div class="custom-block-node-summary" aria-label="积木节点摘要">
+                <span
+                  v-for="summary in summarizeStrategyBlocks(block.template)"
+                  :key="summary.label"
+                >
+                  {{ summary.label }} x{{ summary.count }}
+                </span>
+              </div>
+            </div>
+
+            <form
+              v-if="editingCustomBlockId === block.id"
+              class="custom-block-edit-form"
+              @submit.prevent="submitCustomBlock(block)"
+            >
+              <label>
+                <span>积木名称</span>
+                <input v-model="customBlockForm.name" class="custom-block-name-input" />
+              </label>
+              <label>
+                <span>分类</span>
+                <input v-model="customBlockForm.category" class="custom-block-category-input" />
+              </label>
+              <label>
+                <span>描述</span>
+                <textarea
+                  v-model="customBlockForm.description"
+                  class="custom-block-description-input"
+                ></textarea>
+              </label>
+              <label>
+                <span>标签</span>
+                <input
+                  v-model="customBlockForm.tags"
+                  class="custom-block-tags-input"
+                  placeholder="用逗号分隔"
+                />
+              </label>
+              <div class="custom-block-edit-actions">
+                <button
+                  class="custom-block-save-button"
+                  type="submit"
+                  @click.prevent="submitCustomBlock(block)"
+                >
+                  保存修改
+                </button>
+                <button type="button" @click="cancelCustomBlockEdit">取消</button>
+              </div>
+            </form>
+
+            <div
+              v-if="confirmingCustomBlockDeleteId === block.id"
+              class="custom-block-delete-confirm"
+            >
+              <span>确认删除这个积木吗？</span>
+              <button
+                class="custom-block-confirm-delete-button"
+                type="button"
+                @click="confirmDeleteCustomBlock(block)"
+              >
+                确认删除
+              </button>
+              <button type="button" @click="cancelDeleteCustomBlock">取消</button>
             </div>
           </div>
           <div class="strategy-item-actions">
-            <button class="custom-block-delete-button" type="button" @click="deleteCustomBlock(block)">
+            <button class="custom-block-use-button" type="button" @click="openCustomBlock(block)">
+              使用
+            </button>
+            <button class="custom-block-edit-button" type="button" @click="editCustomBlock(block)">
+              编辑
+            </button>
+            <button
+              class="custom-block-delete-button"
+              type="button"
+              @click="requestDeleteCustomBlock(block)"
+            >
               删除
             </button>
           </div>
