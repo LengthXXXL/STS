@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { apiClient } from '../api/http'
 import { useAuthStore } from '../stores/auth'
 import {
@@ -143,9 +143,10 @@ interface BacktestDetail extends BacktestListItem {
 }
 
 const router = useRouter()
+const route = useRoute()
 const authStore = useAuthStore()
 const workspaceStore = useStrategyWorkspaceStore()
-const activeTab = ref<SpaceTab>('overview')
+const activeTab = ref<SpaceTab>(spaceTabFromQuery(route.query.tab))
 const strategies = ref<SavedStrategy[]>([])
 const accounts = ref<SimulationAccount[]>([])
 const backtests = ref<BacktestListItem[]>([])
@@ -177,6 +178,19 @@ const accountForm = ref({
 const chartWidth = 320
 const chartHeight = 120
 const chartPadding = 16
+
+function spaceTabFromQuery(tab: unknown): SpaceTab {
+  const value = Array.isArray(tab) ? tab[0] : tab
+  if (
+    value === 'overview' ||
+    value === 'strategies' ||
+    value === 'accounts' ||
+    value === 'backtests'
+  ) {
+    return value
+  }
+  return 'overview'
+}
 
 const bestBacktest = computed(() =>
   backtests.value.reduce<BacktestListItem | null>((best, item) => {
@@ -612,6 +626,13 @@ watch(
     if (isAuthenticated && !wasAuthenticated) {
       void loadSpaceData()
     }
+  }
+)
+
+watch(
+  () => route.query.tab,
+  (tab) => {
+    activeTab.value = spaceTabFromQuery(tab)
   }
 )
 

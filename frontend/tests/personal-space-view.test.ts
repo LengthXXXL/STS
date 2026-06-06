@@ -8,8 +8,12 @@ import { useStrategyWorkspaceStore } from '../src/stores/strategyWorkspace'
 import PersonalSpaceView from '../src/views/PersonalSpaceView.vue'
 
 const pushMock = vi.hoisted(() => vi.fn())
+const routeMock = vi.hoisted(() => ({
+  query: {} as Record<string, string>
+}))
 
 vi.mock('vue-router', () => ({
+  useRoute: () => routeMock,
   useRouter: () => ({
     push: pushMock
   })
@@ -218,6 +222,7 @@ describe('personal space view', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
+    routeMock.query = {}
     vi.clearAllMocks()
   })
 
@@ -280,6 +285,18 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('A股日内账户')
     expect(wrapper.text()).toContain('000001.SZ')
+  })
+
+  it('opens the backtest tab from the route query', async () => {
+    routeMock.query = { tab: 'backtests' }
+    mockPersonalSpaceRequests()
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-space-tab="backtests"]').classes()).toContain('is-active')
+    expect(wrapper.text()).toContain('7.35%')
+    expect(wrapper.text()).toContain('使用账户 A股日内账户')
   })
 
   it('deletes a saved strategy from the list', async () => {

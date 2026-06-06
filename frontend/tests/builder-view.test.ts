@@ -7,6 +7,14 @@ import { useAuthStore } from '../src/stores/auth'
 import { useStrategyWorkspaceStore } from '../src/stores/strategyWorkspace'
 import BuilderView from '../src/views/BuilderView.vue'
 
+const builderPushMock = vi.hoisted(() => vi.fn())
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({
+    push: builderPushMock
+  })
+}))
+
 vi.mock('../src/api/http', () => ({
   apiClient: {
     get: vi.fn(),
@@ -753,6 +761,63 @@ describe('builder view', () => {
     expect(wrapper.find('.backtest-result-card').text()).toContain('2.8%')
     expect(wrapper.find('.backtest-trades').text()).toContain('BUY')
     expect(wrapper.find('.backtest-trades').text()).toContain('买入积木触发')
+  })
+
+  it('links authenticated backtest runs to the saved personal-space record list', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      data: {
+        items: [],
+        total: 0,
+        page: 1,
+        pageSize: 10
+      }
+    })
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        runId: 'mock-run-saved',
+        status: 'COMPLETED',
+        summary: {
+          totalReturnPercent: 5.2,
+          maxDrawdownPercent: 1.4,
+          winRatePercent: 60,
+          endingEquity: 105200,
+          tradeCount: 2
+        },
+        config: {
+          market: 'A_SHARE',
+          symbol: '000001.SZ',
+          timeframe: '5m',
+          startDate: '2026-01-01',
+          endDate: '2026-03-01',
+          initialCash: 100000
+        },
+        trades: [],
+        equityCurve: []
+      }
+    })
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
+    await flushPromises()
+
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.backtest-persist-status').text()).toContain('已保存到个人空间')
+    expect(wrapper.find('.backtest-space-button').exists()).toBe(true)
+
+    await wrapper.find('.backtest-space-button').trigger('click')
+
+    expect(builderPushMock).toHaveBeenCalledWith({
+      path: '/space',
+      query: { tab: 'backtests' }
+    })
   })
 
   it('uses a selected simulation account when running a backtest', async () => {

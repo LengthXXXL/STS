@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   dragOffsetFromPointer,
   screenToCanvasPoint,
@@ -534,6 +535,7 @@ const blockDefinitions: BlockDefinition[] = [
 
 const canvasRef = ref<HTMLElement | null>(null)
 const libraryRef = ref<HTMLElement | null>(null)
+const router = useRouter()
 const authStore = useAuthStore()
 const strategyWorkspaceStore = useStrategyWorkspaceStore()
 const transform = reactive<CanvasTransform>({ x: 0, y: 0, scale: 1 })
@@ -554,6 +556,7 @@ const reviewModalMode = ref<ReviewMode | null>(null)
 const isBacktestRunning = ref(false)
 const backtestRunError = ref('')
 const backtestRunResult = ref<BacktestRunResult | null>(null)
+const backtestPersistStatus = ref('')
 const simulationAccounts = ref<SimulationAccount[]>([])
 const selectedSimulationAccountId = ref('')
 const isLoadingSimulationAccounts = ref(false)
@@ -1125,6 +1128,7 @@ async function runBacktest() {
   isBacktestRunning.value = true
   backtestRunError.value = ''
   backtestRunResult.value = null
+  backtestPersistStatus.value = ''
 
   try {
     const response = await apiClient.post<BacktestRunResult>('/backtests/run', {
@@ -1132,11 +1136,21 @@ async function runBacktest() {
       config: backtestConfig.value
     })
     backtestRunResult.value = response.data
+    backtestPersistStatus.value = authStore.isAuthenticated
+      ? '回测结果已保存到个人空间，可在我的回测中查看'
+      : '访客回测仅在当前页面展示，登录后运行可保存到个人空间'
   } catch {
     backtestRunError.value = '回测运行失败，请稍后重试'
   } finally {
     isBacktestRunning.value = false
   }
+}
+
+function openPersonalBacktests() {
+  void router.push({
+    path: '/space',
+    query: { tab: 'backtests' }
+  })
 }
 
 async function handleReviewPrimaryAction() {
@@ -2051,7 +2065,20 @@ function clearCanvas() {
 
             <section v-if="backtestRunResult || backtestRunError" class="backtest-result-card">
               <template v-if="backtestRunResult">
-                <strong>回测结果</strong>
+                <header class="backtest-result-header">
+                  <strong>回测结果</strong>
+                  <button
+                    v-if="authStore.isAuthenticated"
+                    class="backtest-space-button"
+                    type="button"
+                    @click="openPersonalBacktests"
+                  >
+                    查看我的回测
+                  </button>
+                </header>
+                <p v-if="backtestPersistStatus" class="backtest-persist-status">
+                  {{ backtestPersistStatus }}
+                </p>
                 <div class="backtest-metrics">
                   <span>
                     <small>总收益率</small>
