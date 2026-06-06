@@ -357,6 +357,7 @@ describe('builder view', () => {
     await placedBlock.trigger('pointerdown', { button: 0, pointerId: 12, clientX: 260, clientY: 170 })
     await placedBlock.trigger('pointermove', { pointerId: 12, clientX: 320, clientY: 210 })
     await placedBlock.trigger('pointerup', { pointerId: 12, clientX: 320, clientY: 210 })
+    await wrapper.find('.canvas-block').trigger('click')
 
     expect(wrapper.find('.block-inspector').exists()).toBe(false)
 

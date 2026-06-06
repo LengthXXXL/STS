@@ -184,6 +184,7 @@ interface PlacedBlockDragState {
   pointerId: number
   startPointer: CanvasPoint
   startBlock: CanvasPoint
+  hasMoved: boolean
 }
 
 const BLOCK_WIDTH = 132
@@ -600,6 +601,7 @@ let libraryDragState: DragState | null = null
 let blockDragState: { block: BlockDefinition; pointerId: number | null } | null = null
 let blockDragPointerTarget: HTMLElement | null = null
 let placedBlockDragState: PlacedBlockDragState | null = null
+let ignoredPlacedBlockClickId: string | null = null
 
 const canvasStyle = computed(() => ({
   '--grid-size': `${24 * transform.scale}px`,
@@ -1369,6 +1371,11 @@ function isPointInsideFloatingLibrary(clientX: number, clientY: number) {
 }
 
 function selectBlock(blockId: string) {
+  if (ignoredPlacedBlockClickId === blockId) {
+    ignoredPlacedBlockClickId = null
+    return
+  }
+
   selectedBlockId.value = blockId
 }
 
@@ -1439,7 +1446,8 @@ function startPlacedBlockDrag(block: PlacedBlock, event: PointerEvent) {
     blockId: block.id,
     pointerId: event.pointerId,
     startPointer: screenToCanvasPoint(event.clientX, event.clientY, toCanvasRect(rect), transform),
-    startBlock: { x: block.x, y: block.y }
+    startBlock: { x: block.x, y: block.y },
+    hasMoved: false
   }
   ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
 }
@@ -1456,6 +1464,12 @@ function movePlacedBlockDrag(event: PointerEvent) {
   }
 
   const currentPointer = screenToCanvasPoint(event.clientX, event.clientY, toCanvasRect(rect), transform)
+  if (
+    Math.abs(currentPointer.x - placedBlockDragState.startPointer.x) > 2 ||
+    Math.abs(currentPointer.y - placedBlockDragState.startPointer.y) > 2
+  ) {
+    placedBlockDragState.hasMoved = true
+  }
   const nextPosition = snapBlockPosition(
     {
       x: placedBlockDragState.startBlock.x + currentPointer.x - placedBlockDragState.startPointer.x,
@@ -1472,6 +1486,9 @@ function endPlacedBlockDrag(event: PointerEvent) {
     return
   }
 
+  if (placedBlockDragState.hasMoved) {
+    ignoredPlacedBlockClickId = placedBlockDragState.blockId
+  }
   placedBlockDragState = null
   ;(event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId)
 }
