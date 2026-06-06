@@ -1,7 +1,9 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
+import { nextTick } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../src/api/http'
+import { useAuthStore } from '../src/stores/auth'
 import { useStrategyWorkspaceStore } from '../src/stores/strategyWorkspace'
 import PersonalSpaceView from '../src/views/PersonalSpaceView.vue'
 
@@ -69,6 +71,8 @@ const savedBacktest = {
   winRatePercent: 66.7,
   endingEquity: 107350,
   tradeCount: 4,
+  simulationAccountId: 3,
+  simulationAccountName: 'A股日内账户',
   createdAt: '2026-06-06T10:00:00'
 }
 
@@ -158,6 +162,7 @@ function mockPersonalSpaceRequests() {
 describe('personal space view', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    localStorage.clear()
     vi.clearAllMocks()
   })
 
@@ -195,6 +200,33 @@ describe('personal space view', () => {
     expect(pushMock).toHaveBeenCalledWith('/')
   })
 
+  it('reloads personal space data after a user logs in on the page', async () => {
+    vi.mocked(apiClient.get).mockRejectedValue(new Error('Not authenticated'))
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    expect(apiClient.get).toHaveBeenCalledTimes(3)
+
+    mockPersonalSpaceRequests()
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: {
+        id: 1,
+        username: 'alice',
+        email: 'alice@example.com',
+        roles: ['user']
+      }
+    })
+    await nextTick()
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenCalledTimes(6)
+    expect(wrapper.text()).toContain('五分钟突破策略')
+    expect(wrapper.text()).toContain('A股日内账户')
+    expect(wrapper.text()).toContain('000001.SZ')
+  })
+
   it('deletes a saved strategy from the list', async () => {
     mockPersonalSpaceRequests()
     vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: null })
@@ -220,6 +252,7 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('7.35%')
     expect(wrapper.text()).toContain('最大回撤 2.1%')
     expect(wrapper.text()).toContain('4 笔')
+    expect(wrapper.text()).toContain('使用账户 A股日内账户')
 
     await wrapper.find('.backtest-open-button').trigger('click')
     await flushPromises()
@@ -227,6 +260,7 @@ describe('personal space view', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/backtests/11')
     expect(wrapper.text()).toContain('回测详情')
     expect(wrapper.text()).toContain('买入积木触发')
+    expect(wrapper.text()).toContain('账户 A股日内账户')
     expect(wrapper.text()).toContain('107350')
   })
 

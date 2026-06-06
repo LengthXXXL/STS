@@ -2,6 +2,7 @@ from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.backtest import BacktestEquityPointRecord, BacktestTask, BacktestTradeRecord
+from app.models.simulation_account import SimulationAccount
 from app.models.user import User
 from app.schemas.backtest import (
     BacktestRecordDetailResponse,
@@ -94,7 +95,8 @@ def list_backtest_records(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
-    return [_task_to_list_item(record) for record in records], total
+    account_names = _simulation_account_names_by_id(db, owner, records)
+    return [_task_to_list_item(record, account_names) for record in records], total
 
 
 def get_backtest_record(
@@ -106,8 +108,9 @@ def get_backtest_record(
     if task is None:
         return None
 
+    account_names = _simulation_account_names_by_id(db, owner, [task])
     return BacktestRecordDetailResponse(
-        **_task_to_list_item(task).model_dump(by_alias=True),
+        **_task_to_list_item(task, account_names).model_dump(by_alias=True),
         strategy=task.strategy,
         config=task.config,
         summary=BacktestSummary(
@@ -138,7 +141,11 @@ def _owned_backtest_statement(owner: User) -> Select[tuple[BacktestTask]]:
     return select(BacktestTask).where(BacktestTask.owner_id == owner.id)
 
 
-def _task_to_list_item(task: BacktestTask) -> BacktestRecordListItem:
+def _task_to_list_item(
+    task: BacktestTask,
+    simulation_account_names: dict[int, str] | None = None,
+) -> BacktestRecordListItem:
+    simulation_account_id = _simulation_account_id_from_config(task.config)
     return BacktestRecordListItem(
         id=task.id,
         runId=task.run_id,
@@ -153,5 +160,42 @@ def _task_to_list_item(task: BacktestTask) -> BacktestRecordListItem:
         winRatePercent=task.win_rate_percent,
         endingEquity=task.ending_equity,
         tradeCount=task.trade_count,
+        simulationAccountId=simulation_account_id,
+        simulationAccountName=(
+            simulation_account_names.get(simulation_account_id)
+            if simulation_account_id and simulation_account_names
+            else None
+        ),
         createdAt=task.created_at.isoformat(),
     )
+
+
+def _simulation_account_id_from_config(config: dict) -> int | None:
+    raw_account_id = config.get("simulationAccountId")
+    if raw_account_id is None:
+        return None
+    try:
+        return int(raw_account_id)
+    except (TypeError, ValueError):
+        return None
+
+
+def _simulation_account_names_by_id(
+    db: Session,
+    owner: User,
+    tasks: list[BacktestTask],
+) -> dict[int, str]:
+    account_ids = {
+        account_id
+        for task in tasks
+        if (account_id := _simulation_account_id_from_config(task.config)) is not None
+    }
+    if not account_ids:
+        return {}
+
+    accounts = db.scalars(
+        select(SimulationAccount)
+        .where(SimulationAccount.owner_id == owner.id)
+        .where(SimulationAccount.id.in_(account_ids))
+    ).all()
+    return {account.id: account.name for account in accounts}

@@ -237,6 +237,17 @@ def test_run_backtest_uses_owned_simulation_account_settings(client):
     assert config["initialCash"] == 50000
     assert config["simulationAccountId"] == account_response.json()["id"]
 
+    records = client.get("/api/backtests", headers=auth_headers(token))
+    assert records.status_code == 200
+    listed_record = records.json()["items"][0]
+    assert listed_record["simulationAccountId"] == account_response.json()["id"]
+    assert listed_record["simulationAccountName"] == "美股一分钟账户"
+
+    detail = client.get(f"/api/backtests/{listed_record['id']}", headers=auth_headers(token))
+    assert detail.status_code == 200
+    assert detail.json()["simulationAccountId"] == account_response.json()["id"]
+    assert detail.json()["simulationAccountName"] == "美股一分钟账户"
+
 
 def test_run_backtest_rejects_other_users_simulation_account(client):
     alice_token = register_and_token(client, "account-owner", "account-owner@example.com")

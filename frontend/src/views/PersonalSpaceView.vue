@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiClient } from '../api/http'
+import { useAuthStore } from '../stores/auth'
 import {
   useStrategyWorkspaceStore,
   type SavedStrategy
@@ -30,6 +31,8 @@ interface BacktestListItem {
   winRatePercent: number
   endingEquity: number
   tradeCount: number
+  simulationAccountId?: number | null
+  simulationAccountName?: string | null
   createdAt: string
 }
 
@@ -84,6 +87,7 @@ interface BacktestDetail extends BacktestListItem {
 }
 
 const router = useRouter()
+const authStore = useAuthStore()
 const workspaceStore = useStrategyWorkspaceStore()
 const activeTab = ref<SpaceTab>('overview')
 const strategies = ref<SavedStrategy[]>([])
@@ -214,6 +218,10 @@ async function loadBacktests() {
   } finally {
     backtestLoading.value = false
   }
+}
+
+async function loadSpaceData() {
+  await Promise.all([loadStrategies(), loadAccounts(), loadBacktests()])
 }
 
 async function searchBacktests() {
@@ -351,10 +359,17 @@ function formatDate(value: string | undefined) {
   return value ? value.slice(0, 10) : '-'
 }
 
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated, wasAuthenticated) => {
+    if (isAuthenticated && !wasAuthenticated) {
+      void loadSpaceData()
+    }
+  }
+)
+
 onMounted(() => {
-  void loadStrategies()
-  void loadAccounts()
-  void loadBacktests()
+  void loadSpaceData()
 })
 </script>
 
@@ -690,6 +705,10 @@ onMounted(() => {
                 最大回撤 {{ formatPercent(backtest.maxDrawdownPercent) }}
                 ·
                 {{ backtest.tradeCount }} 笔
+                <template v-if="backtest.simulationAccountName">
+                  ·
+                  使用账户 {{ backtest.simulationAccountName }}
+                </template>
               </small>
             </div>
             <button class="backtest-open-button" type="button" @click="openBacktest(backtest)">
@@ -716,6 +735,9 @@ onMounted(() => {
                 <b>{{ selectedBacktest.summary.endingEquity }}</b>
               </span>
             </div>
+            <p v-if="selectedBacktest.simulationAccountName" class="space-muted">
+              账户 {{ selectedBacktest.simulationAccountName }}
+            </p>
             <table class="space-table">
               <thead>
                 <tr>

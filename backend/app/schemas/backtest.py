@@ -90,6 +90,8 @@ class BacktestRecordListItem(BaseModel):
     win_rate_percent: float = Field(alias="winRatePercent")
     ending_equity: float = Field(alias="endingEquity")
     trade_count: int = Field(alias="tradeCount")
+    simulation_account_id: int | None = Field(default=None, alias="simulationAccountId")
+    simulation_account_name: str | None = Field(default=None, alias="simulationAccountName")
     created_at: str = Field(alias="createdAt")
 
     model_config = ConfigDict(populate_by_name=True)
