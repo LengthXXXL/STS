@@ -348,6 +348,23 @@ describe('builder view', () => {
     expect(wrapper.find('.canvas-block').attributes('style')).toContain('translate(240px, 168px)')
   })
 
+  it('does not open the parameter inspector while moving a placed block', async () => {
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    const placedBlock = wrapper.find('.canvas-block')
+    await placedBlock.trigger('pointerdown', { button: 0, pointerId: 12, clientX: 260, clientY: 170 })
+    await placedBlock.trigger('pointermove', { pointerId: 12, clientX: 320, clientY: 210 })
+    await placedBlock.trigger('pointerup', { pointerId: 12, clientX: 320, clientY: 210 })
+
+    expect(wrapper.find('.block-inspector').exists()).toBe(false)
+
+    await wrapper.find('.canvas-block').trigger('click')
+
+    expect(wrapper.find('.block-inspector').exists()).toBe(true)
+  })
+
   it('deletes a selected placed block and its connections from the parameter inspector', async () => {
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)

@@ -1435,7 +1435,6 @@ function startPlacedBlockDrag(block: PlacedBlock, event: PointerEvent) {
   }
 
   event.preventDefault()
-  selectBlock(block.id)
   placedBlockDragState = {
     blockId: block.id,
     pointerId: event.pointerId,
