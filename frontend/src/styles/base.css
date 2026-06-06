@@ -1042,6 +1042,28 @@ button {
   cursor: pointer;
 }
 
+.custom-block-create-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(184, 156, 255, 0.54);
+  border-radius: 6px;
+  padding: 0;
+  color: #f7f2ff;
+  background: rgba(109, 61, 242, 0.76);
+  box-shadow: 0 0 18px rgba(124, 77, 255, 0.2);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.custom-block-create-button:hover {
+  border-color: rgba(224, 211, 255, 0.82);
+  background: rgba(124, 77, 255, 0.92);
+}
+
 .block-library-collapse-toggle::before {
   content: "";
   width: 0;
@@ -1231,6 +1253,18 @@ button {
   backdrop-filter: blur(12px);
 }
 
+.custom-block-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 4, 8, 0.54);
+  backdrop-filter: blur(12px);
+}
+
 .strategy-review-modal {
   width: min(920px, calc(100vw - 48px));
   max-height: min(760px, calc(100vh - 48px));
@@ -1246,27 +1280,46 @@ button {
   cursor: default;
 }
 
+.custom-block-modal {
+  width: min(460px, calc(100vw - 48px));
+  display: grid;
+  gap: 14px;
+  border: 1px solid #292437;
+  border-radius: 8px;
+  padding: 18px;
+  color: #f7f2ff;
+  background: rgba(17, 16, 25, 0.97);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.58), 0 0 34px rgba(124, 77, 255, 0.16);
+  cursor: default;
+}
+
 .strategy-review-header,
-.strategy-review-footer {
+.strategy-review-footer,
+.custom-block-modal-header,
+.custom-block-modal-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
 }
 
-.strategy-review-modal h2 {
+.strategy-review-modal h2,
+.custom-block-modal h2 {
   margin: 2px 0 0;
   font-size: 20px;
 }
 
 .strategy-review-modal small,
+.custom-block-modal small,
 .draft-status,
-.draft-storage-hint {
+.draft-storage-hint,
+.custom-block-status {
   color: #a89bc1;
   font-size: 12px;
 }
 
-.strategy-review-close {
+.strategy-review-close,
+.custom-block-modal-close {
   width: 32px;
   height: 32px;
   border: 1px solid #3a3150;
@@ -1274,6 +1327,54 @@ button {
   color: #f7f2ff;
   background: #191522;
   cursor: pointer;
+}
+
+.custom-block-form {
+  display: grid;
+  gap: 12px;
+}
+
+.custom-block-form label {
+  display: grid;
+  gap: 6px;
+  color: #d8ceff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.custom-block-form input,
+.custom-block-form textarea {
+  width: 100%;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #f7f2ff;
+  background: #09080d;
+  resize: vertical;
+}
+
+.custom-block-status {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.custom-block-modal-footer button {
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: #f7f2ff;
+  background: #191522;
+  cursor: pointer;
+}
+
+.custom-block-save-button {
+  border-color: rgba(124, 77, 255, 0.58) !important;
+  background: #302157 !important;
+}
+
+.custom-block-save-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.56;
 }
 
 .draft-actions {

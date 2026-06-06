@@ -620,7 +620,27 @@ describe('builder view', () => {
     window.removeEventListener('sts:auth-required', authRequiredListener)
   })
 
-  it('saves the current canvas as a private custom block template', async () => {
+  it('keeps publishing separate from custom block creation', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    const wrapper = mount(BuilderView)
+    await dropBlock(wrapper, 'buy', 260, 170)
+
+    await openReviewModal('publish')
+
+    expect(wrapper.find('.strategy-review-modal').text()).toContain('发布前检查')
+    expect(wrapper.find('.review-primary-button').text()).toContain('确认发布')
+
+    await wrapper.find('.review-primary-button').trigger('click')
+
+    expect(apiClient.post).not.toHaveBeenCalledWith('/custom-blocks', expect.anything())
+    expect(wrapper.find('.draft-status').text()).toContain('发布接口待接入')
+  })
+
+  it('creates private custom block templates from the block library', async () => {
     const authStore = useAuthStore()
     authStore.setSession({
       token: 'token-123',
@@ -630,10 +650,10 @@ describe('builder view', () => {
       data: {
         id: 21,
         ownerId: 1,
-        name: '未命名积木模板',
-        description: null,
-        category: '自定义',
-        tags: [],
+        name: '突破买入模板',
+        description: '把当前画布保存成模板',
+        category: '动作',
+        tags: ['突破', '买入'],
         template: {},
         reviewStatus: 'private',
         createdAt: '2026-06-06T11:00:00',
@@ -644,21 +664,25 @@ describe('builder view', () => {
     mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
 
-    await openReviewModal('publish')
-    await wrapper.find('.review-primary-button').trigger('click')
+    await wrapper.find('.custom-block-create-button').trigger('click')
+    await wrapper.find('.custom-block-name-input').setValue('突破买入模板')
+    await wrapper.find('.custom-block-category-input').setValue('动作')
+    await wrapper.find('.custom-block-description-input').setValue('把当前画布保存成模板')
+    await wrapper.find('.custom-block-tags-input').setValue('突破, 买入')
+    await wrapper.find('.custom-block-save-button').trigger('click')
     await flushPromises()
 
     expect(apiClient.post).toHaveBeenCalledWith('/custom-blocks', {
-      name: '未命名积木模板',
-      description: null,
-      category: '自定义',
-      tags: [],
+      name: '突破买入模板',
+      description: '把当前画布保存成模板',
+      category: '动作',
+      tags: ['突破', '买入'],
       template: expect.objectContaining({
         version: 1,
         nodes: expect.arrayContaining([expect.objectContaining({ type: 'buy' })])
       })
     })
-    expect(wrapper.find('.draft-status').text()).toContain('已保存到我的积木')
+    expect(wrapper.find('.custom-block-status').text()).toContain('已保存到我的积木')
   })
 
   it('validates whether the strategy draft can run', async () => {

@@ -148,6 +148,13 @@ interface CustomBlockResponse {
 
 type ReviewMode = 'backtest' | 'publish'
 
+interface CustomBlockForm {
+  name: string
+  category: string
+  description: string
+  tags: string
+}
+
 interface Connection {
   id: string
   fromBlockId: string
@@ -558,6 +565,7 @@ const isDraggingLibrary = ref(false)
 const isLibraryCollapsed = ref(false)
 const isSnapEnabled = ref(true)
 const reviewModalMode = ref<ReviewMode | null>(null)
+const isCustomBlockModalOpen = ref(false)
 const isBacktestRunning = ref(false)
 const isCustomBlockSaving = ref(false)
 const backtestRunError = ref('')
@@ -571,6 +579,13 @@ const currentStrategyId = ref<number | null>(null)
 const currentStrategyName = ref(DEFAULT_STRATEGY_NAME)
 const isSavingStrategy = ref(false)
 const strategySaveStatus = ref('')
+const customBlockForm = reactive<CustomBlockForm>({
+  name: '',
+  category: '自定义',
+  description: '',
+  tags: ''
+})
+const customBlockStatus = ref('')
 const backtestSettings = reactive<BacktestSettings>({
   market: 'A_SHARE',
   symbol: '000001.SZ',
@@ -757,12 +772,12 @@ const reviewModalTitle = computed(() =>
 )
 
 const reviewPrimaryLabel = computed(() =>
-  reviewModalMode.value === 'publish' ? '保存为积木' : '开始回测'
+  reviewModalMode.value === 'publish' ? '确认发布' : '开始回测'
 )
 
 const reviewPrimaryDisabled = computed(() => {
   if (reviewModalMode.value === 'publish') {
-    return validationIssues.value.length > 0 || isCustomBlockSaving.value
+    return validationIssues.value.length > 0
   }
 
   return backtestIssues.value.length > 0
@@ -1159,15 +1174,60 @@ function openPersonalBacktests() {
   })
 }
 
+function openCustomBlockModal() {
+  contextMenu.value = null
+  selectedBlockId.value = null
+  customBlockForm.name =
+    currentStrategyName.value === DEFAULT_STRATEGY_NAME
+      ? '未命名积木模板'
+      : `${currentStrategyName.value}模板`
+  customBlockForm.category = '自定义'
+  customBlockForm.description = ''
+  customBlockForm.tags = ''
+  customBlockStatus.value =
+    validationIssues.value.length > 0
+      ? validationIssues.value[0].message
+      : '将当前画布保存为可复用的私有积木模板'
+  isCustomBlockModalOpen.value = true
+}
+
+function closeCustomBlockModal() {
+  if (isCustomBlockSaving.value) {
+    return
+  }
+  isCustomBlockModalOpen.value = false
+}
+
+function customBlockTags() {
+  return customBlockForm.tags
+    .split(/[，,]/)
+    .map((tag) => tag.trim())
+    .filter((tag, index, tags) => tag && tags.indexOf(tag) === index)
+    .slice(0, 12)
+}
+
 async function saveCustomBlockTemplate() {
   if (!authStore.isAuthenticated) {
-    draftStatus.value = '请先登录后再保存自定义积木'
+    customBlockStatus.value = '请先登录后再保存自定义积木'
     window.dispatchEvent(new CustomEvent('sts:auth-required'))
     return
   }
 
   if (validationIssues.value.length > 0) {
-    draftStatus.value = validationIssues.value[0].message
+    customBlockStatus.value = validationIssues.value[0].message
+    return
+  }
+
+  const name = customBlockForm.name.trim()
+  const category = customBlockForm.category.trim()
+
+  if (!name) {
+    customBlockStatus.value = '请填写积木名称'
+    return
+  }
+
+  if (!category) {
+    customBlockStatus.value = '请填写积木分类'
     return
   }
 
@@ -1176,24 +1236,19 @@ async function saveCustomBlockTemplate() {
   }
 
   isCustomBlockSaving.value = true
-  draftStatus.value = '正在保存到我的积木'
-
-  const templateName =
-    currentStrategyName.value === DEFAULT_STRATEGY_NAME
-      ? '未命名积木模板'
-      : `${currentStrategyName.value}模板`
+  customBlockStatus.value = '正在保存到我的积木'
 
   try {
     const response = await apiClient.post<CustomBlockResponse>('/custom-blocks', {
-      name: templateName,
-      description: null,
-      category: '自定义',
-      tags: [],
+      name,
+      description: customBlockForm.description.trim() || null,
+      category,
+      tags: customBlockTags(),
       template: strategyDraft.value
     })
-    draftStatus.value = `已保存到我的积木：${response.data.name}`
+    customBlockStatus.value = `已保存到我的积木：${response.data.name}`
   } catch {
-    draftStatus.value = '保存自定义积木失败，请稍后重试'
+    customBlockStatus.value = '保存自定义积木失败，请稍后重试'
   } finally {
     isCustomBlockSaving.value = false
   }
@@ -1205,7 +1260,12 @@ async function handleReviewPrimaryAction() {
     return
   }
 
-  await saveCustomBlockTemplate()
+  if (validationIssues.value.length > 0) {
+    draftStatus.value = validationIssues.value[0].message
+    return
+  }
+
+  draftStatus.value = '发布接口待接入，当前仅完成发布前检查'
 }
 
 function handleBuilderAction(event: Event) {
@@ -1850,6 +1910,17 @@ function clearCanvas() {
         <div class="block-library-header-actions">
           <span aria-hidden="true">••</span>
           <button
+            v-if="!isLibraryCollapsed"
+            class="custom-block-create-button"
+            type="button"
+            title="新建积木"
+            aria-label="新建积木"
+            @pointerdown.stop
+            @click.stop="openCustomBlockModal"
+          >
+            +
+          </button>
+          <button
             class="block-library-collapse-toggle"
             :class="{ 'is-expand-arrow': isLibraryCollapsed }"
             type="button"
@@ -1894,6 +1965,98 @@ function clearCanvas() {
         </section>
       </nav>
     </aside>
+
+    <div
+      v-if="isCustomBlockModalOpen"
+      class="custom-block-modal-backdrop"
+      @click.self="closeCustomBlockModal"
+      @pointerdown.stop
+      @wheel.stop
+    >
+      <aside
+        class="custom-block-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="custom-block-modal-title"
+        @click.stop
+        @pointerdown.stop
+        @contextmenu.stop
+      >
+        <header class="custom-block-modal-header">
+          <div>
+            <small>积木库</small>
+            <h2 id="custom-block-modal-title">新建积木</h2>
+          </div>
+          <button
+            class="custom-block-modal-close"
+            type="button"
+            aria-label="关闭新建积木"
+            @click="closeCustomBlockModal"
+          >
+            ×
+          </button>
+        </header>
+
+        <form class="custom-block-form" @submit.prevent="saveCustomBlockTemplate">
+          <label>
+            <span>积木名称</span>
+            <input
+              v-model="customBlockForm.name"
+              class="custom-block-name-input"
+              maxlength="80"
+              placeholder="例如：突破买入模板"
+            />
+          </label>
+          <label>
+            <span>分类</span>
+            <input
+              v-model="customBlockForm.category"
+              class="custom-block-category-input"
+              maxlength="40"
+              placeholder="例如：动作、风控、指标"
+            />
+          </label>
+          <label>
+            <span>描述</span>
+            <textarea
+              v-model="customBlockForm.description"
+              class="custom-block-description-input"
+              maxlength="500"
+              rows="3"
+              placeholder="说明这个积木适合什么场景"
+            ></textarea>
+          </label>
+          <label>
+            <span>标签</span>
+            <input
+              v-model="customBlockForm.tags"
+              class="custom-block-tags-input"
+              placeholder="用逗号分隔，例如：突破, 买入"
+            />
+          </label>
+        </form>
+
+        <p class="custom-block-status">{{ customBlockStatus }}</p>
+
+        <footer class="custom-block-modal-footer">
+          <button
+            class="custom-block-cancel-button"
+            type="button"
+            @click="closeCustomBlockModal"
+          >
+            取消
+          </button>
+          <button
+            class="custom-block-save-button"
+            type="button"
+            :disabled="validationIssues.length > 0 || isCustomBlockSaving"
+            @click="saveCustomBlockTemplate"
+          >
+            {{ isCustomBlockSaving ? '保存中' : '保存到我的积木' }}
+          </button>
+        </footer>
+      </aside>
+    </div>
 
     <aside
       v-if="selectedBlock"
@@ -2187,10 +2350,10 @@ function clearCanvas() {
           <button
             class="review-primary-button"
             type="button"
-            :disabled="reviewPrimaryDisabled || isBacktestRunning || isCustomBlockSaving"
+            :disabled="reviewPrimaryDisabled || isBacktestRunning"
             @click="handleReviewPrimaryAction"
           >
-            {{ isBacktestRunning ? '回测中' : isCustomBlockSaving ? '保存中' : reviewPrimaryLabel }}
+            {{ isBacktestRunning ? '回测中' : reviewPrimaryLabel }}
           </button>
         </footer>
       </aside>
