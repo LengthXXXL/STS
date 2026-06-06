@@ -266,6 +266,11 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('回撤曲线')
     expect(wrapper.find('[data-testid="equity-chart-line"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="drawdown-chart-line"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="trade-marker-buy"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="trade-marker-sell"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('交易复盘')
+    expect(wrapper.text()).toContain('买入 1900 股')
+    expect(wrapper.text()).toContain('卖出 1900 股')
   })
 
   it('creates, edits and deletes a simulation account', async () => {

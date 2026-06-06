@@ -79,13 +79,39 @@ interface ChartDataPoint {
   value: number
 }
 
+interface ChartCoordinate extends ChartDataPoint {
+  x: number
+  y: number
+}
+
 interface BacktestChartModel {
   points: string
+  coordinates: ChartCoordinate[]
   startLabel: string
   endLabel: string
   minLabel: string
   maxLabel: string
   latestLabel: string
+}
+
+interface TradeMarker {
+  id: string
+  x: number
+  y: number
+  side: BacktestTrade['side']
+  sideLabel: string
+  testId: string
+  label: string
+}
+
+interface TradeReviewItem {
+  id: string
+  time: string
+  side: BacktestTrade['side']
+  sideLabel: string
+  quantityText: string
+  priceText: string
+  reason: string
 }
 
 interface BacktestDetail extends BacktestListItem {
@@ -132,6 +158,9 @@ const accountForm = ref({
   market: 'A_SHARE' as SimulationAccount['market'],
   initialCash: 100000
 })
+const chartWidth = 320
+const chartHeight = 120
+const chartPadding = 16
 
 const bestBacktest = computed(() =>
   backtests.value.reduce<BacktestListItem | null>((best, item) => {
@@ -185,6 +214,47 @@ const selectedDrawdownChart = computed(() => {
     formatLabel: (value) => formatPercent(value)
   })
 })
+const selectedEquityTradeMarkers = computed<TradeMarker[]>(() => {
+  if (!selectedBacktest.value || !selectedEquityChart.value) {
+    return []
+  }
+
+  const coordinateByTime = new Map(
+    selectedEquityChart.value.coordinates.map((coordinate) => [coordinate.time, coordinate])
+  )
+  return selectedBacktest.value.trades.flatMap((trade, index) => {
+    const coordinate = coordinateByTime.get(trade.time)
+    if (!coordinate) {
+      return []
+    }
+    const sideLabel = formatTradeSide(trade.side)
+    return [
+      {
+        id: `${trade.time}-${trade.side}-${index}`,
+        x: coordinate.x,
+        y: coordinate.y,
+        side: trade.side,
+        sideLabel,
+        testId: `trade-marker-${trade.side.toLowerCase()}`,
+        label: `${sideLabel} ${trade.quantity} 股，价格 ${formatAmount(trade.price)}，${trade.reason}`
+      }
+    ]
+  })
+})
+const selectedTradeReviews = computed<TradeReviewItem[]>(() =>
+  (selectedBacktest.value?.trades ?? []).map((trade, index) => {
+    const sideLabel = formatTradeSide(trade.side)
+    return {
+      id: `${trade.time}-${trade.side}-${index}`,
+      time: trade.time,
+      side: trade.side,
+      sideLabel,
+      quantityText: `${sideLabel} ${trade.quantity} 股`,
+      priceText: `${formatAmount(trade.price)} / 股`,
+      reason: trade.reason
+    }
+  })
+)
 
 async function loadStrategies() {
   strategyLoading.value = true
@@ -407,6 +477,10 @@ function formatDate(value: string | undefined) {
   return value ? value.slice(0, 10) : '-'
 }
 
+function formatTradeSide(side: BacktestTrade['side']) {
+  return side === 'BUY' ? '买入' : '卖出'
+}
+
 function buildChartModel(
   points: ChartDataPoint[],
   options: {
@@ -420,26 +494,28 @@ function buildChartModel(
     return null
   }
 
-  const chartWidth = 320
-  const chartHeight = 120
-  const padding = 16
   const values = points.map((point) => point.value)
   const minValue = options.minValue ?? Math.min(...values)
   const maxValue = options.maxValue ?? Math.max(...values)
   const range = maxValue - minValue
-  const linePoints = points.map((point, index) => {
+  const coordinates = points.map<ChartCoordinate>((point, index) => {
     const x =
       points.length === 1
         ? chartWidth / 2
-        : padding + (index / (points.length - 1)) * (chartWidth - padding * 2)
+        : chartPadding + (index / (points.length - 1)) * (chartWidth - chartPadding * 2)
     const normalized = range === 0 ? 0.5 : (point.value - minValue) / range
     const yRatio = options.highValueAtTop ? 1 - normalized : normalized
-    const y = padding + yRatio * (chartHeight - padding * 2)
-    return `${x.toFixed(1)},${y.toFixed(1)}`
+    const y = chartPadding + yRatio * (chartHeight - chartPadding * 2)
+    return {
+      ...point,
+      x,
+      y
+    }
   })
 
   return {
-    points: linePoints.join(' '),
+    points: coordinates.map((point) => `${point.x.toFixed(1)},${point.y.toFixed(1)}`).join(' '),
+    coordinates,
     startLabel: points[0].time,
     endLabel: points[points.length - 1].time,
     minLabel: options.formatLabel(minValue),
@@ -850,6 +926,19 @@ onMounted(() => {
                     class="backtest-line-chart__line backtest-line-chart__line--equity"
                     :points="selectedEquityChart.points"
                   />
+                  <g
+                    v-for="marker in selectedEquityTradeMarkers"
+                    :key="marker.id"
+                    class="trade-marker"
+                    :class="marker.side === 'BUY' ? 'trade-marker--buy' : 'trade-marker--sell'"
+                    :data-testid="marker.testId"
+                    :transform="`translate(${marker.x.toFixed(1)} ${marker.y.toFixed(1)})`"
+                    :aria-label="marker.label"
+                  >
+                    <title>{{ marker.label }}</title>
+                    <circle r="5" />
+                    <text y="-9" text-anchor="middle">{{ marker.sideLabel }}</text>
+                  </g>
                 </svg>
                 <footer>
                   <span>{{ selectedEquityChart.startLabel }}</span>
@@ -889,6 +978,26 @@ onMounted(() => {
                 </small>
               </article>
             </div>
+            <section v-if="selectedTradeReviews.length" class="trade-review">
+              <header>
+                <strong>交易复盘</strong>
+                <small>{{ selectedTradeReviews.length }} 个触发点</small>
+              </header>
+              <ol>
+                <li
+                  v-for="review in selectedTradeReviews"
+                  :key="review.id"
+                  :class="review.side === 'BUY' ? 'trade-review__item--buy' : 'trade-review__item--sell'"
+                >
+                  <div>
+                    <span>{{ review.time }}</span>
+                    <b>{{ review.quantityText }}</b>
+                  </div>
+                  <p>{{ review.reason }}</p>
+                  <small>{{ review.priceText }}</small>
+                </li>
+              </ol>
+            </section>
             <table class="space-table">
               <thead>
                 <tr>

@@ -521,6 +521,103 @@ button {
   filter: drop-shadow(0 0 8px rgba(255, 139, 167, 0.2));
 }
 
+.trade-marker circle {
+  stroke: rgba(247, 242, 255, 0.92);
+  stroke-width: 1.5;
+}
+
+.trade-marker text {
+  fill: #f7f2ff;
+  font-size: 10px;
+  font-weight: 700;
+  paint-order: stroke;
+  stroke: rgba(5, 5, 7, 0.88);
+  stroke-width: 3px;
+}
+
+.trade-marker--buy circle {
+  fill: #5ee6c8;
+  filter: drop-shadow(0 0 8px rgba(94, 230, 200, 0.42));
+}
+
+.trade-marker--sell circle {
+  fill: #ff8ba7;
+  filter: drop-shadow(0 0 8px rgba(255, 139, 167, 0.36));
+}
+
+.trade-review {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(58, 49, 80, 0.72);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(17, 16, 25, 0.64);
+}
+
+.trade-review header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.trade-review header small {
+  color: #9e91b8;
+}
+
+.trade-review ol {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trade-review li {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(58, 49, 80, 0.72);
+  border-radius: 8px;
+  padding: 10px 10px 10px 14px;
+  background: rgba(9, 8, 13, 0.52);
+}
+
+.trade-review li::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+}
+
+.trade-review__item--buy::before {
+  background: #5ee6c8;
+}
+
+.trade-review__item--sell::before {
+  background: #ff8ba7;
+}
+
+.trade-review li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.trade-review li span,
+.trade-review li small {
+  color: #9e91b8;
+  font-size: 12px;
+}
+
+.trade-review li p {
+  margin: 0;
+  color: #d8d0e8;
+}
+
 .space-table {
   width: 100%;
   border-collapse: collapse;
