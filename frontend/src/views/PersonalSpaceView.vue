@@ -924,9 +924,8 @@ onMounted(() => {
           </article>
         </div>
 
-        <aside class="space-detail-panel">
-          <p v-if="backtestDetailLoading" class="space-muted">正在加载详情</p>
-          <template v-else-if="selectedBacktest">
+        <aside class="space-detail-panel" :aria-busy="backtestDetailLoading">
+          <template v-if="selectedBacktest">
             <strong>回测详情</strong>
             <div class="backtest-detail-metrics">
               <span>

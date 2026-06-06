@@ -167,6 +167,53 @@ function mockPersonalSpaceRequests() {
   })
 }
 
+function mockPersonalSpaceRequestsWithDelayedBacktestDetail() {
+  let resolveDetail: (value: { data: typeof backtestDetail }) => void = () => {}
+
+  vi.mocked(apiClient.get).mockImplementation((url: string) => {
+    if (url === '/strategies') {
+      return Promise.resolve({
+        data: {
+          items: [savedStrategy],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
+    if (url === '/backtests') {
+      return Promise.resolve({
+        data: {
+          items: [savedBacktest],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
+    if (url === '/simulation-accounts') {
+      return Promise.resolve({
+        data: {
+          items: [savedAccount],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
+    if (url === '/backtests/11') {
+      return new Promise((resolve) => {
+        resolveDetail = resolve
+      })
+    }
+    return Promise.reject(new Error(`Unhandled GET ${url}`))
+  })
+
+  return {
+    resolveDetail: () => resolveDetail({ data: backtestDetail })
+  }
+}
+
 describe('personal space view', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -289,6 +336,25 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('2 个')
     expect(wrapper.text()).toContain('买入 x1')
     expect(wrapper.text()).toContain('止损 x1')
+  })
+
+  it('keeps the detail panel stable while loading a backtest detail', async () => {
+    const detailRequest = mockPersonalSpaceRequestsWithDelayedBacktestDetail()
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="backtests"]').trigger('click')
+    await wrapper.find('.backtest-open-button').trigger('click')
+    await nextTick()
+
+    expect(wrapper.text()).toContain('选择一条回测记录')
+    expect(wrapper.text()).not.toContain('正在加载详情')
+
+    detailRequest.resolveDetail()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('回测详情')
+    expect(wrapper.text()).toContain('回测快照')
   })
 
   it('creates, edits and deletes a simulation account', async () => {
