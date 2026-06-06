@@ -1184,7 +1184,13 @@ onMounted(() => {
                 >
                   保存修改
                 </button>
-                <button type="button" @click="cancelCustomBlockEdit">取消</button>
+                <button
+                  class="custom-block-cancel-button"
+                  type="button"
+                  @click="cancelCustomBlockEdit"
+                >
+                  取消
+                </button>
               </div>
             </form>
 
@@ -1200,7 +1206,13 @@ onMounted(() => {
               >
                 确认删除
               </button>
-              <button type="button" @click="cancelDeleteCustomBlock">取消</button>
+              <button
+                class="custom-block-cancel-button"
+                type="button"
+                @click="cancelDeleteCustomBlock"
+              >
+                取消
+              </button>
             </div>
           </div>
           <div class="strategy-item-actions">

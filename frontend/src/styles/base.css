@@ -184,6 +184,8 @@ button {
 .strategy-item-actions button,
 .space-tabs button,
 .account-form-actions button,
+.custom-block-edit-actions button,
+.custom-block-delete-confirm button,
 .backtest-open-button,
 .space-lane button {
   border: 1px solid #3a3150;
@@ -439,8 +441,26 @@ button {
 }
 
 .custom-block-edit-form .custom-block-save-button {
+  color: #eafffb !important;
   border-color: rgba(94, 230, 200, 0.44) !important;
   background: rgba(21, 57, 53, 0.76) !important;
+}
+
+.custom-block-edit-form .custom-block-save-button:hover {
+  border-color: rgba(94, 230, 200, 0.68) !important;
+  background: rgba(28, 75, 69, 0.88) !important;
+}
+
+.custom-block-cancel-button {
+  color: #d8ceff !important;
+  border-color: rgba(124, 77, 255, 0.34) !important;
+  background: rgba(25, 21, 34, 0.86) !important;
+}
+
+.custom-block-cancel-button:hover {
+  color: #f7f2ff !important;
+  border-color: rgba(124, 77, 255, 0.56) !important;
+  background: rgba(48, 33, 87, 0.72) !important;
 }
 
 .custom-block-delete-confirm {
@@ -453,6 +473,11 @@ button {
   color: #ffe4ea !important;
   border-color: rgba(255, 139, 167, 0.48) !important;
   background: rgba(64, 25, 40, 0.72) !important;
+}
+
+.custom-block-confirm-delete-button:hover {
+  border-color: rgba(255, 139, 167, 0.72) !important;
+  background: rgba(88, 31, 51, 0.86) !important;
 }
 
 .account-edit-button {
