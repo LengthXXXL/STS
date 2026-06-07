@@ -115,6 +115,32 @@ const savedCustomBlock = {
   updatedAt: '2026-06-06T11:30:00'
 }
 
+const savedForumPost = {
+  id: 31,
+  authorId: 1,
+  authorName: 'alice',
+  title: '待审核止盈复盘',
+  content: '这是一条等待管理员审核的论坛帖子。',
+  topic: '策略复盘',
+  sharedBlockId: null,
+  reviewStatus: 'pending_review',
+  commentCount: 0,
+  createdAt: '2026-06-07T09:00:00',
+  updatedAt: '2026-06-07T09:30:00'
+}
+
+const savedForumComment = {
+  id: 41,
+  postId: 12,
+  postTitle: '公开止盈讨论帖',
+  authorId: 1,
+  authorName: 'alice',
+  content: '这是一条被驳回的评论。',
+  reviewStatus: 'rejected',
+  createdAt: '2026-06-07T10:00:00',
+  updatedAt: '2026-06-07T10:30:00'
+}
+
 const backtestDetail = {
   ...savedBacktest,
   strategy: savedStrategy.strategy,
@@ -192,6 +218,26 @@ function mockPersonalSpaceRequests(options: { customBlocks?: Array<typeof savedC
         }
       })
     }
+    if (url === '/forum/my-posts') {
+      return Promise.resolve({
+        data: {
+          items: [savedForumPost],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
+    if (url === '/forum/my-comments') {
+      return Promise.resolve({
+        data: {
+          items: [savedForumComment],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
     if (url === '/backtests/11') {
       return Promise.resolve({ data: backtestDetail })
     }
@@ -243,6 +289,16 @@ function mockPersonalSpaceRequestsWithDelayedBacktestDetail() {
         }
       })
     }
+    if (url === '/forum/my-posts') {
+      return Promise.resolve({
+        data: { items: [savedForumPost], total: 1, page: 1, pageSize: 10 }
+      })
+    }
+    if (url === '/forum/my-comments') {
+      return Promise.resolve({
+        data: { items: [savedForumComment], total: 1, page: 1, pageSize: 10 }
+      })
+    }
     if (url === '/backtests/11') {
       return new Promise((resolve) => {
         resolveDetail = resolve
@@ -282,14 +338,22 @@ describe('personal space view', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/custom-blocks', {
       params: { keyword: '', page: 1, pageSize: 10 }
     })
+    expect(apiClient.get).toHaveBeenCalledWith('/forum/my-posts', {
+      params: { page: 1, pageSize: 10 }
+    })
+    expect(apiClient.get).toHaveBeenCalledWith('/forum/my-comments', {
+      params: { page: 1, pageSize: 10 }
+    })
     expect(wrapper.text()).toContain('概览')
     expect(wrapper.text()).toContain('我的策略')
     expect(wrapper.text()).toContain('我的积木')
     expect(wrapper.text()).toContain('模拟账户')
     expect(wrapper.text()).toContain('我的回测')
+    expect(wrapper.text()).toContain('我的论坛')
     expect(wrapper.text()).toContain('策略总数')
     expect(wrapper.text()).toContain('账户总数')
     expect(wrapper.text()).toContain('回测总数')
+    expect(wrapper.text()).toContain('论坛内容')
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('突破止盈模板')
     expect(wrapper.text()).toContain('A股日内账户')
@@ -308,7 +372,7 @@ describe('personal space view', () => {
     const wrapper = mount(PersonalSpaceView)
 
     await flushPromises()
-    expect(apiClient.get).toHaveBeenCalledTimes(4)
+    expect(apiClient.get).toHaveBeenCalledTimes(6)
 
     mockPersonalSpaceRequests()
     const authStore = useAuthStore()
@@ -324,10 +388,29 @@ describe('personal space view', () => {
     await nextTick()
     await flushPromises()
 
-    expect(apiClient.get).toHaveBeenCalledTimes(8)
+    expect(apiClient.get).toHaveBeenCalledTimes(12)
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('A股日内账户')
     expect(wrapper.text()).toContain('000001.SZ')
+  })
+
+  it('shows own forum posts and comments with review status', async () => {
+    mockPersonalSpaceRequests()
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="forum"]').trigger('click')
+
+    expect(wrapper.text()).toContain('待审核止盈复盘')
+    expect(wrapper.text()).toContain('审核中')
+    expect(wrapper.text()).toContain('这是一条等待管理员审核的论坛帖子。')
+
+    await wrapper.find('.space-forum-comments-tab').trigger('click')
+
+    expect(wrapper.text()).toContain('公开止盈讨论帖')
+    expect(wrapper.text()).toContain('这是一条被驳回的评论。')
+    expect(wrapper.text()).toContain('未通过审核')
+    expect(wrapper.text()).toContain('关联帖子：公开止盈讨论帖')
   })
 
   it('opens the backtest tab from the route query', async () => {

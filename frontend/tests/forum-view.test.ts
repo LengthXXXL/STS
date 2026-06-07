@@ -6,6 +6,14 @@ import { apiClient } from '../src/api/http'
 import { useAuthStore } from '../src/stores/auth'
 import ForumView from '../src/views/ForumView.vue'
 
+const routeMock = vi.hoisted(() => ({
+  query: {} as Record<string, string>
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => routeMock
+}))
+
 vi.mock('../src/api/http', () => ({
   apiClient: {
     get: vi.fn(),
@@ -63,6 +71,7 @@ describe('forum view', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
+    routeMock.query = {}
     vi.clearAllMocks()
   })
 
@@ -83,6 +92,16 @@ describe('forum view', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith('/forum/posts/12')
     expect(wrapper.find('.forum-thread-panel').exists()).toBe(true)
+    expect(wrapper.text()).toContain('这个案例很适合新手复盘。')
+  })
+
+  it('opens a forum detail from the postId route query', async () => {
+    routeMock.query = { postId: '12' }
+    mockForum()
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenCalledWith('/forum/posts/12')
     expect(wrapper.text()).toContain('这个案例很适合新手复盘。')
   })
 
@@ -111,7 +130,7 @@ describe('forum view', () => {
       content: '移动止损适合高波动盘中策略。',
       sharedBlockId: null
     })
-    expect(wrapper.text()).toContain('帖子已提交审核')
+    expect(wrapper.text()).toContain('帖子已提交审核，可在个人空间-我的论坛查看进度')
   })
 
   it('asks visitors to log in before posting or commenting', async () => {
@@ -163,6 +182,6 @@ describe('forum view', () => {
     expect(apiClient.post).toHaveBeenCalledWith('/forum/posts/12/comments', {
       content: '我也想试试这个积木组合。'
     })
-    expect(wrapper.text()).toContain('评论已提交审核')
+    expect(wrapper.text()).toContain('评论已提交审核，可在个人空间-我的论坛查看进度')
   })
 })

@@ -7,6 +7,7 @@ from app.models.user import User
 from app.schemas.forum import (
     ForumCommentCreate,
     ForumCommentResponse,
+    ForumCommentReviewListResponse,
     ForumPostCreate,
     ForumPostDetailResponse,
     ForumPostItemResponse,
@@ -17,6 +18,8 @@ from app.services.forum_service import (
     create_forum_post,
     get_forum_post_detail,
     list_forum_posts,
+    list_my_forum_comments,
+    list_my_forum_posts,
 )
 
 router = APIRouter(prefix="/forum", tags=["forum"])
@@ -40,6 +43,28 @@ def create_post(
     db: Session = Depends(get_db),
 ) -> ForumPostItemResponse:
     return create_forum_post(db, current_user, request)
+
+
+@router.get("/my-posts", response_model=ForumPostListResponse)
+def list_my_posts(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, alias="pageSize", ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ForumPostListResponse:
+    items, total = list_my_forum_posts(db, current_user, page=page, page_size=page_size)
+    return ForumPostListResponse(items=items, total=total, page=page, pageSize=page_size)
+
+
+@router.get("/my-comments", response_model=ForumCommentReviewListResponse)
+def list_my_comments(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, alias="pageSize", ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ForumCommentReviewListResponse:
+    items, total = list_my_forum_comments(db, current_user, page=page, page_size=page_size)
+    return ForumCommentReviewListResponse(items=items, total=total, page=page, pageSize=page_size)
 
 
 @router.get("/posts/{post_id}", response_model=ForumPostDetailResponse)

@@ -10,7 +10,16 @@ import {
   type StrategyDraftPayload
 } from '../stores/strategyWorkspace'
 
-type SpaceTab = 'overview' | 'strategies' | 'custom-blocks' | 'accounts' | 'backtests'
+type SpaceTab =
+  | 'overview'
+  | 'strategies'
+  | 'custom-blocks'
+  | 'accounts'
+  | 'backtests'
+  | 'forum'
+
+type ForumReviewStatus = 'pending_review' | 'approved' | 'rejected'
+type ForumContentTab = 'posts' | 'comments'
 
 interface StrategyListResponse {
   items: SavedStrategy[]
@@ -78,6 +87,46 @@ interface CustomBlock {
 
 interface CustomBlockListResponse {
   items: CustomBlock[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+interface ForumPostItem {
+  id: number
+  authorId: number
+  authorName: string
+  title: string
+  content: string
+  topic: string
+  sharedBlockId: number | null
+  reviewStatus: ForumReviewStatus
+  commentCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+interface ForumPostListResponse {
+  items: ForumPostItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+interface ForumCommentItem {
+  id: number
+  postId: number
+  postTitle: string
+  authorId: number
+  authorName: string
+  content: string
+  reviewStatus: ForumReviewStatus
+  createdAt: string
+  updatedAt: string
+}
+
+interface ForumCommentListResponse {
+  items: ForumCommentItem[]
   total: number
   page: number
   pageSize: number
@@ -178,24 +227,33 @@ const strategies = ref<SavedStrategy[]>([])
 const customBlocks = ref<CustomBlock[]>([])
 const accounts = ref<SimulationAccount[]>([])
 const backtests = ref<BacktestListItem[]>([])
+const forumPosts = ref<ForumPostItem[]>([])
+const forumComments = ref<ForumCommentItem[]>([])
 const selectedBacktest = ref<BacktestDetail | null>(null)
 const strategyKeyword = ref('')
 const customBlockKeyword = ref('')
 const accountKeyword = ref('')
 const backtestKeyword = ref('')
+const activeForumTab = ref<ForumContentTab>('posts')
 const strategyPage = ref(1)
 const customBlockPage = ref(1)
 const accountPage = ref(1)
 const backtestPage = ref(1)
+const forumPostPage = ref(1)
+const forumCommentPage = ref(1)
 const pageSize = 10
 const strategyTotal = ref(0)
 const customBlockTotal = ref(0)
 const accountTotal = ref(0)
 const backtestTotal = ref(0)
+const forumPostTotal = ref(0)
+const forumCommentTotal = ref(0)
 const strategyLoading = ref(false)
 const customBlockLoading = ref(false)
 const accountLoading = ref(false)
 const backtestLoading = ref(false)
+const forumPostLoading = ref(false)
+const forumCommentLoading = ref(false)
 const backtestDetailLoading = ref(false)
 const strategyError = ref('')
 const customBlockError = ref('')
@@ -203,6 +261,8 @@ const customBlockActionError = ref('')
 const customBlockActionMessage = ref('')
 const accountError = ref('')
 const backtestError = ref('')
+const forumPostError = ref('')
+const forumCommentError = ref('')
 const editingCustomBlockId = ref<number | null>(null)
 const confirmingCustomBlockDeleteId = ref<number | null>(null)
 const customBlockForm = ref<CustomBlockForm>({
@@ -229,7 +289,8 @@ function spaceTabFromQuery(tab: unknown): SpaceTab {
     value === 'strategies' ||
     value === 'custom-blocks' ||
     value === 'accounts' ||
-    value === 'backtests'
+    value === 'backtests' ||
+    value === 'forum'
   ) {
     return value
   }
@@ -258,12 +319,18 @@ const latestStrategy = computed(() => strategies.value[0] ?? null)
 const latestCustomBlock = computed(() => customBlocks.value[0] ?? null)
 const latestAccount = computed(() => accounts.value[0] ?? null)
 const latestBacktest = computed(() => backtests.value[0] ?? null)
+const latestForumPost = computed(() => forumPosts.value[0] ?? null)
+const forumContentTotal = computed(() => forumPostTotal.value + forumCommentTotal.value)
 const strategyTotalPages = computed(() => Math.max(1, Math.ceil(strategyTotal.value / pageSize)))
 const customBlockTotalPages = computed(() =>
   Math.max(1, Math.ceil(customBlockTotal.value / pageSize))
 )
 const accountTotalPages = computed(() => Math.max(1, Math.ceil(accountTotal.value / pageSize)))
 const backtestTotalPages = computed(() => Math.max(1, Math.ceil(backtestTotal.value / pageSize)))
+const forumPostTotalPages = computed(() => Math.max(1, Math.ceil(forumPostTotal.value / pageSize)))
+const forumCommentTotalPages = computed(() =>
+  Math.max(1, Math.ceil(forumCommentTotal.value / pageSize))
+)
 const customBlockNameCounts = computed(() => {
   const counts = new Map<string, number>()
   customBlocks.value.forEach((block) => {
@@ -473,8 +540,53 @@ async function loadBacktests() {
   }
 }
 
+async function loadForumPosts() {
+  forumPostLoading.value = true
+  forumPostError.value = ''
+  try {
+    const response = await apiClient.get<ForumPostListResponse>('/forum/my-posts', {
+      params: {
+        page: forumPostPage.value,
+        pageSize
+      }
+    })
+    forumPosts.value = response.data.items
+    forumPostTotal.value = response.data.total
+  } catch {
+    forumPostError.value = '我的帖子加载失败，请确认已登录'
+  } finally {
+    forumPostLoading.value = false
+  }
+}
+
+async function loadForumComments() {
+  forumCommentLoading.value = true
+  forumCommentError.value = ''
+  try {
+    const response = await apiClient.get<ForumCommentListResponse>('/forum/my-comments', {
+      params: {
+        page: forumCommentPage.value,
+        pageSize
+      }
+    })
+    forumComments.value = response.data.items
+    forumCommentTotal.value = response.data.total
+  } catch {
+    forumCommentError.value = '我的评论加载失败，请确认已登录'
+  } finally {
+    forumCommentLoading.value = false
+  }
+}
+
 async function loadSpaceData() {
-  await Promise.all([loadStrategies(), loadCustomBlocks(), loadAccounts(), loadBacktests()])
+  await Promise.all([
+    loadStrategies(),
+    loadCustomBlocks(),
+    loadAccounts(),
+    loadBacktests(),
+    loadForumPosts(),
+    loadForumComments()
+  ])
 }
 
 async function searchBacktests() {
@@ -783,6 +895,30 @@ async function changeBacktestPage(nextPage: number) {
   await loadBacktests()
 }
 
+async function changeForumPostPage(nextPage: number) {
+  if (
+    nextPage < 1 ||
+    nextPage > forumPostTotalPages.value ||
+    nextPage === forumPostPage.value
+  ) {
+    return
+  }
+  forumPostPage.value = nextPage
+  await loadForumPosts()
+}
+
+async function changeForumCommentPage(nextPage: number) {
+  if (
+    nextPage < 1 ||
+    nextPage > forumCommentTotalPages.value ||
+    nextPage === forumCommentPage.value
+  ) {
+    return
+  }
+  forumCommentPage.value = nextPage
+  await loadForumComments()
+}
+
 function formatMarket(market: BacktestListItem['market'] | undefined) {
   if (market === 'US_STOCK') {
     return '美股'
@@ -819,6 +955,15 @@ function formatReviewStatus(status: CustomBlock['reviewStatus']) {
     rejected: '未通过'
   }
   return labels[status] ?? '私有模板'
+}
+
+function formatForumReviewStatus(status: ForumReviewStatus) {
+  const labels: Record<ForumReviewStatus, string> = {
+    pending_review: '审核中',
+    approved: '已通过',
+    rejected: '未通过审核'
+  }
+  return labels[status] ?? '审核中'
 }
 
 function normalizedCustomBlockName(name: string) {
@@ -909,7 +1054,11 @@ onMounted(() => {
         <h1>个人空间</h1>
         <p>策略资产、回测记录与个人沉淀</p>
       </div>
-      <form v-if="activeTab !== 'overview'" class="space-search" @submit.prevent="searchActiveTab">
+      <form
+        v-if="activeTab !== 'overview' && activeTab !== 'forum'"
+        class="space-search"
+        @submit.prevent="searchActiveTab"
+      >
         <input
           v-if="activeTab === 'strategies'"
           v-model="strategyKeyword"
@@ -975,6 +1124,14 @@ onMounted(() => {
       >
         我的回测
       </button>
+      <button
+        type="button"
+        data-space-tab="forum"
+        :class="{ 'is-active': activeTab === 'forum' }"
+        @click="activeTab = 'forum'"
+      >
+        我的论坛
+      </button>
     </nav>
 
     <section v-if="activeTab === 'overview'" class="space-overview">
@@ -994,6 +1151,10 @@ onMounted(() => {
         <article class="space-metric">
           <small>账户总数</small>
           <strong>{{ accountTotal }}</strong>
+        </article>
+        <article class="space-metric">
+          <small>论坛内容</small>
+          <strong>{{ forumContentTotal }}</strong>
         </article>
         <article class="space-metric">
           <small>最佳收益</small>
@@ -1080,6 +1241,24 @@ onMounted(() => {
             class="backtest-open-button"
             type="button"
             @click="openBacktest(latestBacktest)"
+          >
+            查看
+          </button>
+        </article>
+        <article class="space-lane">
+          <div>
+            <small>最近论坛</small>
+            <h2>{{ latestForumPost?.title || '暂无论坛内容' }}</h2>
+            <p v-if="latestForumPost">
+              {{ latestForumPost.topic }}
+              ·
+              {{ formatForumReviewStatus(latestForumPost.reviewStatus) }}
+            </p>
+          </div>
+          <button
+            v-if="latestForumPost"
+            type="button"
+            @click="activeTab = 'forum'"
           >
             查看
           </button>
@@ -1403,6 +1582,122 @@ onMounted(() => {
           </button>
         </div>
       </footer>
+    </section>
+
+    <section v-else-if="activeTab === 'forum'" class="space-section space-forum">
+      <div class="space-forum-tabs" role="tablist" aria-label="我的论坛内容">
+        <button
+          class="space-forum-posts-tab"
+          :class="{ 'is-active': activeForumTab === 'posts' }"
+          type="button"
+          @click="activeForumTab = 'posts'"
+        >
+          我的帖子
+          <span>{{ forumPostTotal }}</span>
+        </button>
+        <button
+          class="space-forum-comments-tab"
+          :class="{ 'is-active': activeForumTab === 'comments' }"
+          type="button"
+          @click="activeForumTab = 'comments'"
+        >
+          我的评论
+          <span>{{ forumCommentTotal }}</span>
+        </button>
+      </div>
+
+      <div v-if="activeForumTab === 'posts'" class="space-forum-list">
+        <p v-if="forumPostError" class="form-error">{{ forumPostError }}</p>
+        <p v-else-if="forumPostLoading" class="space-muted">正在加载我的帖子</p>
+        <p v-else-if="forumPosts.length === 0" class="space-muted">暂无论坛帖子</p>
+        <article v-for="post in forumPosts" v-else :key="post.id" class="strategy-item forum-space-item">
+          <div>
+            <div class="forum-space-meta">
+              <span>{{ post.topic }}</span>
+              <span>{{ formatDate(post.updatedAt) }}</span>
+              <span class="forum-space-status">{{ formatForumReviewStatus(post.reviewStatus) }}</span>
+            </div>
+            <h2>{{ post.title }}</h2>
+            <p>{{ post.content }}</p>
+            <small>评论 {{ post.commentCount }}</small>
+          </div>
+          <div class="strategy-item-actions">
+            <a v-if="post.reviewStatus === 'approved'" :href="`/forum?postId=${post.id}`">
+              查看公开帖
+            </a>
+          </div>
+        </article>
+
+        <footer class="space-footer">
+          <span>共 {{ forumPostTotal }} 条帖子</span>
+          <div class="space-pagination">
+            <button
+              type="button"
+              data-pagination="forum-posts-prev"
+              :disabled="forumPostPage <= 1"
+              @click="changeForumPostPage(forumPostPage - 1)"
+            >
+              上一页
+            </button>
+            <span>第 {{ forumPostPage }} / {{ forumPostTotalPages }} 页</span>
+            <button
+              type="button"
+              data-pagination="forum-posts-next"
+              :disabled="forumPostPage >= forumPostTotalPages"
+              @click="changeForumPostPage(forumPostPage + 1)"
+            >
+              下一页
+            </button>
+          </div>
+        </footer>
+      </div>
+
+      <div v-else class="space-forum-list">
+        <p v-if="forumCommentError" class="form-error">{{ forumCommentError }}</p>
+        <p v-else-if="forumCommentLoading" class="space-muted">正在加载我的评论</p>
+        <p v-else-if="forumComments.length === 0" class="space-muted">暂无论坛评论</p>
+        <article
+          v-for="comment in forumComments"
+          v-else
+          :key="comment.id"
+          class="strategy-item forum-space-item"
+        >
+          <div>
+            <div class="forum-space-meta">
+              <span>关联帖子：{{ comment.postTitle }}</span>
+              <span>{{ formatDate(comment.updatedAt) }}</span>
+              <span class="forum-space-status">
+                {{ formatForumReviewStatus(comment.reviewStatus) }}
+              </span>
+            </div>
+            <h2>{{ comment.postTitle }}</h2>
+            <p>{{ comment.content }}</p>
+          </div>
+        </article>
+
+        <footer class="space-footer">
+          <span>共 {{ forumCommentTotal }} 条评论</span>
+          <div class="space-pagination">
+            <button
+              type="button"
+              data-pagination="forum-comments-prev"
+              :disabled="forumCommentPage <= 1"
+              @click="changeForumCommentPage(forumCommentPage - 1)"
+            >
+              上一页
+            </button>
+            <span>第 {{ forumCommentPage }} / {{ forumCommentTotalPages }} 页</span>
+            <button
+              type="button"
+              data-pagination="forum-comments-next"
+              :disabled="forumCommentPage >= forumCommentTotalPages"
+              @click="changeForumCommentPage(forumCommentPage + 1)"
+            >
+              下一页
+            </button>
+          </div>
+        </footer>
+      </div>
     </section>
 
     <section v-else class="space-section space-backtests">

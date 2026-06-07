@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { apiClient } from '../api/http'
 import { useAuthStore } from '../stores/auth'
 
@@ -40,6 +41,7 @@ interface ForumPostListResponse {
 }
 
 const authStore = useAuthStore()
+const route = useRoute()
 const posts = ref<ForumPostItem[]>([])
 const selectedPost = ref<ForumPostDetail | null>(null)
 const keyword = ref('')
@@ -99,6 +101,16 @@ async function openPost(post: ForumPostItem) {
   }
 }
 
+async function openPostFromRouteQuery() {
+  const rawPostId = Array.isArray(route.query.postId) ? route.query.postId[0] : route.query.postId
+  const postId = Number(rawPostId)
+  if (!Number.isInteger(postId) || postId <= 0) {
+    return
+  }
+
+  await openPost({ id: postId } as ForumPostItem)
+}
+
 async function submitPost() {
   if (!authStore.isAuthenticated) {
     requireLogin()
@@ -122,7 +134,7 @@ async function submitPost() {
   postTitle.value = ''
   postContent.value = ''
   postTopic.value = '积木经验'
-  status.value = '帖子已提交审核'
+  status.value = '帖子已提交审核，可在个人空间-我的论坛查看进度'
 }
 
 async function submitComment() {
@@ -142,7 +154,7 @@ async function submitComment() {
 
   await apiClient.post(`/forum/posts/${selectedPost.value.id}/comments`, { content })
   commentContent.value = ''
-  status.value = '评论已提交审核'
+  status.value = '评论已提交审核，可在个人空间-我的论坛查看进度'
 }
 
 async function changePage(nextPage: number) {
@@ -158,7 +170,10 @@ function formatDate(value: string) {
 }
 
 onMounted(() => {
-  void loadPosts()
+  void (async () => {
+    await loadPosts()
+    await openPostFromRouteQuery()
+  })()
 })
 </script>
 

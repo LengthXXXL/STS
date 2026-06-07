@@ -100,6 +100,23 @@ def list_forum_posts(
     return [forum_post_to_response(db, post) for post in posts], total
 
 
+def list_my_forum_posts(
+    db: Session,
+    author: User,
+    *,
+    page: int = 1,
+    page_size: int = 10,
+) -> tuple[list[ForumPostItemResponse], int]:
+    statement = select(ForumPost).where(ForumPost.author_id == author.id)
+    total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    posts = db.scalars(
+        statement.order_by(ForumPost.updated_at.desc(), ForumPost.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    return [forum_post_to_response(db, post) for post in posts], total
+
+
 def list_forum_post_reviews(
     db: Session,
     *,
@@ -146,6 +163,23 @@ def list_forum_comment_reviews(
             )
         )
 
+    total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    comments = db.scalars(
+        statement.order_by(ForumComment.updated_at.desc(), ForumComment.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    return [forum_comment_to_review_response(comment) for comment in comments], total
+
+
+def list_my_forum_comments(
+    db: Session,
+    author: User,
+    *,
+    page: int = 1,
+    page_size: int = 10,
+) -> tuple[list[ForumCommentReviewResponse], int]:
+    statement = select(ForumComment).where(ForumComment.author_id == author.id)
     total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
     comments = db.scalars(
         statement.order_by(ForumComment.updated_at.desc(), ForumComment.id.desc())

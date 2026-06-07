@@ -269,3 +269,111 @@ def test_admin_can_list_pending_forum_comment_reviews(client, db_session):
     assert payload["items"][0]["postTitle"] == "已公开讨论帖"
     assert payload["items"][0]["reviewStatus"] == "pending_review"
     assert payload["items"][0]["authorName"] == "bob"
+
+
+def test_user_can_list_own_forum_posts_and_comments_with_review_status(client, db_session):
+    alice_token = register_and_token(client, "alice", "alice@example.com")
+    bob_token = register_and_token(client, "bob", "bob@example.com")
+    admin_token = register_and_token(client, "admin", "admin@example.com")
+    grant_admin_role(db_session, "admin@example.com")
+
+    alice_pending_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("Alice 待审核帖子", "Alice 自己的待审核帖子。"),
+        headers=auth_headers(alice_token),
+    )
+    alice_rejected_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("Alice 已驳回帖子", "Alice 自己的已驳回帖子。"),
+        headers=auth_headers(alice_token),
+    )
+    bob_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("Bob 待审核帖子", "Bob 的帖子不应该出现在 Alice 列表里。"),
+        headers=auth_headers(bob_token),
+    )
+    assert alice_pending_post.status_code == 201
+    assert alice_rejected_post.status_code == 201
+    assert bob_post.status_code == 201
+    assert (
+        client.post(
+            f"/api/admin/forum-posts/{alice_rejected_post.json()['id']}/reject",
+            headers=auth_headers(admin_token),
+        ).status_code
+        == 200
+    )
+
+    visitor_posts = client.get("/api/forum/my-posts")
+    assert visitor_posts.status_code == 401
+
+    alice_posts = client.get(
+        "/api/forum/my-posts?page=1&pageSize=10",
+        headers=auth_headers(alice_token),
+    )
+    assert alice_posts.status_code == 200
+    posts_payload = alice_posts.json()
+    assert posts_payload["total"] == 2
+    post_titles = {item["title"] for item in posts_payload["items"]}
+    post_statuses = {item["title"]: item["reviewStatus"] for item in posts_payload["items"]}
+    assert post_titles == {"Alice 待审核帖子", "Alice 已驳回帖子"}
+    assert post_statuses["Alice 待审核帖子"] == "pending_review"
+    assert post_statuses["Alice 已驳回帖子"] == "rejected"
+
+    public_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("Bob 公开讨论帖", "用于承载 Alice 的评论。"),
+        headers=auth_headers(bob_token),
+    )
+    assert public_post.status_code == 201
+    public_post_id = public_post.json()["id"]
+    assert (
+        client.post(
+            f"/api/admin/forum-posts/{public_post_id}/approve",
+            headers=auth_headers(admin_token),
+        ).status_code
+        == 200
+    )
+
+    alice_pending_comment = client.post(
+        f"/api/forum/posts/{public_post_id}/comments",
+        json=comment_payload("Alice 待审核评论"),
+        headers=auth_headers(alice_token),
+    )
+    alice_rejected_comment = client.post(
+        f"/api/forum/posts/{public_post_id}/comments",
+        json=comment_payload("Alice 已驳回评论"),
+        headers=auth_headers(alice_token),
+    )
+    bob_comment = client.post(
+        f"/api/forum/posts/{public_post_id}/comments",
+        json=comment_payload("Bob 的评论不应该出现在 Alice 列表里"),
+        headers=auth_headers(bob_token),
+    )
+    assert alice_pending_comment.status_code == 201
+    assert alice_rejected_comment.status_code == 201
+    assert bob_comment.status_code == 201
+    assert (
+        client.post(
+            f"/api/admin/forum-comments/{alice_rejected_comment.json()['id']}/reject",
+            headers=auth_headers(admin_token),
+        ).status_code
+        == 200
+    )
+
+    visitor_comments = client.get("/api/forum/my-comments")
+    assert visitor_comments.status_code == 401
+
+    alice_comments = client.get(
+        "/api/forum/my-comments?page=1&pageSize=10",
+        headers=auth_headers(alice_token),
+    )
+    assert alice_comments.status_code == 200
+    comments_payload = alice_comments.json()
+    assert comments_payload["total"] == 2
+    comment_statuses = {
+        item["content"]: item["reviewStatus"] for item in comments_payload["items"]
+    }
+    assert set(comment_statuses) == {"Alice 待审核评论", "Alice 已驳回评论"}
+    assert comment_statuses["Alice 待审核评论"] == "pending_review"
+    assert comment_statuses["Alice 已驳回评论"] == "rejected"
+    assert comments_payload["items"][0]["postTitle"] == "Bob 公开讨论帖"
