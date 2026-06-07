@@ -10,7 +10,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
 }
 
@@ -2958,6 +2959,208 @@ button {
   color: #d7c8ff;
 }
 
+.admin-review-page {
+  min-height: calc(100vh - 96px);
+  display: grid;
+  align-content: start;
+  gap: 18px;
+  background:
+    linear-gradient(135deg, rgba(124, 77, 255, 0.12), transparent 36%),
+    #111019;
+}
+
+.admin-review-denied {
+  display: grid;
+  min-height: 260px;
+  place-items: center;
+  color: #cfc7dc;
+  border: 1px solid rgba(124, 77, 255, 0.22);
+  border-radius: 8px;
+  background: rgba(8, 7, 12, 0.58);
+}
+
+.admin-review-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.admin-review-header h1 {
+  margin: 4px 0 8px;
+  font-size: 26px;
+}
+
+.admin-review-header p {
+  margin: 0;
+  color: #a89bc1;
+}
+
+.admin-review-eyebrow {
+  color: #5ee6c8 !important;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.admin-review-search {
+  display: flex;
+  gap: 8px;
+  min-width: min(360px, 42vw);
+}
+
+.admin-review-search input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(124, 77, 255, 0.34);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f7f2ff;
+  background: rgba(7, 6, 11, 0.74);
+  outline: none;
+}
+
+.admin-review-search input:focus {
+  border-color: rgba(124, 77, 255, 0.78);
+  box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.14);
+}
+
+.admin-review-search button,
+.admin-review-tabs button,
+.admin-review-item-actions button,
+.admin-review-pagination button {
+  border: 1px solid #3a3150;
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: #f7f2ff;
+  background: rgba(25, 21, 34, 0.88);
+  cursor: pointer;
+}
+
+.admin-review-search button {
+  border-color: rgba(94, 230, 200, 0.4);
+  background: rgba(21, 57, 53, 0.72);
+}
+
+.admin-review-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.admin-review-tabs button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-review-tabs span {
+  min-width: 24px;
+  padding: 2px 7px;
+  text-align: center;
+  color: #d7c8ff;
+  border-radius: 999px;
+  background: rgba(124, 77, 255, 0.18);
+}
+
+.admin-review-tab-active {
+  border-color: rgba(124, 77, 255, 0.72) !important;
+  background: rgba(109, 61, 242, 0.28) !important;
+  box-shadow: 0 0 24px rgba(109, 61, 242, 0.16);
+}
+
+.admin-review-status,
+.admin-review-error,
+.admin-review-summary,
+.admin-review-empty {
+  margin: 0;
+  color: #a89bc1;
+}
+
+.admin-review-status {
+  color: #5ee6c8;
+}
+
+.admin-review-error {
+  color: #ff9db2;
+}
+
+.admin-review-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(124, 77, 255, 0.18);
+  border-radius: 8px;
+  background: rgba(7, 6, 11, 0.44);
+}
+
+.admin-review-list {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-review-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid rgba(124, 77, 255, 0.22);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(124, 77, 255, 0.08), transparent 44%),
+    rgba(13, 11, 18, 0.92);
+}
+
+.admin-review-item-main {
+  min-width: 0;
+}
+
+.admin-review-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #a89bc1;
+  font-size: 12px;
+}
+
+.admin-review-item h2 {
+  margin: 8px 0;
+  font-size: 18px;
+}
+
+.admin-review-item p {
+  margin: 0;
+  color: #cfc7dc;
+  line-height: 1.65;
+}
+
+.admin-review-item-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-review-post-approve,
+.admin-review-comment-approve {
+  border-color: rgba(94, 230, 200, 0.46) !important;
+  background: rgba(21, 57, 53, 0.72) !important;
+}
+
+.admin-review-post-reject,
+.admin-review-comment-reject {
+  border-color: rgba(255, 157, 178, 0.42) !important;
+  background: rgba(66, 20, 36, 0.66) !important;
+}
+
+.admin-review-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  color: #a89bc1;
+}
+
 @media (max-width: 860px) {
   .backtest-layout,
   .backtest-chart-grid,
@@ -3006,6 +3209,21 @@ button {
 
   .forum-thread-panel {
     position: static;
+  }
+
+  .admin-review-header,
+  .admin-review-item {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .admin-review-search {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-review-item-actions {
+    justify-content: flex-start;
   }
 
   .shared-block-hero {

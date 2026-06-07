@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import AdminReviewView from '../views/AdminReviewView.vue'
 import BuilderView from '../views/BuilderView.vue'
 import ForumView from '../views/ForumView.vue'
 import LoginView from '../views/LoginView.vue'
@@ -13,6 +14,7 @@ export const router = createRouter({
     { path: '/space', name: 'space', component: PersonalSpaceView },
     { path: '/forum', name: 'forum', component: ForumView },
     { path: '/blocks', name: 'shared-blocks', component: SharedBlocksView },
+    { path: '/admin/reviews', name: 'admin-review', component: AdminReviewView },
     { path: '/login', name: 'login', component: LoginView },
     { path: '/register', name: 'register', component: RegisterView }
   ]

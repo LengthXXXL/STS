@@ -16,6 +16,7 @@ const routeSectionTitles: Record<string, string> = {
   space: '个人空间',
   forum: '论坛',
   'shared-blocks': '积木分享',
+  'admin-review': '审核管理',
   login: '登录',
   register: '注册'
 }
@@ -23,6 +24,7 @@ const routeSectionTitles: Record<string, string> = {
 const routeName = computed(() => (typeof route.name === 'string' ? route.name : ''))
 const isBuilderRoute = computed(() => routeName.value === 'builder' || route.path === '/')
 const isSharedBlocksRoute = computed(() => routeName.value === 'shared-blocks')
+const isAdmin = computed(() => authStore.user?.roles.includes('admin') ?? false)
 const currentSectionTitle = computed(
   () => routeSectionTitles[routeName.value] ?? (isBuilderRoute.value ? '策略工作台' : 'STS')
 )
@@ -71,6 +73,7 @@ onBeforeUnmount(() => {
       <RouterLink to="/space">空间</RouterLink>
       <RouterLink to="/forum">论坛</RouterLink>
       <RouterLink to="/blocks">分享</RouterLink>
+      <RouterLink v-if="isAdmin" to="/admin/reviews">审核</RouterLink>
     </aside>
 
     <main class="main-shell">

@@ -6,6 +6,7 @@ from app.models.user import User
 from app.schemas.forum import (
     ForumCommentCreate,
     ForumCommentResponse,
+    ForumCommentReviewResponse,
     ForumPostCreate,
     ForumPostDetailResponse,
     ForumPostItemResponse,
@@ -42,6 +43,14 @@ def forum_comment_to_response(comment: ForumComment) -> ForumCommentResponse:
         reviewStatus=comment.review_status,
         createdAt=comment.created_at,
         updatedAt=comment.updated_at,
+    )
+
+
+def forum_comment_to_review_response(comment: ForumComment) -> ForumCommentReviewResponse:
+    base = forum_comment_to_response(comment)
+    return ForumCommentReviewResponse(
+        **base.model_dump(by_alias=True),
+        postTitle=comment.post.title,
     )
 
 
@@ -89,6 +98,61 @@ def list_forum_posts(
         .limit(page_size)
     ).all()
     return [forum_post_to_response(db, post) for post in posts], total
+
+
+def list_forum_post_reviews(
+    db: Session,
+    *,
+    keyword: str = "",
+    page: int = 1,
+    page_size: int = 10,
+) -> tuple[list[ForumPostItemResponse], int]:
+    statement = select(ForumPost).where(ForumPost.review_status == PENDING_REVIEW)
+    keyword = keyword.strip()
+    if keyword:
+        statement = statement.where(
+            or_(
+                ForumPost.title.like(f"%{keyword}%"),
+                ForumPost.content.like(f"%{keyword}%"),
+                ForumPost.topic.like(f"%{keyword}%"),
+                ForumPost.author.has(User.username.like(f"%{keyword}%")),
+            )
+        )
+
+    total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    posts = db.scalars(
+        statement.order_by(ForumPost.updated_at.desc(), ForumPost.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    return [forum_post_to_response(db, post) for post in posts], total
+
+
+def list_forum_comment_reviews(
+    db: Session,
+    *,
+    keyword: str = "",
+    page: int = 1,
+    page_size: int = 10,
+) -> tuple[list[ForumCommentReviewResponse], int]:
+    statement = select(ForumComment).where(ForumComment.review_status == PENDING_REVIEW)
+    keyword = keyword.strip()
+    if keyword:
+        statement = statement.where(
+            or_(
+                ForumComment.content.like(f"%{keyword}%"),
+                ForumComment.author.has(User.username.like(f"%{keyword}%")),
+                ForumComment.post.has(ForumPost.title.like(f"%{keyword}%")),
+            )
+        )
+
+    total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    comments = db.scalars(
+        statement.order_by(ForumComment.updated_at.desc(), ForumComment.id.desc())
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    return [forum_comment_to_review_response(comment) for comment in comments], total
 
 
 def get_forum_post_detail(db: Session, post_id: int) -> ForumPostDetailResponse | None:

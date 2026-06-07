@@ -29,6 +29,10 @@ class ForumCommentResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class ForumCommentReviewResponse(ForumCommentResponse):
+    post_title: str = Field(alias="postTitle")
+
+
 class ForumPostItemResponse(BaseModel):
     id: int
     author_id: int = Field(alias="authorId")
@@ -51,6 +55,15 @@ class ForumPostDetailResponse(ForumPostItemResponse):
 
 class ForumPostListResponse(BaseModel):
     items: list[ForumPostItemResponse]
+    total: int
+    page: int
+    page_size: int = Field(alias="pageSize")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class ForumCommentReviewListResponse(BaseModel):
+    items: list[ForumCommentReviewResponse]
     total: int
     page: int
     page_size: int = Field(alias="pageSize")

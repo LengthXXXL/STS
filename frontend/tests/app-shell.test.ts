@@ -185,4 +185,44 @@ describe('app shell', () => {
 
     window.removeEventListener('sts:shared-block-search', listener)
   })
+
+  it('shows the review navigation only for admins', async () => {
+    const pinia = createPinia()
+    const wrapper = mount(App, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          RouterView: { template: '<main />' }
+        }
+      }
+    })
+    const authStore = useAuthStore()
+
+    expect(wrapper.find('.side-nav').text()).not.toContain('审核')
+
+    authStore.setSession({
+      token: 'token-admin',
+      user: { id: 1, username: 'admin', email: 'admin@example.com', roles: ['admin'] }
+    })
+    await nextTick()
+
+    expect(wrapper.find('.side-nav').text()).toContain('审核')
+
+    wrapper.unmount()
+    routeMock.name = 'admin-review'
+    routeMock.path = '/admin/reviews'
+    const reviewWrapper = mount(App, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          RouterView: { template: '<main />' }
+        }
+      }
+    })
+
+    expect(reviewWrapper.find('.section-title').text()).toBe('审核管理')
+    expect(reviewWrapper.find('[data-builder-action="save"]').exists()).toBe(false)
+  })
 })
