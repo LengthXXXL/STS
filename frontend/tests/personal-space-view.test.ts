@@ -99,6 +99,44 @@ const savedAccount = {
   updatedAt: '2026-06-06T09:00:00'
 }
 
+const marketRules = [
+  {
+    market: 'A_SHARE',
+    marketLabel: 'A股',
+    currency: 'CNY',
+    timezone: 'Asia/Shanghai',
+    settlementCycle: 'T+1',
+    buyLotSize: 100,
+    sellLotSize: 1,
+    minOrderShares: 100,
+    supportsIntradayRoundTrip: false,
+    priceLimitPercent: 10,
+    sessions: [
+      { label: '上午连续竞价', start: '09:30', end: '11:30' },
+      { label: '下午连续竞价', start: '13:00', end: '15:00' }
+    ],
+    notes: [
+      '买入委托数量按 100 股整数倍处理。',
+      '普通 A 股主板按 T+1 可卖规则处理，买入当日不可卖出。',
+      '普通 A 股主板默认按前收盘价上下 10% 涨跌停限制处理。'
+    ]
+  },
+  {
+    market: 'US_STOCK',
+    marketLabel: '美股',
+    currency: 'USD',
+    timezone: 'America/New_York',
+    settlementCycle: 'T+1',
+    buyLotSize: 1,
+    sellLotSize: 1,
+    minOrderShares: 1,
+    supportsIntradayRoundTrip: true,
+    priceLimitPercent: null,
+    sessions: [{ label: '常规交易时段', start: '09:30', end: '16:00' }],
+    notes: ['常规股票交易按 1 股为最小整数股单位处理。', 'V1 只模拟常规交易时段，不模拟盘前盘后交易。']
+  }
+]
+
 const savedCustomBlock = {
   id: 21,
   ownerId: 1,
@@ -219,6 +257,9 @@ function mockPersonalSpaceRequests(options: { customBlocks?: Array<typeof savedC
         }
       })
     }
+    if (url === '/market-rules') {
+      return Promise.resolve({ data: { items: marketRules } })
+    }
     if (url === '/custom-blocks') {
       return Promise.resolve({
         data: {
@@ -289,6 +330,9 @@ function mockPersonalSpaceRequestsWithDelayedBacktestDetail() {
           pageSize: 10
         }
       })
+    }
+    if (url === '/market-rules') {
+      return Promise.resolve({ data: { items: marketRules } })
     }
     if (url === '/custom-blocks') {
       return Promise.resolve({
@@ -383,7 +427,7 @@ describe('personal space view', () => {
     const wrapper = mount(PersonalSpaceView)
 
     await flushPromises()
-    expect(apiClient.get).toHaveBeenCalledTimes(6)
+    expect(apiClient.get).toHaveBeenCalledTimes(7)
 
     mockPersonalSpaceRequests()
     const authStore = useAuthStore()
@@ -399,7 +443,7 @@ describe('personal space view', () => {
     await nextTick()
     await flushPromises()
 
-    expect(apiClient.get).toHaveBeenCalledTimes(12)
+    expect(apiClient.get).toHaveBeenCalledTimes(14)
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('A股日内账户')
     expect(wrapper.text()).toContain('000001.SZ')
@@ -771,6 +815,30 @@ describe('personal space view', () => {
     expect(apiClient.delete).toHaveBeenCalledWith('/simulation-accounts/3')
   })
 
+  it('shows the selected market rules when creating a simulation account', async () => {
+    mockPersonalSpaceRequests()
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="accounts"]').trigger('click')
+
+    expect(apiClient.get).toHaveBeenCalledWith('/market-rules')
+    expect(wrapper.text()).toContain('当前按 A股 规则模拟')
+    expect(wrapper.text()).toContain('T+1')
+    expect(wrapper.text()).toContain('每笔买入 100 股')
+    expect(wrapper.text()).toContain('涨跌停 10%')
+    expect(wrapper.text()).toContain('09:30-11:30')
+
+    await wrapper.find('.account-market-select').setValue('US_STOCK')
+    await nextTick()
+
+    expect(wrapper.text()).toContain('当前按 美股 规则模拟')
+    expect(wrapper.text()).toContain('每笔买入 1 股')
+    expect(wrapper.text()).toContain('日内买卖')
+    expect(wrapper.text()).toContain('无固定涨跌停')
+    expect(wrapper.text()).toContain('09:30-16:00')
+  })
+
   it('changes pages for strategy, account and backtest lists', async () => {
     vi.mocked(apiClient.get).mockImplementation((url: string, config?: { params?: { page?: number } }) => {
       const page = config?.params?.page ?? 1
@@ -783,6 +851,9 @@ describe('personal space view', () => {
         return Promise.resolve({
           data: { items: [savedAccount], total: 11, page, pageSize: 10 }
         })
+      }
+      if (url === '/market-rules') {
+        return Promise.resolve({ data: { items: marketRules } })
       }
       if (url === '/backtests') {
         return Promise.resolve({

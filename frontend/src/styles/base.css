@@ -1641,6 +1641,67 @@ button {
   resize: vertical;
 }
 
+.market-rule-card {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(94, 230, 200, 0.28);
+  border-radius: 8px;
+  padding: 12px;
+  background: rgba(12, 26, 25, 0.46);
+}
+
+.market-rule-card header {
+  display: grid;
+  gap: 4px;
+}
+
+.market-rule-card header strong {
+  color: #f7f2ff;
+  font-size: 14px;
+}
+
+.market-rule-card header small,
+.market-rule-card dt,
+.market-rule-card li {
+  color: #a89bc1;
+}
+
+.market-rule-card dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.market-rule-card dl div {
+  min-width: 0;
+  border: 1px solid rgba(58, 49, 80, 0.58);
+  border-radius: 6px;
+  padding: 8px;
+  background: rgba(5, 5, 7, 0.5);
+}
+
+.market-rule-card dt {
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+.market-rule-card dd {
+  margin: 0;
+  color: #f7f2ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.market-rule-card ul {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .account-form-actions {
   display: flex;
   gap: 8px;

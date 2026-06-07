@@ -72,6 +72,31 @@ interface SimulationAccountListResponse {
   pageSize: number
 }
 
+interface MarketSession {
+  label: string
+  start: string
+  end: string
+}
+
+interface MarketRule {
+  market: SimulationAccount['market']
+  marketLabel: string
+  currency: string
+  timezone: string
+  settlementCycle: string
+  buyLotSize: number
+  sellLotSize: number
+  minOrderShares: number
+  supportsIntradayRoundTrip: boolean
+  priceLimitPercent: number | null
+  sessions: MarketSession[]
+  notes: string[]
+}
+
+interface MarketRuleListResponse {
+  items: MarketRule[]
+}
+
 interface CustomBlock {
   id: number
   ownerId: number
@@ -228,6 +253,7 @@ const activeTab = ref<SpaceTab>(spaceTabFromQuery(route.query.tab))
 const strategies = ref<SavedStrategy[]>([])
 const customBlocks = ref<CustomBlock[]>([])
 const accounts = ref<SimulationAccount[]>([])
+const marketRules = ref<MarketRule[]>([])
 const backtests = ref<BacktestListItem[]>([])
 const forumPosts = ref<ForumPostItem[]>([])
 const forumComments = ref<ForumCommentItem[]>([])
@@ -262,6 +288,7 @@ const customBlockError = ref('')
 const customBlockActionError = ref('')
 const customBlockActionMessage = ref('')
 const accountError = ref('')
+const marketRuleError = ref('')
 const backtestError = ref('')
 const forumPostError = ref('')
 const forumCommentError = ref('')
@@ -341,6 +368,9 @@ const customBlockNameCounts = computed(() => {
   })
   return counts
 })
+const selectedMarketRule = computed(() =>
+  marketRules.value.find((rule) => rule.market === accountForm.value.market)
+)
 const selectedEquityChart = computed(() => {
   const curve = selectedBacktest.value?.equityCurve ?? []
   return buildChartModel(
@@ -511,6 +541,16 @@ async function loadAccounts() {
   }
 }
 
+async function loadMarketRules() {
+  marketRuleError.value = ''
+  try {
+    const response = await apiClient.get<MarketRuleListResponse>('/market-rules')
+    marketRules.value = response.data.items
+  } catch {
+    marketRuleError.value = '市场规则加载失败'
+  }
+}
+
 async function searchAccounts() {
   accountPage.value = 1
   await loadAccounts()
@@ -585,6 +625,7 @@ async function loadSpaceData() {
     loadStrategies(),
     loadCustomBlocks(),
     loadAccounts(),
+    loadMarketRules(),
     loadBacktests(),
     loadForumPosts(),
     loadForumComments()
@@ -943,6 +984,21 @@ function formatMarket(market: BacktestListItem['market'] | undefined) {
     return '美股'
   }
   return 'A股'
+}
+
+function formatMarketRuleSessions(rule: MarketRule) {
+  return rule.sessions.map((session) => `${session.start}-${session.end}`).join(' / ')
+}
+
+function formatMarketRuleRoundTrip(rule: MarketRule) {
+  return rule.supportsIntradayRoundTrip ? '日内买卖' : 'T+1，当日买入不可卖'
+}
+
+function formatMarketRulePriceLimit(rule: MarketRule) {
+  if (rule.priceLimitPercent === null) {
+    return '无固定涨跌停'
+  }
+  return `涨跌停 ${formatPercent(rule.priceLimitPercent)}`
 }
 
 function formatTimeframe(timeframe: string | undefined) {
@@ -1526,6 +1582,38 @@ onMounted(() => {
               <option value="US_STOCK">美股</option>
             </select>
           </label>
+          <section v-if="selectedMarketRule" class="market-rule-card">
+            <header>
+              <strong>当前按 {{ selectedMarketRule.marketLabel }} 规则模拟</strong>
+              <small>{{ selectedMarketRule.currency }} · {{ selectedMarketRule.timezone }}</small>
+            </header>
+            <dl>
+              <div>
+                <dt>交易时段</dt>
+                <dd>{{ formatMarketRuleSessions(selectedMarketRule) }}</dd>
+              </div>
+              <div>
+                <dt>结算</dt>
+                <dd>{{ selectedMarketRule.settlementCycle }}</dd>
+              </div>
+              <div>
+                <dt>买入单位</dt>
+                <dd>每笔买入 {{ selectedMarketRule.buyLotSize }} 股</dd>
+              </div>
+              <div>
+                <dt>日内规则</dt>
+                <dd>{{ formatMarketRuleRoundTrip(selectedMarketRule) }}</dd>
+              </div>
+              <div>
+                <dt>价格限制</dt>
+                <dd>{{ formatMarketRulePriceLimit(selectedMarketRule) }}</dd>
+              </div>
+            </dl>
+            <ul>
+              <li v-for="note in selectedMarketRule.notes" :key="note">{{ note }}</li>
+            </ul>
+          </section>
+          <p v-else-if="marketRuleError" class="space-muted">{{ marketRuleError }}</p>
           <label>
             <span>初始资金</span>
             <input
