@@ -1342,6 +1342,14 @@ button {
   outline: none;
 }
 
+.forum-composer .forum-post-title-input,
+.forum-composer .forum-post-topic-input {
+  min-height: 56px;
+  padding-block: 14px;
+  font-size: 15px;
+  line-height: 1.35;
+}
+
 .forum-search button,
 .forum-composer button,
 .forum-post-detail-button,
