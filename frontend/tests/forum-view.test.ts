@@ -4,17 +4,20 @@ import { nextTick } from 'vue'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../src/api/http'
 import { useAuthStore } from '../src/stores/auth'
+import { useStrategyWorkspaceStore } from '../src/stores/strategyWorkspace'
 import ForumView from '../src/views/ForumView.vue'
 
 const routeMock = vi.hoisted(() => ({
   query: {} as Record<string, string>
 }))
 const routerReplaceMock = vi.hoisted(() => vi.fn())
+const routerPushMock = vi.hoisted(() => vi.fn())
 
 vi.mock('vue-router', () => ({
   useRoute: () => routeMock,
   useRouter: () => ({
-    replace: routerReplaceMock
+    replace: routerReplaceMock,
+    push: routerPushMock
   })
 }))
 
@@ -61,6 +64,39 @@ const forumDetail = {
   ]
 }
 
+const strategyDetail = {
+  id: 31,
+  name: '五分钟突破策略',
+  description: '用于论坛关联',
+  ownerId: 1,
+  isPublic: false,
+  createdAt: '2026-06-06T10:00:00',
+  updatedAt: '2026-06-06T10:30:00',
+  strategy: {
+    version: 1,
+    nodes: [
+      {
+        id: 'buy-1',
+        type: 'buy',
+        label: '买入',
+        x: 72,
+        y: 96,
+        params: { sizePercent: '20', orderType: 'market' }
+      }
+    ],
+    edges: [],
+    viewport: { x: 0, y: 0, scale: 1 }
+  },
+  backtestConfig: {
+    market: 'A_SHARE',
+    symbol: '000001.SZ',
+    timeframe: '5m',
+    startDate: '2026-01-01',
+    endDate: '2026-03-01',
+    initialCash: 100000
+  }
+}
+
 function mockForum() {
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
     if (url === '/forum/posts') {
@@ -88,6 +124,9 @@ function mockForum() {
         }
       })
     }
+    if (url === '/strategies/31') {
+      return Promise.resolve({ data: strategyDetail })
+    }
     if (url === '/backtests') {
       return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 10 } })
     }
@@ -107,6 +146,7 @@ describe('forum view', () => {
     localStorage.clear()
     routeMock.query = {}
     routerReplaceMock.mockReset()
+    routerPushMock.mockReset()
     vi.clearAllMocks()
   })
 
@@ -272,6 +312,107 @@ describe('forum view', () => {
     expect(wrapper.text()).toContain('关联内容')
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('策略 · 000001.SZ · 5分钟')
+  })
+
+  it('opens a related strategy card in the builder workspace', async () => {
+    const relatedDetail = {
+      ...forumDetail,
+      relatedType: 'strategy',
+      relatedId: 31,
+      relatedTitle: '五分钟突破策略',
+      relatedSummary: '策略 · 000001.SZ · 5分钟'
+    }
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === '/forum/posts') {
+        return Promise.resolve({
+          data: { items: [{ ...forumPost, ...relatedDetail }], total: 1, page: 1, pageSize: 10 }
+        })
+      }
+      if (url === '/forum/posts/12') {
+        return Promise.resolve({ data: relatedDetail })
+      }
+      if (url === '/strategies/31') {
+        return Promise.resolve({ data: strategyDetail })
+      }
+      return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 10 } })
+    })
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    await wrapper.find('.forum-post-detail-button').trigger('click')
+    await flushPromises()
+    await wrapper.find('.forum-related-open-button').trigger('click')
+    await flushPromises()
+
+    const workspaceStore = useStrategyWorkspaceStore()
+    expect(apiClient.get).toHaveBeenCalledWith('/strategies/31')
+    expect(workspaceStore.pendingWorkspaceDraft?.source).toBe('saved-strategy')
+    expect(workspaceStore.pendingWorkspaceDraft?.name).toBe('五分钟突破策略')
+    expect(routerPushMock).toHaveBeenCalledWith('/')
+  })
+
+  it('routes a related backtest card to personal space detail', async () => {
+    const relatedDetail = {
+      ...forumDetail,
+      relatedType: 'backtest',
+      relatedId: 11,
+      relatedTitle: '000001.SZ 5m 回测',
+      relatedSummary: '收益 7.35% · 最大回撤 2.1%'
+    }
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === '/forum/posts') {
+        return Promise.resolve({
+          data: { items: [{ ...forumPost, ...relatedDetail }], total: 1, page: 1, pageSize: 10 }
+        })
+      }
+      if (url === '/forum/posts/12') {
+        return Promise.resolve({ data: relatedDetail })
+      }
+      return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 10 } })
+    })
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    await wrapper.find('.forum-post-detail-button').trigger('click')
+    await flushPromises()
+    await wrapper.find('.forum-related-open-button').trigger('click')
+
+    expect(routerPushMock).toHaveBeenCalledWith({
+      name: 'space',
+      query: { tab: 'backtests', backtestId: '11' }
+    })
+  })
+
+  it('routes a related shared block card to the shared block detail', async () => {
+    const relatedDetail = {
+      ...forumDetail,
+      relatedType: 'shared_block',
+      relatedId: 31,
+      relatedTitle: '公开止盈模板',
+      relatedSummary: '公开积木 · 风控 · 2 个积木'
+    }
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === '/forum/posts') {
+        return Promise.resolve({
+          data: { items: [{ ...forumPost, ...relatedDetail }], total: 1, page: 1, pageSize: 10 }
+        })
+      }
+      if (url === '/forum/posts/12') {
+        return Promise.resolve({ data: relatedDetail })
+      }
+      return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 10 } })
+    })
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    await wrapper.find('.forum-post-detail-button').trigger('click')
+    await flushPromises()
+    await wrapper.find('.forum-related-open-button').trigger('click')
+
+    expect(routerPushMock).toHaveBeenCalledWith({
+      name: 'shared-blocks',
+      query: { blockId: '31' }
+    })
   })
 
   it('asks visitors to log in before posting or commenting', async () => {

@@ -1355,6 +1355,7 @@ button {
 }
 
 .forum-search button,
+.forum-related-open-button,
 .forum-comment-form button {
   border-color: rgba(94, 230, 200, 0.44);
   background: rgba(21, 57, 53, 0.76);
@@ -1509,6 +1510,14 @@ button {
 
 .forum-related-card p {
   margin: 0;
+}
+
+.forum-related-open-button {
+  justify-self: start;
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #f7f2ff;
+  cursor: pointer;
 }
 
 .forum-thread-close-button {

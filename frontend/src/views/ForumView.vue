@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiClient } from '../api/http'
 import { useAuthStore } from '../stores/auth'
+import { useStrategyWorkspaceStore } from '../stores/strategyWorkspace'
 
 interface ForumPostItem {
   id: number
@@ -63,6 +64,36 @@ interface StrategyOptionResponse {
   } | null
 }
 
+interface StrategyDetailResponse extends StrategyOptionResponse {
+  description: string | null
+  ownerId: number
+  isPublic: boolean
+  createdAt: string
+  updatedAt: string
+  strategy: {
+    version: 1
+    nodes: Array<{
+      id: string
+      type: string
+      label: string
+      x: number
+      y: number
+      params: Record<string, string>
+    }>
+    edges: Array<{ id: string; from: string; to: string }>
+    viewport: { x: number; y: number; scale: number }
+  }
+  backtestConfig: {
+    market: 'A_SHARE' | 'US_STOCK'
+    symbol: string
+    timeframe: '5m' | '1m'
+    startDate: string
+    endDate: string
+    initialCash: number
+    simulationAccountId?: number
+  } | null
+}
+
 interface BacktestOptionResponse {
   id: number
   symbol: string
@@ -80,6 +111,11 @@ interface CustomBlockOptionResponse {
   }
 }
 
+interface CustomBlockDetailResponse extends CustomBlockOptionResponse {
+  description: string | null
+  template: StrategyDetailResponse['strategy']
+}
+
 interface SharedBlockOptionResponse {
   id: number
   name: string
@@ -88,6 +124,7 @@ interface SharedBlockOptionResponse {
 }
 
 const authStore = useAuthStore()
+const workspaceStore = useStrategyWorkspaceStore()
 const route = useRoute()
 const router = useRouter()
 const posts = ref<ForumPostItem[]>([])
@@ -296,6 +333,50 @@ async function submitComment() {
   status.value = '评论已提交审核，可在个人空间-我的论坛查看进度'
 }
 
+async function openRelatedContent() {
+  const post = selectedPost.value
+  if (!post?.relatedType || !post.relatedId) {
+    return
+  }
+
+  error.value = ''
+  try {
+    if (post.relatedType === 'strategy') {
+      const response = await apiClient.get<StrategyDetailResponse>(`/strategies/${post.relatedId}`)
+      workspaceStore.openStrategy(response.data)
+      void router.push('/')
+      return
+    }
+    if (post.relatedType === 'custom_block') {
+      const response = await apiClient.get<CustomBlockDetailResponse>(
+        `/custom-blocks/${post.relatedId}`
+      )
+      workspaceStore.openCustomBlockTemplate({
+        name: response.data.name,
+        description: response.data.description,
+        template: response.data.template
+      })
+      void router.push('/')
+      return
+    }
+    if (post.relatedType === 'backtest') {
+      void router.push({
+        name: 'space',
+        query: { tab: 'backtests', backtestId: String(post.relatedId) }
+      })
+      return
+    }
+    if (post.relatedType === 'shared_block') {
+      void router.push({
+        name: 'shared-blocks',
+        query: { blockId: String(post.relatedId) }
+      })
+    }
+  } catch {
+    error.value = '关联内容打开失败，请确认你有权限访问'
+  }
+}
+
 async function changePage(nextPage: number) {
   if (nextPage < 1 || nextPage > totalPages.value || nextPage === page.value) {
     return
@@ -478,6 +559,9 @@ onMounted(() => {
               <small>关联内容 · {{ formatRelatedType(selectedPost.relatedType) }}</small>
               <strong>{{ selectedPost.relatedTitle }}</strong>
               <p>{{ selectedPost.relatedSummary }}</p>
+              <button class="forum-related-open-button" type="button" @click="openRelatedContent">
+                打开关联内容
+              </button>
             </section>
             <small>
               作者 {{ selectedPost.authorName }} · {{ formatDate(selectedPost.updatedAt) }}

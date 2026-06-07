@@ -439,6 +439,20 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('使用账户 A股日内账户')
   })
 
+  it('opens a backtest detail from the route query', async () => {
+    routeMock.query = { tab: 'backtests', backtestId: '11' }
+    mockPersonalSpaceRequests()
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+
+    expect(wrapper.find('[data-space-tab="backtests"]').classes()).toContain('is-active')
+    expect(apiClient.get).toHaveBeenCalledWith('/backtests/11')
+    expect(wrapper.find('.backtest-item.is-selected').exists()).toBe(true)
+    expect(wrapper.text()).toContain('回测详情')
+    expect(wrapper.text()).toContain('买入积木触发')
+  })
+
   it('deletes a saved strategy from the list', async () => {
     mockPersonalSpaceRequests()
     vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: null })

@@ -6,6 +6,14 @@ import { apiClient } from '../src/api/http'
 import { useAuthStore } from '../src/stores/auth'
 import SharedBlocksView from '../src/views/SharedBlocksView.vue'
 
+const routeMock = vi.hoisted(() => ({
+  query: {} as Record<string, string>
+}))
+
+vi.mock('vue-router', () => ({
+  useRoute: () => routeMock
+}))
+
 vi.mock('../src/api/http', () => ({
   apiClient: {
     get: vi.fn(),
@@ -80,6 +88,7 @@ describe('shared blocks view', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
+    routeMock.query = {}
     vi.clearAllMocks()
   })
 
@@ -185,6 +194,18 @@ describe('shared blocks view', () => {
 
     expect(apiClient.post).toHaveBeenCalledWith('/shared-blocks/31/import')
     expect(wrapper.text()).toContain('已导入到我的积木：公开止盈模板（导入）')
+  })
+
+  it('opens a shared block preview from the blockId route query', async () => {
+    routeMock.query = { blockId: '31' }
+    mockSharedBlocks()
+    const wrapper = mount(SharedBlocksView)
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenCalledWith('/shared-blocks/31')
+    expect(wrapper.find('.shared-block-inline-preview').exists()).toBe(true)
+    expect(wrapper.find('.shared-block-row-expanded').exists()).toBe(true)
+    expect(wrapper.text()).toContain('公开止盈模板')
   })
 
   it('favorites and unfavorites a shared block when logged in', async () => {

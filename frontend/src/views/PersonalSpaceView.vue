@@ -813,10 +813,14 @@ async function openBacktest(backtest: BacktestListItem) {
     return
   }
 
+  await openBacktestById(backtest.id)
+}
+
+async function openBacktestById(backtestId: number) {
   backtestDetailLoading.value = true
   backtestError.value = ''
   try {
-    const response = await apiClient.get<BacktestDetail>(`/backtests/${backtest.id}`)
+    const response = await apiClient.get<BacktestDetail>(`/backtests/${backtestId}`)
     selectedBacktest.value = response.data
   } catch {
     backtestError.value = '回测详情加载失败'
@@ -827,6 +831,19 @@ async function openBacktest(backtest: BacktestListItem) {
 
 function isSelectedBacktest(backtest: BacktestListItem) {
   return selectedBacktest.value?.id === backtest.id
+}
+
+async function openBacktestFromRouteQuery() {
+  const rawBacktestId = Array.isArray(route.query.backtestId)
+    ? route.query.backtestId[0]
+    : route.query.backtestId
+  const backtestId = Number(rawBacktestId)
+  if (!Number.isInteger(backtestId) || backtestId <= 0) {
+    return
+  }
+
+  activeTab.value = 'backtests'
+  await openBacktestById(backtestId)
 }
 
 function closeBacktestDetail() {
@@ -1045,7 +1062,10 @@ watch(
 )
 
 onMounted(() => {
-  void loadSpaceData()
+  void (async () => {
+    await loadSpaceData()
+    await openBacktestFromRouteQuery()
+  })()
 })
 </script>
 

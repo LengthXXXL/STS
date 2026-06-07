@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { apiClient } from '../api/http'
 import { useAuthStore } from '../stores/auth'
 
@@ -55,6 +56,7 @@ interface ImportedBlockResponse {
 }
 
 const authStore = useAuthStore()
+const route = useRoute()
 const activeMode = ref<'browse' | 'review'>('browse')
 const sharedBlocks = ref<SharedBlockItem[]>([])
 const reviewItems = ref<SharedBlockItem[]>([])
@@ -193,6 +195,36 @@ async function toggleDetail(block: SharedBlockItem) {
     error.value = '公开积木详情加载失败'
   } finally {
     if (detailLoadingBlockId.value === block.id) {
+      detailLoadingBlockId.value = null
+    }
+  }
+}
+
+async function openBlockFromRouteQuery() {
+  const rawBlockId = Array.isArray(route.query.blockId) ? route.query.blockId[0] : route.query.blockId
+  const blockId = Number(rawBlockId)
+  if (!Number.isInteger(blockId) || blockId <= 0) {
+    return
+  }
+
+  const listedBlock = sharedBlocks.value.find((block) => block.id === blockId)
+  if (listedBlock) {
+    await toggleDetail(listedBlock)
+    return
+  }
+
+  expandedBlockId.value = blockId
+  detailLoadingBlockId.value = blockId
+  error.value = ''
+  try {
+    const response = await apiClient.get<SharedBlockDetail>(`/shared-blocks/${blockId}`)
+    selectedBlock.value = response.data
+    sharedBlocks.value = [response.data, ...sharedBlocks.value]
+  } catch {
+    expandedBlockId.value = null
+    error.value = '公开积木详情加载失败'
+  } finally {
+    if (detailLoadingBlockId.value === blockId) {
       detailLoadingBlockId.value = null
     }
   }
@@ -367,7 +399,10 @@ function handleSharedBlockSearch(event: Event) {
 
 onMounted(() => {
   window.addEventListener('sts:shared-block-search', handleSharedBlockSearch)
-  void loadSharedBlocks()
+  void (async () => {
+    await loadSharedBlocks()
+    await openBlockFromRouteQuery()
+  })()
 })
 
 onBeforeUnmount(() => {
