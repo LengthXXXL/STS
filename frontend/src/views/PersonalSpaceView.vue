@@ -515,6 +515,43 @@ function openCustomBlock(block: CustomBlock) {
   void router.push('/')
 }
 
+function customBlockPublishLabel(block: CustomBlock) {
+  if (block.reviewStatus === 'pending_review') {
+    return '待审核'
+  }
+  if (block.reviewStatus === 'approved') {
+    return '已公开'
+  }
+  if (block.reviewStatus === 'rejected') {
+    return '重新发布'
+  }
+  return '发布'
+}
+
+function canPublishCustomBlock(block: CustomBlock) {
+  return block.reviewStatus === 'private' || block.reviewStatus === 'rejected'
+}
+
+async function publishCustomBlock(block: CustomBlock) {
+  customBlockActionError.value = ''
+  customBlockActionMessage.value = ''
+  if (!canPublishCustomBlock(block)) {
+    customBlockActionError.value = '该积木已提交审核或已公开'
+    return
+  }
+
+  try {
+    const response = await apiClient.post<CustomBlock>(`/custom-blocks/${block.id}/publish`)
+    const index = customBlocks.value.findIndex((item) => item.id === block.id)
+    if (index >= 0) {
+      customBlocks.value[index] = response.data
+    }
+    customBlockActionMessage.value = `已提交审核：${response.data.name}`
+  } catch {
+    customBlockActionError.value = '发布失败，请稍后重试'
+  }
+}
+
 async function deleteStrategy(strategy: SavedStrategy) {
   await apiClient.delete(`/strategies/${strategy.id}`)
   await loadStrategies()
@@ -1216,6 +1253,14 @@ onMounted(() => {
             </div>
           </div>
           <div class="strategy-item-actions">
+            <button
+              class="custom-block-publish-button"
+              type="button"
+              :disabled="!canPublishCustomBlock(block)"
+              @click="publishCustomBlock(block)"
+            >
+              {{ customBlockPublishLabel(block) }}
+            </button>
             <button class="custom-block-use-button" type="button" @click="openCustomBlock(block)">
               使用
             </button>

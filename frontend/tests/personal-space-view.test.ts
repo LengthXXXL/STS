@@ -403,6 +403,42 @@ describe('personal space view', () => {
     expect(pushMock).toHaveBeenCalledWith('/')
   })
 
+  it('publishes a private custom block for review from personal space', async () => {
+    mockPersonalSpaceRequests()
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { ...savedCustomBlock, reviewStatus: 'pending_review' }
+    })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="custom-blocks"]').trigger('click')
+    await wrapper.find('.custom-block-publish-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/custom-blocks/21/publish')
+    expect(wrapper.text()).toContain('已提交审核')
+  })
+
+  it('shows custom block publish actions by review status', async () => {
+    mockPersonalSpaceRequests({
+      customBlocks: [
+        { ...savedCustomBlock, id: 21, reviewStatus: 'private' },
+        { ...savedCustomBlock, id: 22, name: '待审核模板', reviewStatus: 'pending_review' },
+        { ...savedCustomBlock, id: 23, name: '公开模板', reviewStatus: 'approved' },
+        { ...savedCustomBlock, id: 24, name: '拒绝模板', reviewStatus: 'rejected' }
+      ]
+    })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="custom-blocks"]').trigger('click')
+
+    expect(wrapper.text()).toContain('发布')
+    expect(wrapper.text()).toContain('待审核')
+    expect(wrapper.text()).toContain('已公开')
+    expect(wrapper.text()).toContain('重新发布')
+  })
+
   it('disambiguates duplicate custom block names in personal space', async () => {
     mockPersonalSpaceRequests({
       customBlocks: [

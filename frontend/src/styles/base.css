@@ -340,6 +340,17 @@ button {
   background: rgba(48, 33, 87, 0.82) !important;
 }
 
+.custom-block-publish-button {
+  color: #eafffb !important;
+  border-color: rgba(94, 230, 200, 0.44) !important;
+  background: rgba(21, 57, 53, 0.76) !important;
+}
+
+.custom-block-publish-button:disabled {
+  cursor: default !important;
+  opacity: 0.64;
+}
+
 .backtest-open-button {
   border-color: rgba(94, 230, 200, 0.42);
   background: rgba(21, 57, 53, 0.76);
