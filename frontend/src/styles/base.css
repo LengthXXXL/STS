@@ -1198,6 +1198,198 @@ button {
   max-width: 760px;
 }
 
+.forum-page {
+  display: grid;
+  gap: 16px;
+  height: calc(100vh - 64px);
+  overflow: auto;
+  padding: 18px;
+  background:
+    radial-gradient(circle at 72% 0%, rgba(124, 77, 255, 0.14), transparent 34%),
+    linear-gradient(180deg, #08070c 0%, #0b0910 100%);
+}
+
+.forum-header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.forum-header h1 {
+  margin: 0;
+  color: #f8f4ff;
+  font-size: 28px;
+}
+
+.forum-header p,
+.forum-composer p,
+.forum-post-item p,
+.forum-thread-main p,
+.forum-comment-item p {
+  color: #bcb1d1;
+}
+
+.forum-search {
+  display: flex;
+  gap: 8px;
+  min-width: min(420px, 100%);
+}
+
+.forum-search input,
+.forum-composer input,
+.forum-composer textarea,
+.forum-comment-form textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #3a3150;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f7f2ff;
+  background: rgba(6, 5, 10, 0.74);
+  outline: none;
+}
+
+.forum-search button,
+.forum-composer button,
+.forum-post-detail-button,
+.forum-comment-form button {
+  border: 1px solid #3a3150;
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #f7f2ff;
+  background: #191522;
+  cursor: pointer;
+}
+
+.forum-search button,
+.forum-comment-form button {
+  border-color: rgba(94, 230, 200, 0.44);
+  background: rgba(21, 57, 53, 0.76);
+}
+
+.forum-composer {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.5fr) minmax(180px, 1fr) minmax(150px, 220px) auto;
+  gap: 10px;
+  align-items: start;
+  border: 1px solid rgba(58, 49, 80, 0.86);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(13, 11, 18, 0.86);
+}
+
+.forum-composer strong {
+  color: #f8f4ff;
+}
+
+.forum-composer p {
+  margin: 6px 0 0;
+}
+
+.forum-composer textarea {
+  min-height: 72px;
+  grid-column: 2 / 4;
+  resize: vertical;
+}
+
+.forum-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  gap: 14px;
+  align-items: start;
+}
+
+.forum-post-list {
+  display: grid;
+  gap: 10px;
+}
+
+.forum-post-item,
+.forum-thread-panel {
+  border: 1px solid rgba(58, 49, 80, 0.86);
+  border-radius: 12px;
+  padding: 14px;
+  background:
+    linear-gradient(180deg, rgba(23, 20, 32, 0.96), rgba(10, 9, 15, 0.98)),
+    #0c0a10;
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+}
+
+.forum-post-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+}
+
+.forum-post-topic,
+.forum-thread-main > span {
+  width: fit-content;
+  border: 1px solid rgba(124, 77, 255, 0.36);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #d8ceff;
+  background: rgba(48, 33, 87, 0.42);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.forum-post-item h2,
+.forum-thread-main h2 {
+  margin: 0 0 8px;
+  color: #f8f4ff;
+  font-size: 20px;
+}
+
+.forum-post-item p,
+.forum-thread-main p,
+.forum-comment-item p {
+  margin: 0 0 8px;
+  line-height: 1.55;
+}
+
+.forum-post-item small,
+.forum-thread-main small,
+.forum-comment-item small {
+  color: #9487ad;
+}
+
+.forum-post-detail-button {
+  border-color: rgba(124, 77, 255, 0.48);
+  background: rgba(48, 33, 87, 0.82);
+}
+
+.forum-thread-panel {
+  position: sticky;
+  top: 14px;
+  display: grid;
+  gap: 14px;
+}
+
+.forum-thread-main,
+.forum-comments,
+.forum-comment-form {
+  display: grid;
+  gap: 10px;
+}
+
+.forum-comments > strong {
+  color: #f8f4ff;
+}
+
+.forum-comment-item {
+  border: 1px solid rgba(58, 49, 80, 0.74);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(6, 5, 10, 0.46);
+}
+
+.forum-comment-form textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
 @keyframes sharedHeroGrid {
   from {
     background-position: 0 0, 0 0;
@@ -2793,6 +2985,27 @@ button {
 
   .shared-block-row-action-panel {
     justify-items: start;
+  }
+
+  .forum-header,
+  .forum-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .forum-header {
+    flex-direction: column;
+  }
+
+  .forum-composer {
+    grid-template-columns: 1fr;
+  }
+
+  .forum-composer textarea {
+    grid-column: auto;
+  }
+
+  .forum-thread-panel {
+    position: static;
   }
 
   .shared-block-hero {

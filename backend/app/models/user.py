@@ -18,6 +18,7 @@ from app.core.database import Base
 if TYPE_CHECKING:
     from app.models.backtest import BacktestTask
     from app.models.custom_block import CustomBlock
+    from app.models.forum import ForumComment, ForumPost
     from app.models.shared_block import (
         RecommendationEvent,
         SharedBlockFavorite,
@@ -79,6 +80,14 @@ class User(Base):
     )
     recommendation_events: Mapped[list["RecommendationEvent"]] = relationship(
         back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    forum_posts: Mapped[list["ForumPost"]] = relationship(
+        back_populates="author",
+        cascade="all, delete-orphan",
+    )
+    forum_comments: Mapped[list["ForumComment"]] = relationship(
+        back_populates="author",
         cascade="all, delete-orphan",
     )
 

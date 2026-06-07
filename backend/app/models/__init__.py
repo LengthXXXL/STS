@@ -1,5 +1,6 @@
 from app.models.backtest import BacktestEquityPointRecord, BacktestTask, BacktestTradeRecord
 from app.models.custom_block import CustomBlock
+from app.models.forum import ForumComment, ForumPost
 from app.models.market_data import MarketKlineCache
 from app.models.shared_block import (
     RecommendationEvent,
@@ -16,6 +17,8 @@ __all__ = [
     "BacktestTask",
     "BacktestTradeRecord",
     "CustomBlock",
+    "ForumComment",
+    "ForumPost",
     "MarketKlineCache",
     "RecommendationEvent",
     "Role",

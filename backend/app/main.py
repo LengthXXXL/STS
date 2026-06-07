@@ -7,9 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 import app.models  # noqa: F401
 from app.api import (
     admin_custom_block_reviews,
+    admin_forum,
     auth,
     backtests,
     custom_blocks,
+    forum,
     health,
     shared_blocks,
     simulation_accounts,
@@ -40,9 +42,11 @@ app.add_middleware(
 
 app.include_router(health.router, prefix="/api")
 app.include_router(admin_custom_block_reviews.router, prefix="/api")
+app.include_router(admin_forum.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(backtests.router, prefix="/api")
 app.include_router(custom_blocks.router, prefix="/api")
+app.include_router(forum.router, prefix="/api")
 app.include_router(shared_blocks.router, prefix="/api")
 app.include_router(simulation_accounts.router, prefix="/api")
 app.include_router(strategies.router, prefix="/api")
