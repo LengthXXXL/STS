@@ -156,4 +156,33 @@ describe('app shell', () => {
     expect(wrapper.find('[data-builder-action="backtest"]').exists()).toBe(false)
     expect(wrapper.find('[data-builder-action="publish"]').exists()).toBe(false)
   })
+
+  it('dispatches shared block search from the top bar on the sharing route', async () => {
+    routeMock.name = 'shared-blocks'
+    routeMock.path = '/blocks'
+
+    const wrapper = mount(App, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          RouterView: { template: '<main />' }
+        }
+      }
+    })
+    const listener = vi.fn()
+    window.addEventListener('sts:shared-block-search', listener)
+
+    expect(wrapper.find('.section-title').text()).toBe('积木分享')
+    expect(wrapper.find('.top-shared-search-input').exists()).toBe(true)
+    expect(wrapper.find('[data-builder-action="save"]').exists()).toBe(false)
+
+    await wrapper.find('.top-shared-search-input').setValue('止盈')
+    await wrapper.find('.top-shared-search').trigger('submit')
+
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(listener.mock.calls[0][0].detail).toEqual({ keyword: '止盈' })
+
+    window.removeEventListener('sts:shared-block-search', listener)
+  })
 })

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { apiClient } from '../api/http'
 import { useAuthStore } from '../stores/auth'
 
@@ -88,38 +88,57 @@ function requireLogin() {
   window.dispatchEvent(new CustomEvent('sts:auth-required'))
 }
 
+function isUnauthorizedError(error: unknown) {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'response' in error &&
+    (error as { response?: { status?: number } }).response?.status === 401
+  )
+}
+
+async function fetchSharedBlockList() {
+  const response = await apiClient.get<SharedBlockListResponse>('/shared-blocks', {
+    params: {
+      keyword: keyword.value.trim(),
+      category: category.value.trim(),
+      tag: tag.value.trim(),
+      sort: sort.value,
+      page: page.value,
+      pageSize
+    }
+  })
+  sharedBlocks.value = response.data.items
+  total.value = response.data.total
+  if (
+    selectedBlock.value &&
+    !response.data.items.some((block) => block.id === selectedBlock.value?.id)
+  ) {
+    selectedBlock.value = null
+  }
+}
+
 async function loadSharedBlocks() {
   loading.value = true
   error.value = ''
   try {
-    const response = await apiClient.get<SharedBlockListResponse>('/shared-blocks', {
-      params: {
-        keyword: keyword.value.trim(),
-        category: category.value.trim(),
-        tag: tag.value.trim(),
-        sort: sort.value,
-        page: page.value,
-        pageSize
+    await fetchSharedBlockList()
+  } catch (requestError) {
+    if (isUnauthorizedError(requestError) && authStore.isAuthenticated) {
+      authStore.logout()
+      try {
+        await fetchSharedBlockList()
+        status.value = '登录状态已失效，已按游客身份加载公开积木'
+        return
+      } catch {
+        error.value = '公开积木加载失败'
+        return
       }
-    })
-    sharedBlocks.value = response.data.items
-    total.value = response.data.total
-    if (
-      selectedBlock.value &&
-      !response.data.items.some((block) => block.id === selectedBlock.value?.id)
-    ) {
-      selectedBlock.value = null
     }
-  } catch {
     error.value = '公开积木加载失败'
   } finally {
     loading.value = false
   }
-}
-
-async function searchSharedBlocks() {
-  page.value = 1
-  await loadSharedBlocks()
 }
 
 async function loadReviewItems() {
@@ -268,101 +287,125 @@ function formatDate(value: string) {
   return value.slice(0, 10)
 }
 
-onMounted(() => {
+function handleSharedBlockSearch(event: Event) {
+  const detail = (event as CustomEvent<{ keyword?: string }>).detail
+  keyword.value = detail?.keyword ?? ''
+  page.value = 1
+  activeMode.value = 'browse'
   void loadSharedBlocks()
+}
+
+onMounted(() => {
+  window.addEventListener('sts:shared-block-search', handleSharedBlockSearch)
+  void loadSharedBlocks()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('sts:shared-block-search', handleSharedBlockSearch)
 })
 </script>
 
 <template>
   <section class="shared-blocks">
-    <div class="space-section-header">
-      <div>
-        <h1>积木分享</h1>
-        <p>搜索公开积木，查看结构后收藏或导入到自己的积木库。</p>
+    <section class="shared-block-hero">
+      <div class="shared-block-hero-art" aria-hidden="true">
+        <span class="shared-block-hero-grid"></span>
+        <span class="shared-block-candle candle-one"></span>
+        <span class="shared-block-candle candle-two"></span>
+        <span class="shared-block-candle candle-three"></span>
+        <span class="shared-block-candle candle-four"></span>
+        <span class="shared-block-signal signal-one"></span>
+        <span class="shared-block-signal signal-two"></span>
+        <span class="shared-block-flow flow-one"></span>
+        <span class="shared-block-flow flow-two"></span>
       </div>
-    </div>
+      <div class="shared-block-hero-copy">
+        <span>STS 积木市场</span>
+        <h1>创建你的交易策略</h1>
+        <p>从公开积木中挑选成熟的买卖、风控和信号逻辑，导入后继续在画布上拼接成自己的盘中策略。</p>
+        <a class="shared-block-start-button" href="/">开始搭建</a>
+      </div>
+    </section>
 
-    <div class="shared-block-mode-tabs">
-      <button
-        class="shared-block-browse-tab"
-        type="button"
-        :class="{ 'is-active': activeMode === 'browse' }"
-        @click="openBrowseMode"
-      >
-        公开积木
-      </button>
-      <button
-        v-if="isAdmin"
-        class="shared-block-review-tab"
-        type="button"
-        :class="{ 'is-active': activeMode === 'review' }"
-        @click="openReviewMode"
-      >
-        审核
-      </button>
-    </div>
-
-    <form
-      v-if="activeMode === 'browse'"
-      class="shared-block-toolbar"
-      @submit.prevent="searchSharedBlocks"
-    >
-      <input
-        v-model="keyword"
-        class="shared-block-search-input"
-        placeholder="搜索名称、分类或标签"
-      />
-      <input v-model="category" class="shared-block-category-input" placeholder="分类" />
-      <input v-model="tag" class="shared-block-tag-input" placeholder="标签" />
-      <select v-model="sort" class="shared-block-sort-select">
-        <option value="latest">最新</option>
-        <option value="popular">热门</option>
-        <option value="beginner">新手友好</option>
-      </select>
-      <button class="shared-block-search-button" type="button" @click="searchSharedBlocks">
-        搜索
-      </button>
-    </form>
+    <header class="shared-block-market-header">
+      <div>
+        <h2>
+          {{ activeMode === 'browse' ? '公开积木精选' : '待审核积木' }}
+          <span v-if="activeMode === 'browse'">复制常用交易逻辑</span>
+        </h2>
+        <p>
+          {{
+            activeMode === 'browse'
+              ? '在上方导航栏搜索你需要的条件、风控或信号积木。'
+              : '管理员可以在这里审核用户提交的公开积木。'
+          }}
+        </p>
+      </div>
+      <div class="shared-block-mode-tabs">
+        <button
+          class="shared-block-browse-tab"
+          type="button"
+          :class="{ 'is-active': activeMode === 'browse' }"
+          @click="openBrowseMode"
+        >
+          公开积木
+        </button>
+        <button
+          v-if="isAdmin"
+          class="shared-block-review-tab"
+          type="button"
+          :class="{ 'is-active': activeMode === 'review' }"
+          @click="openReviewMode"
+        >
+          审核
+        </button>
+      </div>
+    </header>
 
     <p v-if="error" class="form-error">{{ error }}</p>
     <p v-if="status" class="space-muted">{{ status }}</p>
 
     <div v-if="activeMode === 'browse'" class="shared-block-layout">
-      <div class="shared-block-list">
+      <div class="shared-block-marketplace">
         <p v-if="loading" class="space-muted">正在加载公开积木</p>
         <p v-else-if="sharedBlocks.length === 0" class="space-muted">暂无公开积木</p>
-        <article v-for="block in sharedBlocks" v-else :key="block.id" class="shared-block-card">
-          <div class="shared-block-card-header">
-            <div>
-              <h2>{{ block.name }}</h2>
-              <p>{{ block.description || '无描述' }}</p>
+        <div v-else class="shared-block-list">
+          <article v-for="block in sharedBlocks" :key="block.id" class="shared-block-card">
+            <div class="shared-block-card-topline">
+              <span>{{ block.category }}</span>
+              <small>{{ formatDate(block.updatedAt) }}</small>
             </div>
-            <strong>{{ block.category }}</strong>
-          </div>
-          <small>
-            作者 {{ block.authorName }} · {{ block.nodeCount }} 个积木 ·
-            {{ block.connectionCount }} 条连接 · 更新于 {{ formatDate(block.updatedAt) }}
-          </small>
-          <div class="shared-block-tags">
-            <span v-for="blockTag in block.tags" :key="blockTag">{{ blockTag }}</span>
-          </div>
-          <div class="shared-block-metrics">
-            <span>浏览 {{ block.viewCount }}</span>
-            <span>收藏 {{ block.favoriteCount }}</span>
-            <span>导入 {{ block.importCount }}</span>
-          </div>
-          <div class="shared-block-actions">
-            <button class="shared-block-detail-button" type="button" @click="openDetail(block)">
-              查看
-            </button>
-            <button class="shared-block-favorite-button" type="button" @click="toggleFavorite(block)">
-              {{ block.isFavorited ? '已收藏' : '收藏' }}
-            </button>
-            <button class="shared-block-import-button" type="button" @click="importBlock(block)">
-              导入
-            </button>
-          </div>
-        </article>
+            <h2>{{ block.name }}</h2>
+            <p>{{ block.description || '无描述' }}</p>
+            <small>
+              作者 {{ block.authorName }} · {{ block.nodeCount }} 个积木 ·
+              {{ block.connectionCount }} 条连接
+            </small>
+            <div class="shared-block-tags">
+              <span v-for="blockTag in block.tags" :key="blockTag">{{ blockTag }}</span>
+            </div>
+            <div class="shared-block-metrics">
+              <span>浏览 {{ block.viewCount }}</span>
+              <span>收藏 {{ block.favoriteCount }}</span>
+              <span>导入 {{ block.importCount }}</span>
+            </div>
+            <div class="shared-block-card-footer">
+              <strong>免费导入</strong>
+              <span>{{ block.importCount }} 次导入</span>
+            </div>
+            <div class="shared-block-actions">
+              <button class="shared-block-detail-button" type="button" @click="openDetail(block)">
+                查看
+              </button>
+              <button class="shared-block-favorite-button" type="button" @click="toggleFavorite(block)">
+                {{ block.isFavorited ? '已收藏' : '收藏' }}
+              </button>
+              <button class="shared-block-import-button" type="button" @click="importBlock(block)">
+                导入
+              </button>
+            </div>
+          </article>
+        </div>
 
         <footer class="space-footer">
           <span>共 {{ total }} 个公开积木</span>
@@ -378,7 +421,7 @@ onMounted(() => {
         </footer>
       </div>
 
-      <aside class="shared-block-detail">
+      <aside v-if="detailLoading || selectedBlock" class="shared-block-detail">
         <p v-if="detailLoading" class="space-muted">正在加载详情</p>
         <template v-else-if="selectedBlock">
           <h2>{{ selectedBlock.name }}</h2>
@@ -412,7 +455,6 @@ onMounted(() => {
             </button>
           </div>
         </template>
-        <p v-else class="space-muted">选择一个公开积木查看结构。</p>
       </aside>
     </div>
 

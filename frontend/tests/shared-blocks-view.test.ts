@@ -1,7 +1,7 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../src/api/http'
 import { useAuthStore } from '../src/stores/auth'
 import SharedBlocksView from '../src/views/SharedBlocksView.vue'
@@ -13,6 +13,8 @@ vi.mock('../src/api/http', () => ({
     delete: vi.fn()
   }
 }))
+
+enableAutoUnmount(afterEach)
 
 const sharedBlock = {
   id: 31,
@@ -81,7 +83,7 @@ describe('shared blocks view', () => {
     vi.clearAllMocks()
   })
 
-  it('loads shared blocks and filters with query params', async () => {
+  it('loads shared blocks in a marketplace hero layout', async () => {
     mockSharedBlocks()
     const wrapper = mount(SharedBlocksView)
     await flushPromises()
@@ -93,23 +95,55 @@ describe('shared blocks view', () => {
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('收藏 3')
     expect(wrapper.text()).toContain('导入 2')
+    expect(wrapper.find('.shared-block-hero').exists()).toBe(true)
+    expect(wrapper.text()).toContain('创建你的交易策略')
+    expect(wrapper.find('.shared-block-start-button').attributes('href')).toBe('/')
+    expect(wrapper.find('.shared-block-search-input').exists()).toBe(false)
+  })
 
-    await wrapper.find('.shared-block-search-input').setValue('止盈')
-    await wrapper.find('.shared-block-category-input').setValue('风控')
-    await wrapper.find('.shared-block-tag-input').setValue('基础')
-    await wrapper.find('.shared-block-sort-select').setValue('popular')
-    await wrapper.find('.shared-block-search-button').trigger('click')
+  it('searches shared blocks from the top navigation event', async () => {
+    mockSharedBlocks()
+    mount(SharedBlocksView)
+    await flushPromises()
+
+    window.dispatchEvent(
+      new CustomEvent('sts:shared-block-search', { detail: { keyword: '止盈' } })
+    )
+    await flushPromises()
 
     expect(apiClient.get).toHaveBeenCalledWith('/shared-blocks', {
       params: {
         keyword: '止盈',
-        category: '风控',
-        tag: '基础',
-        sort: 'popular',
+        category: '',
+        tag: '',
+        sort: 'latest',
         page: 1,
         pageSize: 10
       }
     })
+  })
+
+  it('falls back to visitor browsing when a stale session blocks the public list', async () => {
+    vi.mocked(apiClient.get)
+      .mockRejectedValueOnce({ response: { status: 401 } })
+      .mockResolvedValueOnce({
+        data: { items: [sharedBlock], total: 1, page: 1, pageSize: 10 }
+      })
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'expired-token',
+      user: { id: 2, username: 'bob', email: 'bob@example.com', roles: ['user'] }
+    })
+
+    const wrapper = mount(SharedBlocksView)
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenCalledTimes(2)
+    expect(authStore.user).toBeNull()
+    expect(authStore.token).toBeNull()
+    expect(localStorage.getItem('sts_access_token')).toBeNull()
+    expect(wrapper.text()).toContain('登录状态已失效，已按游客身份加载公开积木')
+    expect(wrapper.text()).toContain('公开止盈模板')
   })
 
   it('opens details and imports a shared block when logged in', async () => {

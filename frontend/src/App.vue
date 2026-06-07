@@ -22,9 +22,11 @@ const routeSectionTitles: Record<string, string> = {
 
 const routeName = computed(() => (typeof route.name === 'string' ? route.name : ''))
 const isBuilderRoute = computed(() => routeName.value === 'builder' || route.path === '/')
+const isSharedBlocksRoute = computed(() => routeName.value === 'shared-blocks')
 const currentSectionTitle = computed(
   () => routeSectionTitles[routeName.value] ?? (isBuilderRoute.value ? '策略工作台' : 'STS')
 )
+const sharedBlockTopSearch = ref('')
 
 const displayedUsername = computed(() => {
   const username = authStore.user?.username ?? ''
@@ -33,6 +35,14 @@ const displayedUsername = computed(() => {
 
 function dispatchBuilderAction(action: 'save' | 'backtest' | 'publish') {
   window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action } }))
+}
+
+function submitSharedBlockTopSearch() {
+  window.dispatchEvent(
+    new CustomEvent('sts:shared-block-search', {
+      detail: { keyword: sharedBlockTopSearch.value }
+    })
+  )
 }
 
 function openAuthModal(mode: AuthMode = 'login') {
@@ -90,6 +100,19 @@ onBeforeUnmount(() => {
               发布
             </button>
           </template>
+          <form
+            v-if="isSharedBlocksRoute"
+            class="top-shared-search"
+            @submit.prevent="submitSharedBlockTopSearch"
+          >
+            <input
+              v-model="sharedBlockTopSearch"
+              class="top-shared-search-input"
+              placeholder="搜索公开积木"
+              aria-label="搜索公开积木"
+            />
+            <button class="top-shared-search-button" type="submit">搜索</button>
+          </form>
         </div>
         <div class="account-actions">
           <template v-if="authStore.isAuthenticated && authStore.user">
