@@ -19,6 +19,7 @@ from app.api import (
 )
 from app.core.config import get_settings
 from app.core.database import Base, engine
+from app.core.schema_migrations import ensure_development_schema
 
 settings = get_settings()
 
@@ -27,6 +28,7 @@ settings = get_settings()
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     if settings.environment == "development":
         Base.metadata.create_all(bind=engine)
+        ensure_development_schema(engine)
     yield
 
 

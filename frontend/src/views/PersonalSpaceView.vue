@@ -101,6 +101,7 @@ interface ForumPostItem {
   topic: string
   sharedBlockId: number | null
   reviewStatus: ForumReviewStatus
+  reviewReason: string | null
   commentCount: number
   createdAt: string
   updatedAt: string
@@ -121,6 +122,7 @@ interface ForumCommentItem {
   authorName: string
   content: string
   reviewStatus: ForumReviewStatus
+  reviewReason: string | null
   createdAt: string
   updatedAt: string
 }
@@ -1619,6 +1621,12 @@ onMounted(() => {
             </div>
             <h2>{{ post.title }}</h2>
             <p>{{ post.content }}</p>
+            <small
+              v-if="post.reviewStatus === 'rejected' && post.reviewReason"
+              class="forum-review-reason"
+            >
+              未通过原因：{{ post.reviewReason }}
+            </small>
             <small>评论 {{ post.commentCount }}</small>
           </div>
           <div class="strategy-item-actions">
@@ -1672,6 +1680,12 @@ onMounted(() => {
             </div>
             <h2>{{ comment.postTitle }}</h2>
             <p>{{ comment.content }}</p>
+            <small
+              v-if="comment.reviewStatus === 'rejected' && comment.reviewReason"
+              class="forum-review-reason"
+            >
+              未通过原因：{{ comment.reviewReason }}
+            </small>
           </div>
         </article>
 

@@ -124,9 +124,19 @@ const savedForumPost = {
   topic: '策略复盘',
   sharedBlockId: null,
   reviewStatus: 'pending_review',
+  reviewReason: null,
   commentCount: 0,
   createdAt: '2026-06-07T09:00:00',
   updatedAt: '2026-06-07T09:30:00'
+}
+
+const rejectedForumPost = {
+  ...savedForumPost,
+  id: 32,
+  title: '未通过论坛帖子',
+  content: '这是一条没有通过审核的论坛帖子。',
+  reviewStatus: 'rejected',
+  reviewReason: '帖子缺少可复现的策略细节。'
 }
 
 const savedForumComment = {
@@ -137,6 +147,7 @@ const savedForumComment = {
   authorName: 'alice',
   content: '这是一条被驳回的评论。',
   reviewStatus: 'rejected',
+  reviewReason: '评论不够具体，无法帮助其他用户。',
   createdAt: '2026-06-07T10:00:00',
   updatedAt: '2026-06-07T10:30:00'
 }
@@ -221,8 +232,8 @@ function mockPersonalSpaceRequests(options: { customBlocks?: Array<typeof savedC
     if (url === '/forum/my-posts') {
       return Promise.resolve({
         data: {
-          items: [savedForumPost],
-          total: 1,
+          items: [savedForumPost, rejectedForumPost],
+          total: 2,
           page: 1,
           pageSize: 10
         }
@@ -291,7 +302,7 @@ function mockPersonalSpaceRequestsWithDelayedBacktestDetail() {
     }
     if (url === '/forum/my-posts') {
       return Promise.resolve({
-        data: { items: [savedForumPost], total: 1, page: 1, pageSize: 10 }
+        data: { items: [savedForumPost, rejectedForumPost], total: 2, page: 1, pageSize: 10 }
       })
     }
     if (url === '/forum/my-comments') {
@@ -404,12 +415,15 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('待审核止盈复盘')
     expect(wrapper.text()).toContain('审核中')
     expect(wrapper.text()).toContain('这是一条等待管理员审核的论坛帖子。')
+    expect(wrapper.text()).toContain('未通过论坛帖子')
+    expect(wrapper.text()).toContain('未通过原因：帖子缺少可复现的策略细节。')
 
     await wrapper.find('.space-forum-comments-tab').trigger('click')
 
     expect(wrapper.text()).toContain('公开止盈讨论帖')
     expect(wrapper.text()).toContain('这是一条被驳回的评论。')
     expect(wrapper.text()).toContain('未通过审核')
+    expect(wrapper.text()).toContain('未通过原因：评论不够具体，无法帮助其他用户。')
     expect(wrapper.text()).toContain('关联帖子：公开止盈讨论帖')
   })
 

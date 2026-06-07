@@ -23,6 +23,7 @@ const pendingPost = {
   topic: '策略交流',
   sharedBlockId: null,
   reviewStatus: 'pending_review',
+  reviewReason: null,
   commentCount: 0,
   createdAt: '2026-06-07T11:00:00',
   updatedAt: '2026-06-07T11:30:00'
@@ -36,6 +37,7 @@ const pendingComment = {
   authorName: 'bob',
   content: '这条评论需要管理员审核。',
   reviewStatus: 'pending_review',
+  reviewReason: null,
   createdAt: '2026-06-07T12:00:00',
   updatedAt: '2026-06-07T12:00:00'
 }
@@ -124,10 +126,13 @@ describe('admin review view', () => {
 
     await wrapper.find('.admin-review-comment-tab').trigger('click')
     await flushPromises()
+    await wrapper.find('.admin-review-comment-reason-input').setValue('评论偏离主题')
     await wrapper.find('.admin-review-comment-reject').trigger('click')
     await flushPromises()
 
-    expect(apiClient.post).toHaveBeenCalledWith('/admin/forum-comments/21/reject')
+    expect(apiClient.post).toHaveBeenCalledWith('/admin/forum-comments/21/reject', {
+      reason: '评论偏离主题'
+    })
     expect(wrapper.text()).toContain('评论已驳回')
   })
 })

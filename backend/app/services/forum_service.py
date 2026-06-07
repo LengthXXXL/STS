@@ -27,6 +27,7 @@ def forum_post_to_response(db: Session, post: ForumPost) -> ForumPostItemRespons
         topic=post.topic,
         sharedBlockId=post.shared_block_id,
         reviewStatus=post.review_status,
+        reviewReason=post.review_reason,
         commentCount=_approved_comment_count(db, post.id),
         createdAt=post.created_at,
         updatedAt=post.updated_at,
@@ -41,6 +42,7 @@ def forum_comment_to_response(comment: ForumComment) -> ForumCommentResponse:
         authorName=comment.author.username,
         content=comment.content,
         reviewStatus=comment.review_status,
+        reviewReason=comment.review_reason,
         createdAt=comment.created_at,
         updatedAt=comment.updated_at,
     )
@@ -235,12 +237,14 @@ def review_forum_post(
     db: Session,
     post_id: int,
     review_status: str,
+    review_reason: str | None = None,
 ) -> ForumPostItemResponse | None:
     post = db.get(ForumPost, post_id)
     if post is None:
         return None
 
     post.review_status = review_status
+    post.review_reason = review_reason.strip() if review_reason else None
     db.commit()
     db.refresh(post)
     return forum_post_to_response(db, post)
@@ -250,12 +254,14 @@ def review_forum_comment(
     db: Session,
     comment_id: int,
     review_status: str,
+    review_reason: str | None = None,
 ) -> ForumCommentResponse | None:
     comment = db.get(ForumComment, comment_id)
     if comment is None:
         return None
 
     comment.review_status = review_status
+    comment.review_reason = review_reason.strip() if review_reason else None
     db.commit()
     db.refresh(comment)
     return forum_comment_to_response(comment)

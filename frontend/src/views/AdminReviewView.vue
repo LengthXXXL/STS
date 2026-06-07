@@ -14,6 +14,7 @@ interface ForumPostReview {
   topic: string
   sharedBlockId: number | null
   reviewStatus: 'pending_review' | 'approved' | 'rejected'
+  reviewReason: string | null
   commentCount: number
   createdAt: string
   updatedAt: string
@@ -27,6 +28,7 @@ interface ForumCommentReview {
   authorName: string
   content: string
   reviewStatus: 'pending_review' | 'approved' | 'rejected'
+  reviewReason: string | null
   createdAt: string
   updatedAt: string
 }
@@ -51,6 +53,8 @@ const commentPage = ref(1)
 const loading = ref(false)
 const status = ref('')
 const error = ref('')
+const postRejectReasons = ref<Record<number, string>>({})
+const commentRejectReasons = ref<Record<number, string>>({})
 
 const isAdmin = computed(() => authStore.user?.roles.includes('admin') ?? false)
 const activeTotal = computed(() =>
@@ -129,7 +133,13 @@ async function approvePost(post: ForumPostReview) {
 }
 
 async function rejectPost(post: ForumPostReview) {
-  await apiClient.post(`/admin/forum-posts/${post.id}/reject`)
+  const reason = (postRejectReasons.value[post.id] ?? '').trim()
+  if (!reason) {
+    status.value = '请填写驳回原因'
+    return
+  }
+  await apiClient.post(`/admin/forum-posts/${post.id}/reject`, { reason })
+  delete postRejectReasons.value[post.id]
   status.value = '帖子已驳回'
   await loadPostReviews()
 }
@@ -141,7 +151,13 @@ async function approveComment(comment: ForumCommentReview) {
 }
 
 async function rejectComment(comment: ForumCommentReview) {
-  await apiClient.post(`/admin/forum-comments/${comment.id}/reject`)
+  const reason = (commentRejectReasons.value[comment.id] ?? '').trim()
+  if (!reason) {
+    status.value = '请填写驳回原因'
+    return
+  }
+  await apiClient.post(`/admin/forum-comments/${comment.id}/reject`, { reason })
+  delete commentRejectReasons.value[comment.id]
   status.value = '评论已驳回'
   await loadCommentReviews()
 }
@@ -239,6 +255,11 @@ watch(isAdmin, (nextValue, previousValue) => {
             <p>{{ post.content }}</p>
           </div>
           <div class="admin-review-item-actions">
+            <textarea
+              v-model="postRejectReasons[post.id]"
+              class="admin-review-reason-input admin-review-post-reason-input"
+              placeholder="填写驳回原因"
+            ></textarea>
             <button class="admin-review-post-approve" type="button" @click="approvePost(post)">
               通过
             </button>
@@ -266,6 +287,11 @@ watch(isAdmin, (nextValue, previousValue) => {
             <p>{{ comment.content }}</p>
           </div>
           <div class="admin-review-item-actions">
+            <textarea
+              v-model="commentRejectReasons[comment.id]"
+              class="admin-review-reason-input admin-review-comment-reason-input"
+              placeholder="填写驳回原因"
+            ></textarea>
             <button
               class="admin-review-comment-approve"
               type="button"

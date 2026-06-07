@@ -133,10 +133,12 @@ def test_admin_can_reject_forum_posts_and_comments(client, db_session):
 
     reject_post_response = client.post(
         f"/api/admin/forum-posts/{post_id}/reject",
+        json={"reason": "复盘内容太少，无法判断策略逻辑。"},
         headers=auth_headers(admin_token),
     )
     assert reject_post_response.status_code == 200
     assert reject_post_response.json()["reviewStatus"] == "rejected"
+    assert reject_post_response.json()["reviewReason"] == "复盘内容太少，无法判断策略逻辑。"
 
     approved_post_response = client.post(
         "/api/forum/posts",
@@ -161,10 +163,12 @@ def test_admin_can_reject_forum_posts_and_comments(client, db_session):
 
     reject_comment_response = client.post(
         f"/api/admin/forum-comments/{comment_response.json()['id']}/reject",
+        json={"reason": "评论偏离主题。"},
         headers=auth_headers(admin_token),
     )
     assert reject_comment_response.status_code == 200
     assert reject_comment_response.json()["reviewStatus"] == "rejected"
+    assert reject_comment_response.json()["reviewReason"] == "评论偏离主题。"
 
 
 def test_admin_can_list_pending_forum_post_reviews(client, db_session):
@@ -194,6 +198,7 @@ def test_admin_can_list_pending_forum_post_reviews(client, db_session):
     assert (
         client.post(
             f"/api/admin/forum-posts/{rejected_post.json()['id']}/reject",
+            json={"reason": "帖子不符合发布规范。"},
             headers=auth_headers(admin_token),
         ).status_code
         == 200
@@ -253,6 +258,7 @@ def test_admin_can_list_pending_forum_comment_reviews(client, db_session):
     assert (
         client.post(
             f"/api/admin/forum-comments/{second_comment.json()['id']}/reject",
+            json={"reason": "评论内容不适合公开展示。"},
             headers=auth_headers(admin_token),
         ).status_code
         == 200
@@ -298,6 +304,7 @@ def test_user_can_list_own_forum_posts_and_comments_with_review_status(client, d
     assert (
         client.post(
             f"/api/admin/forum-posts/{alice_rejected_post.json()['id']}/reject",
+            json={"reason": "帖子缺少可复现的策略细节。"},
             headers=auth_headers(admin_token),
         ).status_code
         == 200
@@ -318,6 +325,9 @@ def test_user_can_list_own_forum_posts_and_comments_with_review_status(client, d
     assert post_titles == {"Alice 待审核帖子", "Alice 已驳回帖子"}
     assert post_statuses["Alice 待审核帖子"] == "pending_review"
     assert post_statuses["Alice 已驳回帖子"] == "rejected"
+    post_reasons = {item["title"]: item["reviewReason"] for item in posts_payload["items"]}
+    assert post_reasons["Alice 待审核帖子"] is None
+    assert post_reasons["Alice 已驳回帖子"] == "帖子缺少可复现的策略细节。"
 
     public_post = client.post(
         "/api/forum/posts",
@@ -355,6 +365,7 @@ def test_user_can_list_own_forum_posts_and_comments_with_review_status(client, d
     assert (
         client.post(
             f"/api/admin/forum-comments/{alice_rejected_comment.json()['id']}/reject",
+            json={"reason": "评论不够具体，无法帮助其他用户。"},
             headers=auth_headers(admin_token),
         ).status_code
         == 200
@@ -376,4 +387,9 @@ def test_user_can_list_own_forum_posts_and_comments_with_review_status(client, d
     assert set(comment_statuses) == {"Alice 待审核评论", "Alice 已驳回评论"}
     assert comment_statuses["Alice 待审核评论"] == "pending_review"
     assert comment_statuses["Alice 已驳回评论"] == "rejected"
+    comment_reasons = {
+        item["content"]: item["reviewReason"] for item in comments_payload["items"]
+    }
+    assert comment_reasons["Alice 待审核评论"] is None
+    assert comment_reasons["Alice 已驳回评论"] == "评论不够具体，无法帮助其他用户。"
     assert comments_payload["items"][0]["postTitle"] == "Bob 公开讨论帖"

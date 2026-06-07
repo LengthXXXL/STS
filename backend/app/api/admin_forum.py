@@ -9,6 +9,7 @@ from app.schemas.forum import (
     ForumCommentReviewListResponse,
     ForumPostItemResponse,
     ForumPostListResponse,
+    ForumReviewDecisionRequest,
 )
 from app.services.forum_service import (
     APPROVED,
@@ -69,11 +70,12 @@ def approve_post(
 @router.post("/forum-posts/{post_id}/reject", response_model=ForumPostItemResponse)
 def reject_post(
     post_id: int,
+    request: ForumReviewDecisionRequest,
     current_user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ) -> ForumPostItemResponse:
     del current_user
-    post = review_forum_post(db, post_id, REJECTED)
+    post = review_forum_post(db, post_id, REJECTED, review_reason=request.reason)
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Forum post not found")
     return post
@@ -95,11 +97,12 @@ def approve_comment(
 @router.post("/forum-comments/{comment_id}/reject", response_model=ForumCommentResponse)
 def reject_comment(
     comment_id: int,
+    request: ForumReviewDecisionRequest,
     current_user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db),
 ) -> ForumCommentResponse:
     del current_user
-    comment = review_forum_comment(db, comment_id, REJECTED)
+    comment = review_forum_comment(db, comment_id, REJECTED, review_reason=request.reason)
     if comment is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Forum comment not found")
     return comment

@@ -16,6 +16,10 @@ class ForumCommentCreate(BaseModel):
     content: str = Field(min_length=1, max_length=1200)
 
 
+class ForumReviewDecisionRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
 class ForumCommentResponse(BaseModel):
     id: int
     post_id: int = Field(alias="postId")
@@ -23,6 +27,7 @@ class ForumCommentResponse(BaseModel):
     author_name: str = Field(alias="authorName")
     content: str
     review_status: str = Field(alias="reviewStatus")
+    review_reason: str | None = Field(default=None, alias="reviewReason")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 
@@ -42,6 +47,7 @@ class ForumPostItemResponse(BaseModel):
     topic: str
     shared_block_id: int | None = Field(alias="sharedBlockId")
     review_status: str = Field(alias="reviewStatus")
+    review_reason: str | None = Field(default=None, alias="reviewReason")
     comment_count: int = Field(alias="commentCount")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

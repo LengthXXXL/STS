@@ -423,6 +423,12 @@ button {
   font-size: 12px;
 }
 
+.forum-review-reason {
+  display: block;
+  margin: 6px 0 8px;
+  color: #ffccd6;
+}
+
 .custom-block-use-button,
 .custom-block-edit-button {
   border-color: rgba(124, 77, 255, 0.58) !important;
@@ -3195,6 +3201,25 @@ button {
 .admin-review-item-actions {
   display: flex;
   gap: 8px;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.admin-review-reason-input {
+  width: 180px;
+  min-height: 76px;
+  border: 1px solid rgba(124, 77, 255, 0.32);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: #f7f2ff;
+  background: rgba(7, 6, 11, 0.78);
+  outline: none;
+  resize: vertical;
+}
+
+.admin-review-reason-input:focus {
+  border-color: rgba(255, 157, 178, 0.58);
+  box-shadow: 0 0 0 3px rgba(255, 157, 178, 0.12);
 }
 
 .admin-review-post-approve,
