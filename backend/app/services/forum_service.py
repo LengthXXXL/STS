@@ -3,7 +3,10 @@ from typing import Literal
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.models.backtest import BacktestTask
+from app.models.custom_block import CustomBlock
 from app.models.forum import ForumComment, ForumPost
+from app.models.strategy import Strategy
 from app.models.user import User
 from app.schemas.forum import (
     ForumCommentCreate,
@@ -20,7 +23,12 @@ REJECTED = "rejected"
 ForumPostSort = Literal["latest_reply", "newest", "most_commented"]
 
 
+class ForumRelatedContentNotFound(ValueError):
+    pass
+
+
 def forum_post_to_response(db: Session, post: ForumPost) -> ForumPostItemResponse:
+    related_title, related_summary = _related_content_summary(db, post)
     return ForumPostItemResponse(
         id=post.id,
         authorId=post.author_id,
@@ -29,6 +37,10 @@ def forum_post_to_response(db: Session, post: ForumPost) -> ForumPostItemRespons
         content=post.content,
         topic=post.topic,
         sharedBlockId=post.shared_block_id,
+        relatedType=post.related_type,
+        relatedId=post.related_id,
+        relatedTitle=related_title,
+        relatedSummary=related_summary,
         reviewStatus=post.review_status,
         reviewReason=post.review_reason,
         commentCount=_approved_comment_count(db, post.id),
@@ -64,12 +76,21 @@ def create_forum_post(
     author: User,
     request: ForumPostCreate,
 ) -> ForumPostItemResponse:
+    related_type = request.related_type
+    related_id = request.related_id
+    if (related_type is None) != (related_id is None):
+        raise ValueError("Related content requires both type and id")
+    if related_type is not None and related_id is not None:
+        _ensure_related_content_access(db, author, related_type, related_id)
+
     post = ForumPost(
         author_id=author.id,
         title=request.title.strip(),
         content=request.content.strip(),
         topic=request.topic.strip(),
         shared_block_id=request.shared_block_id,
+        related_type=related_type,
+        related_id=related_id,
         review_status=PENDING_REVIEW,
     )
     db.add(post)
@@ -297,6 +318,111 @@ def _public_post_order_by(sort: ForumPostSort, activity):
     if sort == "most_commented":
         return (approved_comment_count.desc(), latest_reply_at.desc(), ForumPost.id.desc())
     return (latest_reply_at.desc(), ForumPost.id.desc())
+
+
+def _ensure_related_content_access(
+    db: Session,
+    author: User,
+    related_type: str,
+    related_id: int,
+) -> None:
+    if related_type == "strategy":
+        exists = db.scalar(
+            select(func.count()).where(Strategy.id == related_id, Strategy.owner_id == author.id)
+        )
+    elif related_type == "backtest":
+        exists = db.scalar(
+            select(func.count()).where(
+                BacktestTask.id == related_id,
+                BacktestTask.owner_id == author.id,
+            )
+        )
+    elif related_type == "custom_block":
+        exists = db.scalar(
+            select(func.count()).where(
+                CustomBlock.id == related_id,
+                CustomBlock.owner_id == author.id,
+            )
+        )
+    elif related_type == "shared_block":
+        exists = db.scalar(
+            select(func.count()).where(
+                CustomBlock.id == related_id,
+                CustomBlock.review_status == APPROVED,
+            )
+        )
+    else:
+        exists = 0
+
+    if not exists:
+        raise ForumRelatedContentNotFound("Related content not found")
+
+
+def _related_content_summary(db: Session, post: ForumPost) -> tuple[str | None, str | None]:
+    if post.related_type is None or post.related_id is None:
+        return None, None
+
+    if post.related_type == "strategy":
+        strategy = db.scalar(
+            select(Strategy).where(Strategy.id == post.related_id, Strategy.owner_id == post.author_id)
+        )
+        if strategy is None:
+            return "关联策略不可用", "原策略已删除或不可访问"
+        config = strategy.backtest_config or {}
+        symbol = config.get("symbol") or "未设置股票"
+        timeframe = _format_timeframe(config.get("timeframe"))
+        return strategy.name, f"策略 · {symbol} · {timeframe}"
+
+    if post.related_type == "backtest":
+        backtest = db.scalar(
+            select(BacktestTask).where(
+                BacktestTask.id == post.related_id,
+                BacktestTask.owner_id == post.author_id,
+            )
+        )
+        if backtest is None:
+            return "关联回测不可用", "原回测已删除或不可访问"
+        return (
+            f"{backtest.symbol} {backtest.timeframe} 回测",
+            f"收益 {backtest.total_return_percent}% · 最大回撤 {backtest.max_drawdown_percent}%",
+        )
+
+    if post.related_type == "custom_block":
+        block = db.scalar(
+            select(CustomBlock).where(
+                CustomBlock.id == post.related_id,
+                CustomBlock.owner_id == post.author_id,
+            )
+        )
+        if block is None:
+            return "关联积木不可用", "原积木已删除或不可访问"
+        return block.name, _custom_block_summary("我的积木", block)
+
+    if post.related_type == "shared_block":
+        block = db.scalar(
+            select(CustomBlock).where(
+                CustomBlock.id == post.related_id,
+                CustomBlock.review_status == APPROVED,
+            )
+        )
+        if block is None:
+            return "公开积木不可用", "原公开积木已下架或不可访问"
+        return block.name, _custom_block_summary("公开积木", block)
+
+    return None, None
+
+
+def _custom_block_summary(prefix: str, block: CustomBlock) -> str:
+    node_count = len((block.template or {}).get("nodes", []))
+    return f"{prefix} · {block.category} · {node_count} 个积木"
+
+
+def _format_timeframe(value: str | None) -> str:
+    if value == "1m":
+        return "1分钟"
+    if value == "5m":
+        return "5分钟"
+    return "未设置周期"
 
 
 def _approved_comment_count(db: Session, post_id: int) -> int:

@@ -12,6 +12,10 @@ interface ForumPostItem {
   content: string
   topic: string
   sharedBlockId: number | null
+  relatedType: ForumRelatedType | null
+  relatedId: number | null
+  relatedTitle: string | null
+  relatedSummary: string | null
   reviewStatus: 'approved' | 'pending_review' | 'rejected'
   commentCount: number
   createdAt: string
@@ -40,6 +44,49 @@ interface ForumPostListResponse {
   pageSize: number
 }
 
+type ForumRelatedType = 'strategy' | 'backtest' | 'custom_block' | 'shared_block'
+type ForumRelatedTypeSelection = '' | ForumRelatedType
+
+interface ForumRelatedOption {
+  type: ForumRelatedType
+  id: number
+  title: string
+  summary: string
+}
+
+interface StrategyOptionResponse {
+  id: number
+  name: string
+  backtestConfig?: {
+    symbol?: string
+    timeframe?: string
+  } | null
+}
+
+interface BacktestOptionResponse {
+  id: number
+  symbol: string
+  timeframe: string
+  totalReturnPercent: number
+  maxDrawdownPercent: number
+}
+
+interface CustomBlockOptionResponse {
+  id: number
+  name: string
+  category: string
+  template?: {
+    nodes?: unknown[]
+  }
+}
+
+interface SharedBlockOptionResponse {
+  id: number
+  name: string
+  category: string
+  nodeCount: number
+}
+
 const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -58,8 +105,21 @@ const postTitle = ref('')
 const postTopic = ref('积木经验')
 const postContent = ref('')
 const commentContent = ref('')
+const relatedType = ref<ForumRelatedTypeSelection>('')
+const relatedId = ref('')
+const relatedOptions = ref<Record<ForumRelatedType, ForumRelatedOption[]>>({
+  strategy: [],
+  backtest: [],
+  custom_block: [],
+  shared_block: []
+})
+const relatedOptionsLoading = ref(false)
+const relatedOptionsError = ref('')
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
+const selectedRelatedOptions = computed(() =>
+  relatedType.value === '' ? [] : relatedOptions.value[relatedType.value]
+)
 
 function requireLogin() {
   window.dispatchEvent(new CustomEvent('sts:auth-required'))
@@ -83,6 +143,62 @@ async function loadPosts() {
     error.value = '论坛帖子加载失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadRelatedOptions() {
+  if (!authStore.isAuthenticated) {
+    return
+  }
+  relatedOptionsLoading.value = true
+  relatedOptionsError.value = ''
+  try {
+    const [strategies, backtests, customBlocks, sharedBlocks] = await Promise.all([
+      apiClient.get<{ items: StrategyOptionResponse[] }>('/strategies', {
+        params: { page: 1, pageSize: 50 }
+      }),
+      apiClient.get<{ items: BacktestOptionResponse[] }>('/backtests', {
+        params: { page: 1, pageSize: 50 }
+      }),
+      apiClient.get<{ items: CustomBlockOptionResponse[] }>('/custom-blocks', {
+        params: { page: 1, pageSize: 50 }
+      }),
+      apiClient.get<{ items: SharedBlockOptionResponse[] }>('/shared-blocks', {
+        params: { page: 1, pageSize: 50 }
+      })
+    ])
+    relatedOptions.value = {
+      strategy: strategies.data.items.map((item) => ({
+        type: 'strategy',
+        id: item.id,
+        title: item.name,
+        summary: `策略 · ${item.backtestConfig?.symbol || '未设置股票'} · ${formatTimeframe(
+          item.backtestConfig?.timeframe
+        )}`
+      })),
+      backtest: backtests.data.items.map((item) => ({
+        type: 'backtest',
+        id: item.id,
+        title: `${item.symbol} ${formatTimeframe(item.timeframe)} 回测`,
+        summary: `收益 ${item.totalReturnPercent}% · 最大回撤 ${item.maxDrawdownPercent}%`
+      })),
+      custom_block: customBlocks.data.items.map((item) => ({
+        type: 'custom_block',
+        id: item.id,
+        title: item.name,
+        summary: `我的积木 · ${item.category} · ${item.template?.nodes?.length ?? 0} 个积木`
+      })),
+      shared_block: sharedBlocks.data.items.map((item) => ({
+        type: 'shared_block',
+        id: item.id,
+        title: item.name,
+        summary: `公开积木 · ${item.category} · ${item.nodeCount} 个积木`
+      }))
+    }
+  } catch {
+    relatedOptionsError.value = '关联内容加载失败'
+  } finally {
+    relatedOptionsLoading.value = false
   }
 }
 
@@ -149,11 +265,14 @@ async function submitPost() {
     title,
     topic,
     content,
-    sharedBlockId: null
+    sharedBlockId: null,
+    ...relatedPostPayload()
   })
   postTitle.value = ''
   postContent.value = ''
   postTopic.value = '积木经验'
+  relatedType.value = ''
+  relatedId.value = ''
   status.value = '帖子已提交审核，可在个人空间-我的论坛查看进度'
 }
 
@@ -189,9 +308,45 @@ function formatDate(value: string) {
   return value.slice(0, 10)
 }
 
+function formatTimeframe(value: string | undefined) {
+  if (value === '1m') {
+    return '1分钟'
+  }
+  if (value === '5m') {
+    return '5分钟'
+  }
+  return '未设置周期'
+}
+
+function formatRelatedType(value: ForumRelatedType | null) {
+  if (value === 'strategy') {
+    return '策略'
+  }
+  if (value === 'backtest') {
+    return '回测'
+  }
+  if (value === 'custom_block') {
+    return '我的积木'
+  }
+  if (value === 'shared_block') {
+    return '公开积木'
+  }
+  return '关联内容'
+}
+
+function relatedPostPayload() {
+  if (relatedType.value === '' || relatedId.value === '') {
+    return {}
+  }
+  return {
+    relatedType: relatedType.value,
+    relatedId: Number(relatedId.value)
+  }
+}
+
 onMounted(() => {
   void (async () => {
-    await loadPosts()
+    await Promise.all([loadPosts(), loadRelatedOptions()])
     await openPostFromRouteQuery()
   })()
 })
@@ -225,6 +380,33 @@ onMounted(() => {
       </div>
       <input v-model="postTitle" class="forum-post-title-input" placeholder="帖子标题" />
       <input v-model="postTopic" class="forum-post-topic-input" placeholder="主题，例如：积木经验" />
+      <div class="forum-related-picker">
+        <select
+          v-model="relatedType"
+          class="forum-related-type-select"
+          :disabled="!authStore.isAuthenticated || relatedOptionsLoading"
+          @change="relatedId = ''"
+        >
+          <option value="">不关联内容</option>
+          <option value="strategy">我的策略</option>
+          <option value="backtest">我的回测</option>
+          <option value="custom_block">我的积木</option>
+          <option value="shared_block">公开积木</option>
+        </select>
+        <select
+          v-model="relatedId"
+          class="forum-related-id-select"
+          :disabled="relatedType === '' || selectedRelatedOptions.length === 0"
+        >
+          <option value="">
+            {{ relatedType === '' ? '先选择类型' : '选择要关联的内容' }}
+          </option>
+          <option v-for="option in selectedRelatedOptions" :key="option.id" :value="String(option.id)">
+            {{ option.title }}
+          </option>
+        </select>
+        <small v-if="relatedOptionsError">{{ relatedOptionsError }}</small>
+      </div>
       <textarea
         v-model="postContent"
         class="forum-post-content-input"
@@ -245,6 +427,9 @@ onMounted(() => {
           <div>
             <h2>{{ post.title }}</h2>
             <p>{{ post.content }}</p>
+            <div v-if="post.relatedTitle" class="forum-related-chip">
+              {{ formatRelatedType(post.relatedType) }} · {{ post.relatedTitle }}
+            </div>
             <small>
               作者 {{ post.authorName }} · 评论 {{ post.commentCount }} ·
               {{ formatDate(post.updatedAt) }}
@@ -289,6 +474,11 @@ onMounted(() => {
             <span>{{ selectedPost.topic }}</span>
             <h2>{{ selectedPost.title }}</h2>
             <p>{{ selectedPost.content }}</p>
+            <section v-if="selectedPost.relatedTitle" class="forum-related-card">
+              <small>关联内容 · {{ formatRelatedType(selectedPost.relatedType) }}</small>
+              <strong>{{ selectedPost.relatedTitle }}</strong>
+              <p>{{ selectedPost.relatedSummary }}</p>
+            </section>
             <small>
               作者 {{ selectedPost.authorName }} · {{ formatDate(selectedPost.updatedAt) }}
             </small>

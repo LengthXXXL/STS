@@ -23,6 +23,8 @@ class ForumPost(Base):
         nullable=True,
         index=True,
     )
+    related_type: Mapped[str | None] = mapped_column(String(40), nullable=True, index=True)
+    related_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     review_status: Mapped[str] = mapped_column(
         String(30),
         default="pending_review",

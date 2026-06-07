@@ -1,6 +1,9 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+ForumRelatedType = Literal["strategy", "backtest", "custom_block", "shared_block"]
 
 
 class ForumPostCreate(BaseModel):
@@ -8,6 +11,8 @@ class ForumPostCreate(BaseModel):
     content: str = Field(min_length=1, max_length=3000)
     topic: str = Field(default="交流", min_length=1, max_length=40)
     shared_block_id: int | None = Field(default=None, alias="sharedBlockId")
+    related_type: ForumRelatedType | None = Field(default=None, alias="relatedType")
+    related_id: int | None = Field(default=None, alias="relatedId", ge=1)
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -46,6 +51,10 @@ class ForumPostItemResponse(BaseModel):
     content: str
     topic: str
     shared_block_id: int | None = Field(alias="sharedBlockId")
+    related_type: ForumRelatedType | None = Field(default=None, alias="relatedType")
+    related_id: int | None = Field(default=None, alias="relatedId")
+    related_title: str | None = Field(default=None, alias="relatedTitle")
+    related_summary: str | None = Field(default=None, alias="relatedSummary")
     review_status: str = Field(alias="reviewStatus")
     review_reason: str | None = Field(default=None, alias="reviewReason")
     comment_count: int = Field(alias="commentCount")

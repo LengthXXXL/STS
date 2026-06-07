@@ -35,6 +35,10 @@ const forumPost = {
   content: '这个帖子记录一次止盈积木的使用经验。',
   topic: '积木经验',
   sharedBlockId: null,
+  relatedType: null,
+  relatedId: null,
+  relatedTitle: null,
+  relatedSummary: null,
   reviewStatus: 'approved',
   commentCount: 1,
   createdAt: '2026-06-07T10:00:00',
@@ -66,6 +70,32 @@ function mockForum() {
     }
     if (url === '/forum/posts/12') {
       return Promise.resolve({ data: forumDetail })
+    }
+    if (url === '/strategies') {
+      return Promise.resolve({
+        data: {
+          items: [
+            {
+              id: 31,
+              name: '五分钟突破策略',
+              description: '用于论坛关联',
+              backtestConfig: { symbol: '000001.SZ', timeframe: '5m' }
+            }
+          ],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
+    if (url === '/backtests') {
+      return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 10 } })
+    }
+    if (url === '/custom-blocks') {
+      return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 10 } })
+    }
+    if (url === '/shared-blocks') {
+      return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 10 } })
     }
     return Promise.reject(new Error(`Unhandled GET ${url}`))
   })
@@ -158,6 +188,90 @@ describe('forum view', () => {
       sharedBlockId: null
     })
     expect(wrapper.text()).toContain('帖子已提交审核，可在个人空间-我的论坛查看进度')
+  })
+
+  it('submits a post with a selected strategy relation when logged in', async () => {
+    mockForum()
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        ...forumPost,
+        id: 14,
+        title: '关联策略复盘',
+        reviewStatus: 'pending_review',
+        relatedType: 'strategy',
+        relatedId: 31,
+        relatedTitle: '五分钟突破策略',
+        relatedSummary: '策略 · 000001.SZ · 5分钟'
+      }
+    })
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 2, username: 'bob', email: 'bob@example.com', roles: ['user'] }
+    })
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    await wrapper.find('.forum-post-title-input').setValue('关联策略复盘')
+    await wrapper.find('.forum-post-content-input').setValue('我想分享这个策略的使用经验。')
+    await wrapper.find('.forum-related-type-select').setValue('strategy')
+    await nextTick()
+    await wrapper.find('.forum-related-id-select').setValue('31')
+    await wrapper.find('.forum-post-submit-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/forum/posts', {
+      title: '关联策略复盘',
+      topic: '积木经验',
+      content: '我想分享这个策略的使用经验。',
+      sharedBlockId: null,
+      relatedType: 'strategy',
+      relatedId: 31
+    })
+  })
+
+  it('renders a related content card in a forum detail thread', async () => {
+    const relatedDetail = {
+      ...forumDetail,
+      relatedType: 'strategy',
+      relatedId: 31,
+      relatedTitle: '五分钟突破策略',
+      relatedSummary: '策略 · 000001.SZ · 5分钟'
+    }
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === '/forum/posts') {
+        return Promise.resolve({
+          data: {
+            items: [
+              {
+                ...forumPost,
+                relatedType: 'strategy',
+                relatedId: 31,
+                relatedTitle: '五分钟突破策略',
+                relatedSummary: '策略 · 000001.SZ · 5分钟'
+              }
+            ],
+            total: 1,
+            page: 1,
+            pageSize: 10
+          }
+        })
+      }
+      if (url === '/forum/posts/12') {
+        return Promise.resolve({ data: relatedDetail })
+      }
+      return Promise.reject(new Error(`Unhandled GET ${url}`))
+    })
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    await wrapper.find('.forum-post-detail-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.forum-related-card').exists()).toBe(true)
+    expect(wrapper.text()).toContain('关联内容')
+    expect(wrapper.text()).toContain('五分钟突破策略')
+    expect(wrapper.text()).toContain('策略 · 000001.SZ · 5分钟')
   })
 
   it('asks visitors to log in before posting or commenting', async () => {

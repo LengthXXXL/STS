@@ -4,7 +4,7 @@ from sqlalchemy import select
 
 from app.models.forum import ForumComment, ForumPost
 from app.models.user import Role, User
-from tests.test_strategies import auth_headers, register_and_token
+from tests.test_strategies import auth_headers, register_and_token, strategy_payload
 
 
 def post_payload(title: str = "止盈积木复盘", content: str = "这个帖子记录一次止盈积木的使用经验。") -> dict:
@@ -119,6 +119,77 @@ def test_forum_comments_require_login_and_review_before_public_detail(client, db
     detail = detail_after_review.json()
     assert detail["commentCount"] == 1
     assert detail["comments"][0]["content"] == "这个案例很适合新手复盘。"
+
+
+def test_forum_post_can_attach_owned_strategy_summary(client, db_session):
+    user_token = register_and_token(client, "alice", "alice@example.com")
+    admin_token = register_and_token(client, "admin", "admin@example.com")
+    grant_admin_role(db_session, "admin@example.com")
+
+    strategy_response = client.post(
+        "/api/strategies",
+        json=strategy_payload("论坛关联策略"),
+        headers=auth_headers(user_token),
+    )
+    assert strategy_response.status_code == 201
+    strategy_id = strategy_response.json()["id"]
+
+    post_response = client.post(
+        "/api/forum/posts",
+        json={
+            **post_payload("关联策略复盘", "这条帖子附带一个策略卡片。"),
+            "relatedType": "strategy",
+            "relatedId": strategy_id,
+        },
+        headers=auth_headers(user_token),
+    )
+    assert post_response.status_code == 201
+    created = post_response.json()
+    assert created["relatedType"] == "strategy"
+    assert created["relatedId"] == strategy_id
+    assert created["relatedTitle"] == "论坛关联策略"
+    assert "000001.SZ" in created["relatedSummary"]
+
+    assert (
+        client.post(
+            f"/api/admin/forum-posts/{created['id']}/approve",
+            headers=auth_headers(admin_token),
+        ).status_code
+        == 200
+    )
+
+    detail_response = client.get(f"/api/forum/posts/{created['id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["relatedType"] == "strategy"
+    assert detail["relatedId"] == strategy_id
+    assert detail["relatedTitle"] == "论坛关联策略"
+    assert "000001.SZ" in detail["relatedSummary"]
+
+
+def test_forum_post_cannot_attach_another_users_private_strategy(client):
+    alice_token = register_and_token(client, "alice", "alice@example.com")
+    bob_token = register_and_token(client, "bob", "bob@example.com")
+
+    bob_strategy = client.post(
+        "/api/strategies",
+        json=strategy_payload("Bob 私有策略"),
+        headers=auth_headers(bob_token),
+    )
+    assert bob_strategy.status_code == 201
+
+    post_response = client.post(
+        "/api/forum/posts",
+        json={
+            **post_payload("越权关联策略", "这条帖子不应该能关联别人的策略。"),
+            "relatedType": "strategy",
+            "relatedId": bob_strategy.json()["id"],
+        },
+        headers=auth_headers(alice_token),
+    )
+
+    assert post_response.status_code == 404
+    assert post_response.json()["detail"] == "Related content not found"
 
 
 def test_public_forum_posts_support_reply_publish_and_comment_sorting(client, db_session):

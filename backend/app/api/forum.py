@@ -16,6 +16,7 @@ from app.schemas.forum import (
     ForumPostListResponse,
 )
 from app.services.forum_service import (
+    ForumRelatedContentNotFound,
     create_forum_comment,
     create_forum_post,
     get_forum_post_detail,
@@ -51,7 +52,12 @@ def create_post(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ForumPostItemResponse:
-    return create_forum_post(db, current_user, request)
+    try:
+        return create_forum_post(db, current_user, request)
+    except ForumRelatedContentNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @router.get("/my-posts", response_model=ForumPostListResponse)

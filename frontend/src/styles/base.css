@@ -1330,6 +1330,7 @@ button {
 .forum-search input,
 .forum-composer input,
 .forum-composer textarea,
+.forum-related-picker select,
 .forum-comment-form textarea {
   width: 100%;
   min-width: 0;
@@ -1382,6 +1383,21 @@ button {
   min-height: 72px;
   grid-column: 2 / 4;
   resize: vertical;
+}
+
+.forum-related-picker {
+  display: grid;
+  gap: 8px;
+}
+
+.forum-related-picker select:disabled {
+  color: #7b708d;
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.forum-related-picker small {
+  color: #ffb8c7;
 }
 
 .forum-layout {
@@ -1446,6 +1462,17 @@ button {
   color: #9487ad;
 }
 
+.forum-related-chip {
+  width: fit-content;
+  border: 1px solid rgba(94, 230, 200, 0.28);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: #bbfff2;
+  background: rgba(21, 57, 53, 0.34);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .forum-post-detail-button {
   border-color: rgba(124, 77, 255, 0.48);
   background: rgba(48, 33, 87, 0.82);
@@ -1463,6 +1490,25 @@ button {
 .forum-comment-form {
   display: grid;
   gap: 10px;
+}
+
+.forum-related-card {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(94, 230, 200, 0.3);
+  border-radius: 10px;
+  padding: 11px;
+  background:
+    linear-gradient(135deg, rgba(21, 57, 53, 0.54), rgba(48, 33, 87, 0.38)),
+    rgba(6, 5, 10, 0.54);
+}
+
+.forum-related-card strong {
+  color: #f8f4ff;
+}
+
+.forum-related-card p {
+  margin: 0;
 }
 
 .forum-thread-close-button {
