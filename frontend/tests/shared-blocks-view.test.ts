@@ -176,4 +176,50 @@ describe('shared blocks view', () => {
     expect(authRequired).toHaveBeenCalledTimes(2)
     window.removeEventListener('sts:auth-required', authRequired)
   })
+
+  it('lets admins review pending shared blocks', async () => {
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === '/shared-blocks') {
+        return Promise.resolve({
+          data: { items: [sharedBlock], total: 1, page: 1, pageSize: 10 }
+        })
+      }
+      if (url === '/admin/custom-block-reviews') {
+        return Promise.resolve({
+          data: {
+            items: [{ ...sharedBlock, id: 41, name: '待审核模板', reviewStatus: 'pending_review' }],
+            total: 1,
+            page: 1,
+            pageSize: 10
+          }
+        })
+      }
+      return Promise.reject(new Error(`Unhandled GET ${url}`))
+    })
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { ...sharedBlockDetail, id: 41, name: '待审核模板', reviewStatus: 'approved' }
+    })
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'admin', email: 'admin@example.com', roles: ['admin'] }
+    })
+    const wrapper = mount(SharedBlocksView)
+    await flushPromises()
+
+    expect(wrapper.find('.shared-block-review-tab').exists()).toBe(true)
+    await wrapper.find('.shared-block-review-tab').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenCalledWith('/admin/custom-block-reviews', {
+      params: { keyword: '', page: 1, pageSize: 10 }
+    })
+    expect(wrapper.text()).toContain('待审核模板')
+
+    await wrapper.find('.shared-block-approve-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/admin/custom-block-reviews/41/approve')
+    expect(wrapper.text()).toContain('审核已通过')
+  })
 })

@@ -27,7 +27,7 @@ interface SharedBlockItem {
   description: string | null
   category: string
   tags: string[]
-  reviewStatus: 'approved'
+  reviewStatus: 'approved' | 'pending_review' | 'rejected' | 'private'
   nodeCount: number
   connectionCount: number
   viewCount: number
@@ -60,21 +60,29 @@ interface BlockSummary {
 }
 
 const authStore = useAuthStore()
+const activeMode = ref<'browse' | 'review'>('browse')
 const sharedBlocks = ref<SharedBlockItem[]>([])
+const reviewItems = ref<SharedBlockItem[]>([])
 const selectedBlock = ref<SharedBlockDetail | null>(null)
 const keyword = ref('')
 const category = ref('')
 const tag = ref('')
 const sort = ref('latest')
+const reviewKeyword = ref('')
 const page = ref(1)
+const reviewPage = ref(1)
 const pageSize = 10
 const total = ref(0)
+const reviewTotal = ref(0)
 const loading = ref(false)
+const reviewLoading = ref(false)
 const detailLoading = ref(false)
 const error = ref('')
 const status = ref('')
 
+const isAdmin = computed(() => authStore.user?.roles.includes('admin') ?? false)
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
+const reviewTotalPages = computed(() => Math.max(1, Math.ceil(reviewTotal.value / pageSize)))
 
 function requireLogin() {
   window.dispatchEvent(new CustomEvent('sts:auth-required'))
@@ -112,6 +120,40 @@ async function loadSharedBlocks() {
 async function searchSharedBlocks() {
   page.value = 1
   await loadSharedBlocks()
+}
+
+async function loadReviewItems() {
+  reviewLoading.value = true
+  error.value = ''
+  try {
+    const response = await apiClient.get<SharedBlockListResponse>('/admin/custom-block-reviews', {
+      params: {
+        keyword: reviewKeyword.value.trim(),
+        page: reviewPage.value,
+        pageSize
+      }
+    })
+    reviewItems.value = response.data.items
+    reviewTotal.value = response.data.total
+  } catch {
+    error.value = '审核列表加载失败'
+  } finally {
+    reviewLoading.value = false
+  }
+}
+
+async function openBrowseMode() {
+  activeMode.value = 'browse'
+}
+
+async function openReviewMode() {
+  activeMode.value = 'review'
+  await loadReviewItems()
+}
+
+async function searchReviewItems() {
+  reviewPage.value = 1
+  await loadReviewItems()
 }
 
 async function openDetail(block: SharedBlockItem) {
@@ -163,12 +205,37 @@ async function importBlock(block: SharedBlockItem) {
   status.value = `已导入到我的积木：${response.data.name}`
 }
 
+async function approveReview(block: SharedBlockItem) {
+  await apiClient.post(`/admin/custom-block-reviews/${block.id}/approve`)
+  status.value = '审核已通过'
+  await loadReviewItems()
+  await loadSharedBlocks()
+}
+
+async function rejectReview(block: SharedBlockItem) {
+  await apiClient.post(`/admin/custom-block-reviews/${block.id}/reject`)
+  status.value = '审核已拒绝'
+  await loadReviewItems()
+}
+
 async function changePage(nextPage: number) {
   if (nextPage < 1 || nextPage > totalPages.value || nextPage === page.value) {
     return
   }
   page.value = nextPage
   await loadSharedBlocks()
+}
+
+async function changeReviewPage(nextPage: number) {
+  if (
+    nextPage < 1 ||
+    nextPage > reviewTotalPages.value ||
+    nextPage === reviewPage.value
+  ) {
+    return
+  }
+  reviewPage.value = nextPage
+  await loadReviewItems()
 }
 
 function syncSharedBlock(block: SharedBlockItem) {
@@ -215,7 +282,31 @@ onMounted(() => {
       </div>
     </div>
 
-    <form class="shared-block-toolbar" @submit.prevent="searchSharedBlocks">
+    <div class="shared-block-mode-tabs">
+      <button
+        class="shared-block-browse-tab"
+        type="button"
+        :class="{ 'is-active': activeMode === 'browse' }"
+        @click="openBrowseMode"
+      >
+        公开积木
+      </button>
+      <button
+        v-if="isAdmin"
+        class="shared-block-review-tab"
+        type="button"
+        :class="{ 'is-active': activeMode === 'review' }"
+        @click="openReviewMode"
+      >
+        审核
+      </button>
+    </div>
+
+    <form
+      v-if="activeMode === 'browse'"
+      class="shared-block-toolbar"
+      @submit.prevent="searchSharedBlocks"
+    >
       <input
         v-model="keyword"
         class="shared-block-search-input"
@@ -236,7 +327,7 @@ onMounted(() => {
     <p v-if="error" class="form-error">{{ error }}</p>
     <p v-if="status" class="space-muted">{{ status }}</p>
 
-    <div class="shared-block-layout">
+    <div v-if="activeMode === 'browse'" class="shared-block-layout">
       <div class="shared-block-list">
         <p v-if="loading" class="space-muted">正在加载公开积木</p>
         <p v-else-if="sharedBlocks.length === 0" class="space-muted">暂无公开积木</p>
@@ -323,6 +414,69 @@ onMounted(() => {
         </template>
         <p v-else class="space-muted">选择一个公开积木查看结构。</p>
       </aside>
+    </div>
+
+    <div v-else class="shared-block-review-panel">
+      <form class="shared-block-toolbar" @submit.prevent="searchReviewItems">
+        <input
+          v-model="reviewKeyword"
+          class="shared-block-review-search-input"
+          placeholder="搜索待审核积木"
+        />
+        <button class="shared-block-review-search-button" type="button" @click="searchReviewItems">
+          搜索
+        </button>
+      </form>
+
+      <div class="shared-block-list">
+        <p v-if="reviewLoading" class="space-muted">正在加载待审核积木</p>
+        <p v-else-if="reviewItems.length === 0" class="space-muted">暂无待审核积木</p>
+        <article v-for="block in reviewItems" v-else :key="block.id" class="shared-block-card">
+          <div class="shared-block-card-header">
+            <div>
+              <h2>{{ block.name }}</h2>
+              <p>{{ block.description || '无描述' }}</p>
+            </div>
+            <strong>{{ block.category }}</strong>
+          </div>
+          <small>
+            作者 {{ block.authorName }} · {{ block.nodeCount }} 个积木 ·
+            {{ block.connectionCount }} 条连接 · 提交于 {{ formatDate(block.updatedAt) }}
+          </small>
+          <div class="shared-block-tags">
+            <span v-for="blockTag in block.tags" :key="blockTag">{{ blockTag }}</span>
+          </div>
+          <div class="shared-block-actions">
+            <button class="shared-block-approve-button" type="button" @click="approveReview(block)">
+              通过
+            </button>
+            <button class="shared-block-reject-button" type="button" @click="rejectReview(block)">
+              拒绝
+            </button>
+          </div>
+        </article>
+      </div>
+
+      <footer class="space-footer">
+        <span>共 {{ reviewTotal }} 个待审核积木</span>
+        <div class="space-pagination">
+          <button
+            type="button"
+            :disabled="reviewPage <= 1"
+            @click="changeReviewPage(reviewPage - 1)"
+          >
+            上一页
+          </button>
+          <span>第 {{ reviewPage }} / {{ reviewTotalPages }} 页</span>
+          <button
+            type="button"
+            :disabled="reviewPage >= reviewTotalPages"
+            @click="changeReviewPage(reviewPage + 1)"
+          >
+            下一页
+          </button>
+        </div>
+      </footer>
     </div>
   </section>
 </template>

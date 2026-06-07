@@ -501,6 +501,26 @@ button {
   gap: 14px;
 }
 
+.shared-block-mode-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.shared-block-mode-tabs button {
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: #f7f2ff;
+  background: #191522;
+  cursor: pointer;
+}
+
+.shared-block-mode-tabs button.is-active {
+  border-color: rgba(124, 77, 255, 0.68);
+  background: #302157;
+}
+
 .shared-block-toolbar {
   display: grid;
   grid-template-columns:
@@ -625,6 +645,17 @@ button {
 .shared-block-import-button {
   border-color: rgba(94, 230, 200, 0.44) !important;
   background: rgba(21, 57, 53, 0.76) !important;
+}
+
+.shared-block-approve-button {
+  border-color: rgba(94, 230, 200, 0.44) !important;
+  background: rgba(21, 57, 53, 0.76) !important;
+}
+
+.shared-block-reject-button {
+  color: #ffe4ea !important;
+  border-color: rgba(255, 139, 167, 0.48) !important;
+  background: rgba(64, 25, 40, 0.72) !important;
 }
 
 .shared-block-detail {
