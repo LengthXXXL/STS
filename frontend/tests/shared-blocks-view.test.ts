@@ -146,7 +146,7 @@ describe('shared blocks view', () => {
     expect(wrapper.text()).toContain('公开止盈模板')
   })
 
-  it('opens details and imports a shared block when logged in', async () => {
+  it('toggles an inline canvas preview and imports a shared block when logged in', async () => {
     mockSharedBlocks()
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: { id: 55, name: '公开止盈模板（导入）' }
@@ -162,8 +162,18 @@ describe('shared blocks view', () => {
     await wrapper.find('.shared-block-detail-button').trigger('click')
     await flushPromises()
     expect(apiClient.get).toHaveBeenCalledWith('/shared-blocks/31')
-    expect(wrapper.text()).toContain('买入 x1')
-    expect(wrapper.text()).toContain('止盈 x1')
+    expect(wrapper.find('.shared-block-detail').exists()).toBe(false)
+    expect(wrapper.find('.shared-block-inline-preview').exists()).toBe(true)
+    expect(wrapper.findAll('.shared-block-preview-node')).toHaveLength(2)
+    expect(wrapper.findAll('.shared-block-preview-edge')).toHaveLength(1)
+    expect(wrapper.text()).toContain('买入')
+    expect(wrapper.text()).toContain('止盈')
+    expect(wrapper.find('.shared-block-detail-button').text()).toBe('收起')
+
+    await wrapper.find('.shared-block-detail-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.shared-block-inline-preview').exists()).toBe(false)
+    expect(wrapper.find('.shared-block-detail-button').text()).toBe('查看')
 
     await wrapper.find('.shared-block-import-button').trigger('click')
     await flushPromises()

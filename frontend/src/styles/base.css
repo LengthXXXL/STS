@@ -1006,6 +1006,92 @@ button {
   background: rgba(21, 57, 53, 0.76) !important;
 }
 
+.shared-block-inline-preview {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  border: 1px solid rgba(124, 77, 255, 0.32);
+  border-radius: 10px;
+  padding: 12px;
+  background: rgba(6, 5, 10, 0.72);
+}
+
+.shared-block-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.shared-block-preview-header strong {
+  color: #f8f4ff;
+  font-size: 14px;
+}
+
+.shared-block-preview-header small {
+  color: #9487ad;
+}
+
+.shared-block-preview-canvas {
+  position: relative;
+  min-height: 180px;
+  overflow: hidden;
+  border: 1px solid rgba(58, 49, 80, 0.82);
+  border-radius: 8px;
+  background:
+    radial-gradient(circle, rgba(190, 180, 214, 0.22) 1px, transparent 1px),
+    linear-gradient(145deg, rgba(10, 9, 15, 0.98), rgba(20, 16, 34, 0.92));
+  background-size: 22px 22px, 100% 100%;
+}
+
+.shared-block-preview-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.shared-block-preview-edge {
+  stroke: rgba(94, 230, 200, 0.68);
+  stroke-width: 2;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 5px rgba(94, 230, 200, 0.28));
+}
+
+.shared-block-preview-node {
+  position: absolute;
+  min-width: 76px;
+  max-width: 112px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(124, 77, 255, 0.56);
+  border-radius: 8px;
+  padding: 8px 9px;
+  color: #f8f4ff;
+  background:
+    linear-gradient(180deg, rgba(48, 33, 87, 0.96), rgba(23, 20, 35, 0.96)),
+    #16131f;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.34);
+}
+
+.shared-block-preview-node b,
+.shared-block-preview-node small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-block-preview-node b {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+.shared-block-preview-node small {
+  margin-top: 3px;
+  color: #bdb2d5;
+  font-size: 11px;
+}
+
 .shared-block-approve-button {
   border-color: rgba(94, 230, 200, 0.44) !important;
   background: rgba(21, 57, 53, 0.76) !important;

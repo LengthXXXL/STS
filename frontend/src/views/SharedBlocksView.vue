@@ -54,16 +54,12 @@ interface ImportedBlockResponse {
   name: string
 }
 
-interface BlockSummary {
-  label: string
-  count: number
-}
-
 const authStore = useAuthStore()
 const activeMode = ref<'browse' | 'review'>('browse')
 const sharedBlocks = ref<SharedBlockItem[]>([])
 const reviewItems = ref<SharedBlockItem[]>([])
 const selectedBlock = ref<SharedBlockDetail | null>(null)
+const expandedBlockId = ref<number | null>(null)
 const keyword = ref('')
 const category = ref('')
 const tag = ref('')
@@ -76,7 +72,7 @@ const total = ref(0)
 const reviewTotal = ref(0)
 const loading = ref(false)
 const reviewLoading = ref(false)
-const detailLoading = ref(false)
+const detailLoadingBlockId = ref<number | null>(null)
 const error = ref('')
 const status = ref('')
 
@@ -115,6 +111,8 @@ async function fetchSharedBlockList() {
     !response.data.items.some((block) => block.id === selectedBlock.value?.id)
   ) {
     selectedBlock.value = null
+    expandedBlockId.value = null
+    detailLoadingBlockId.value = null
   }
 }
 
@@ -175,17 +173,28 @@ async function searchReviewItems() {
   await loadReviewItems()
 }
 
-async function openDetail(block: SharedBlockItem) {
-  detailLoading.value = true
+async function toggleDetail(block: SharedBlockItem) {
+  if (expandedBlockId.value === block.id) {
+    expandedBlockId.value = null
+    selectedBlock.value = null
+    detailLoadingBlockId.value = null
+    return
+  }
+
+  expandedBlockId.value = block.id
+  detailLoadingBlockId.value = block.id
   error.value = ''
   try {
     const response = await apiClient.get<SharedBlockDetail>(`/shared-blocks/${block.id}`)
     selectedBlock.value = response.data
     syncSharedBlock(response.data)
   } catch {
+    expandedBlockId.value = null
     error.value = '公开积木详情加载失败'
   } finally {
-    detailLoading.value = false
+    if (detailLoadingBlockId.value === block.id) {
+      detailLoadingBlockId.value = null
+    }
   }
 }
 
@@ -271,20 +280,81 @@ function syncSelectedBlock(block: SharedBlockItem) {
   }
 }
 
-function summarizeNodes(template: SharedBlockTemplate | null | undefined) {
-  const nodes = template?.nodes ?? []
-  const summary = nodes.reduce<Map<string, BlockSummary>>((groups, node) => {
-    const label = node.label || node.type
-    const current = groups.get(label) ?? { label, count: 0 }
-    current.count += 1
-    groups.set(label, current)
-    return groups
-  }, new Map())
-  return Array.from(summary.values()).sort((left, right) => left.label.localeCompare(right.label))
-}
-
 function formatDate(value: string) {
   return value.slice(0, 10)
+}
+
+function isPreviewOpen(block: SharedBlockItem) {
+  return expandedBlockId.value === block.id
+}
+
+function isPreviewLoading(block: SharedBlockItem) {
+  return detailLoadingBlockId.value === block.id
+}
+
+function getPreviewBounds(template: SharedBlockTemplate) {
+  const nodes = template.nodes
+  if (nodes.length === 0) {
+    return { minX: 0, minY: 0, width: 1, height: 1 }
+  }
+
+  const xs = nodes.map((node) => node.x)
+  const ys = nodes.map((node) => node.y)
+  const minX = Math.min(...xs)
+  const minY = Math.min(...ys)
+  const maxX = Math.max(...xs)
+  const maxY = Math.max(...ys)
+  return {
+    minX,
+    minY,
+    width: Math.max(maxX - minX, 1),
+    height: Math.max(maxY - minY, 1)
+  }
+}
+
+function getPreviewPoint(node: SharedBlockTemplateNode, template: SharedBlockTemplate) {
+  const bounds = getPreviewBounds(template)
+  return {
+    x: 12 + ((node.x - bounds.minX) / bounds.width) * 76,
+    y: 18 + ((node.y - bounds.minY) / bounds.height) * 64
+  }
+}
+
+function getPreviewNodes(template: SharedBlockTemplate) {
+  return template.nodes.map((node) => {
+    const point = getPreviewPoint(node, template)
+    return {
+      id: node.id,
+      label: node.label || node.type,
+      type: node.type,
+      style: {
+        left: `${point.x}%`,
+        top: `${point.y}%`
+      }
+    }
+  })
+}
+
+function getPreviewEdges(template: SharedBlockTemplate) {
+  return template.edges.flatMap((edge) => {
+    const fromNode = template.nodes.find((node) => node.id === edge.from)
+    const toNode = template.nodes.find((node) => node.id === edge.to)
+    if (!fromNode || !toNode) {
+      return []
+    }
+
+    const fromPoint = getPreviewPoint(fromNode, template)
+    const toPoint = getPreviewPoint(toNode, template)
+    return [
+      {
+        id: edge.id,
+        x1: `${fromPoint.x}%`,
+        y1: `${fromPoint.y}%`,
+        x2: `${toPoint.x}%`,
+        y2: `${toPoint.y}%`
+      }
+    ]
+  })
 }
 
 function handleSharedBlockSearch(event: Event) {
@@ -394,8 +464,8 @@ onBeforeUnmount(() => {
               <span>{{ block.importCount }} 次导入</span>
             </div>
             <div class="shared-block-actions">
-              <button class="shared-block-detail-button" type="button" @click="openDetail(block)">
-                查看
+              <button class="shared-block-detail-button" type="button" @click="toggleDetail(block)">
+                {{ isPreviewOpen(block) ? '收起' : '查看' }}
               </button>
               <button class="shared-block-favorite-button" type="button" @click="toggleFavorite(block)">
                 {{ block.isFavorited ? '已收藏' : '收藏' }}
@@ -403,6 +473,40 @@ onBeforeUnmount(() => {
               <button class="shared-block-import-button" type="button" @click="importBlock(block)">
                 导入
               </button>
+            </div>
+            <div v-if="isPreviewOpen(block)" class="shared-block-inline-preview">
+              <p v-if="isPreviewLoading(block)" class="space-muted">正在加载概览</p>
+              <template v-else-if="selectedBlock && selectedBlock.id === block.id">
+                <div class="shared-block-preview-header">
+                  <strong>积木画布概览</strong>
+                  <small>
+                    {{ selectedBlock.template.nodes.length }} 个积木 ·
+                    {{ selectedBlock.template.edges.length }} 条连接
+                  </small>
+                </div>
+                <div class="shared-block-preview-canvas" aria-label="积木画布概览">
+                  <svg class="shared-block-preview-lines" aria-hidden="true">
+                    <line
+                      v-for="edge in getPreviewEdges(selectedBlock.template)"
+                      :key="edge.id"
+                      class="shared-block-preview-edge"
+                      :x1="edge.x1"
+                      :y1="edge.y1"
+                      :x2="edge.x2"
+                      :y2="edge.y2"
+                    />
+                  </svg>
+                  <span
+                    v-for="node in getPreviewNodes(selectedBlock.template)"
+                    :key="node.id"
+                    class="shared-block-preview-node"
+                    :style="node.style"
+                  >
+                    <b>{{ node.label }}</b>
+                    <small>{{ node.type }}</small>
+                  </span>
+                </div>
+              </template>
             </div>
           </article>
         </div>
@@ -420,42 +524,6 @@ onBeforeUnmount(() => {
           </div>
         </footer>
       </div>
-
-      <aside v-if="detailLoading || selectedBlock" class="shared-block-detail">
-        <p v-if="detailLoading" class="space-muted">正在加载详情</p>
-        <template v-else-if="selectedBlock">
-          <h2>{{ selectedBlock.name }}</h2>
-          <p>{{ selectedBlock.description || '无描述' }}</p>
-          <small>
-            作者 {{ selectedBlock.authorName }} · 浏览 {{ selectedBlock.viewCount }} · 收藏
-            {{ selectedBlock.favoriteCount }} · 导入 {{ selectedBlock.importCount }}
-          </small>
-          <div class="shared-block-tags">
-            <span v-for="blockTag in selectedBlock.tags" :key="blockTag">{{ blockTag }}</span>
-          </div>
-          <div class="shared-block-node-summary">
-            <span v-for="summary in summarizeNodes(selectedBlock.template)" :key="summary.label">
-              {{ summary.label }} x{{ summary.count }}
-            </span>
-          </div>
-          <div class="shared-block-actions">
-            <button
-              class="shared-block-favorite-button"
-              type="button"
-              @click="toggleFavorite(selectedBlock)"
-            >
-              {{ selectedBlock.isFavorited ? '已收藏' : '收藏' }}
-            </button>
-            <button
-              class="shared-block-import-button"
-              type="button"
-              @click="importBlock(selectedBlock)"
-            >
-              导入
-            </button>
-          </div>
-        </template>
-      </aside>
     </div>
 
     <div v-else class="shared-block-review-panel">
