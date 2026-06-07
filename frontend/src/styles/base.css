@@ -541,13 +541,13 @@ button {
 
 .shared-block-hero {
   position: relative;
-  min-height: 300px;
+  min-height: clamp(340px, 34vw, 430px);
   display: grid;
-  align-items: center;
+  align-items: stretch;
   overflow: hidden;
   border: 1px solid rgba(124, 77, 255, 0.28);
   border-radius: 18px;
-  padding: clamp(28px, 5vw, 62px);
+  padding: clamp(30px, 5vw, 62px);
   background:
     linear-gradient(104deg, rgba(2, 2, 5, 0.98) 0%, rgba(8, 7, 13, 0.96) 44%, rgba(20, 17, 36, 0.86) 100%),
     #08070c;
@@ -582,6 +582,12 @@ button {
   position: relative;
   z-index: 2;
   max-width: 620px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  min-height: 100%;
+  padding-bottom: clamp(28px, 3.5vw, 48px);
 }
 
 .shared-block-hero-copy > span {
@@ -615,7 +621,7 @@ button {
   align-items: center;
   justify-content: center;
   width: fit-content;
-  margin-top: 28px;
+  margin-top: clamp(24px, 3vw, 34px);
   border: 1px solid rgba(94, 230, 200, 0.46);
   border-radius: 8px;
   padding: 11px 16px;
@@ -624,6 +630,7 @@ button {
   box-shadow: 0 12px 30px rgba(21, 57, 53, 0.26);
   text-decoration: none;
   font-weight: 800;
+  flex: 0 0 auto;
 }
 
 .shared-block-hero-art {
@@ -2696,7 +2703,14 @@ button {
   }
 
   .shared-block-hero {
-    min-height: 320px;
+    min-height: 360px;
+    height: auto;
+    padding: 30px;
+  }
+
+  .shared-block-hero-copy {
+    justify-content: flex-start;
+    padding-bottom: 46px;
   }
 
   .shared-block-hero-grid,
