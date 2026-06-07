@@ -99,6 +99,8 @@ describe('shared blocks view', () => {
     expect(wrapper.text()).toContain('创建你的交易策略')
     expect(wrapper.find('.shared-block-start-button').attributes('href')).toBe('/')
     expect(wrapper.find('.shared-block-search-input').exists()).toBe(false)
+    expect(wrapper.findAll('.shared-block-row')).toHaveLength(1)
+    expect(wrapper.find('.shared-block-card').exists()).toBe(false)
   })
 
   it('searches shared blocks from the top navigation event', async () => {
@@ -164,6 +166,9 @@ describe('shared blocks view', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/shared-blocks/31')
     expect(wrapper.find('.shared-block-detail').exists()).toBe(false)
     expect(wrapper.find('.shared-block-inline-preview').exists()).toBe(true)
+    expect(wrapper.find('.shared-block-row-expanded').exists()).toBe(true)
+    expect(wrapper.find('.shared-block-row-copy').text()).toContain('作者文案')
+    expect(wrapper.find('.shared-block-row-copy').text()).toContain('按收益目标退出')
     expect(wrapper.findAll('.shared-block-preview-node')).toHaveLength(2)
     expect(wrapper.findAll('.shared-block-preview-edge')).toHaveLength(1)
     expect(wrapper.text()).toContain('买入')

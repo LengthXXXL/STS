@@ -846,11 +846,12 @@ button {
 
 .shared-block-list {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
 }
 
 .shared-block-card,
+.shared-block-row,
 .shared-block-detail {
   border: 1px solid rgba(58, 49, 80, 0.86);
   border-radius: 12px;
@@ -859,6 +860,89 @@ button {
     linear-gradient(180deg, rgba(23, 20, 32, 0.96), rgba(10, 9, 15, 0.98)),
     #0c0a10;
   box-shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+}
+
+.shared-block-row {
+  display: grid;
+  gap: 16px;
+}
+
+.shared-block-row-summary {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(220px, 0.62fr) minmax(200px, auto);
+  gap: 18px;
+  align-items: center;
+}
+
+.shared-block-row-main {
+  min-width: 0;
+}
+
+.shared-block-row-main h2 {
+  margin: 0 0 8px;
+  color: #f8f4ff;
+  font-size: 22px;
+  line-height: 1.25;
+}
+
+.shared-block-row-main p {
+  margin: 0 0 8px;
+  color: #bcb1d1;
+  line-height: 1.55;
+}
+
+.shared-block-row-main small {
+  color: #9487ad;
+}
+
+.shared-block-row-meta {
+  min-width: 0;
+}
+
+.shared-block-row-action-panel {
+  display: grid;
+  justify-items: end;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.shared-block-row-action-panel strong {
+  color: #f8f4ff;
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.shared-block-row-action-panel > span {
+  color: #9487ad;
+  font-size: 13px;
+}
+
+.shared-block-row-expanded {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.38fr) minmax(360px, 1fr);
+  gap: 14px;
+  border-top: 1px solid rgba(124, 77, 255, 0.22);
+  padding-top: 16px;
+}
+
+.shared-block-row-copy {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  border: 1px solid rgba(58, 49, 80, 0.74);
+  border-radius: 10px;
+  padding: 14px;
+  background: rgba(6, 5, 10, 0.42);
+}
+
+.shared-block-row-copy strong {
+  color: #f8f4ff;
+}
+
+.shared-block-row-copy p {
+  margin: 0;
+  color: #bcb1d1;
+  line-height: 1.65;
 }
 
 .shared-block-card {
@@ -2699,7 +2783,16 @@ button {
   }
 
   .shared-block-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
+  }
+
+  .shared-block-row-summary,
+  .shared-block-row-expanded {
+    grid-template-columns: 1fr;
+  }
+
+  .shared-block-row-action-panel {
+    justify-items: start;
   }
 
   .shared-block-hero {

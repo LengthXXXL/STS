@@ -440,72 +440,91 @@ onBeforeUnmount(() => {
         <p v-if="loading" class="space-muted">正在加载公开积木</p>
         <p v-else-if="sharedBlocks.length === 0" class="space-muted">暂无公开积木</p>
         <div v-else class="shared-block-list">
-          <article v-for="block in sharedBlocks" :key="block.id" class="shared-block-card">
-            <div class="shared-block-card-topline">
-              <span>{{ block.category }}</span>
-              <small>{{ formatDate(block.updatedAt) }}</small>
+          <article v-for="block in sharedBlocks" :key="block.id" class="shared-block-row">
+            <div class="shared-block-row-summary">
+              <div class="shared-block-row-main">
+                <div class="shared-block-card-topline">
+                  <span>{{ block.category }}</span>
+                  <small>{{ formatDate(block.updatedAt) }}</small>
+                </div>
+                <h2>{{ block.name }}</h2>
+                <p>{{ block.description || '作者暂未填写说明' }}</p>
+                <small>
+                  作者 {{ block.authorName }} · {{ block.nodeCount }} 个积木 ·
+                  {{ block.connectionCount }} 条连接
+                </small>
+              </div>
+              <div class="shared-block-row-meta">
+                <div class="shared-block-tags">
+                  <span v-for="blockTag in block.tags" :key="blockTag">{{ blockTag }}</span>
+                </div>
+                <div class="shared-block-metrics">
+                  <span>浏览 {{ block.viewCount }}</span>
+                  <span>收藏 {{ block.favoriteCount }}</span>
+                  <span>导入 {{ block.importCount }}</span>
+                </div>
+              </div>
+              <div class="shared-block-row-action-panel">
+                <strong>免费导入</strong>
+                <span>{{ block.importCount }} 次导入</span>
+                <div class="shared-block-actions">
+                  <button class="shared-block-detail-button" type="button" @click="toggleDetail(block)">
+                    {{ isPreviewOpen(block) ? '收起' : '查看' }}
+                  </button>
+                  <button
+                    class="shared-block-favorite-button"
+                    type="button"
+                    @click="toggleFavorite(block)"
+                  >
+                    {{ block.isFavorited ? '已收藏' : '收藏' }}
+                  </button>
+                  <button class="shared-block-import-button" type="button" @click="importBlock(block)">
+                    导入
+                  </button>
+                </div>
+              </div>
             </div>
-            <h2>{{ block.name }}</h2>
-            <p>{{ block.description || '无描述' }}</p>
-            <small>
-              作者 {{ block.authorName }} · {{ block.nodeCount }} 个积木 ·
-              {{ block.connectionCount }} 条连接
-            </small>
-            <div class="shared-block-tags">
-              <span v-for="blockTag in block.tags" :key="blockTag">{{ blockTag }}</span>
-            </div>
-            <div class="shared-block-metrics">
-              <span>浏览 {{ block.viewCount }}</span>
-              <span>收藏 {{ block.favoriteCount }}</span>
-              <span>导入 {{ block.importCount }}</span>
-            </div>
-            <div class="shared-block-card-footer">
-              <strong>免费导入</strong>
-              <span>{{ block.importCount }} 次导入</span>
-            </div>
-            <div class="shared-block-actions">
-              <button class="shared-block-detail-button" type="button" @click="toggleDetail(block)">
-                {{ isPreviewOpen(block) ? '收起' : '查看' }}
-              </button>
-              <button class="shared-block-favorite-button" type="button" @click="toggleFavorite(block)">
-                {{ block.isFavorited ? '已收藏' : '收藏' }}
-              </button>
-              <button class="shared-block-import-button" type="button" @click="importBlock(block)">
-                导入
-              </button>
-            </div>
-            <div v-if="isPreviewOpen(block)" class="shared-block-inline-preview">
+            <div v-if="isPreviewOpen(block)" class="shared-block-row-expanded">
               <p v-if="isPreviewLoading(block)" class="space-muted">正在加载概览</p>
               <template v-else-if="selectedBlock && selectedBlock.id === block.id">
-                <div class="shared-block-preview-header">
-                  <strong>积木画布概览</strong>
-                  <small>
-                    {{ selectedBlock.template.nodes.length }} 个积木 ·
-                    {{ selectedBlock.template.edges.length }} 条连接
-                  </small>
-                </div>
-                <div class="shared-block-preview-canvas" aria-label="积木画布概览">
-                  <svg class="shared-block-preview-lines" aria-hidden="true">
-                    <line
-                      v-for="edge in getPreviewEdges(selectedBlock.template)"
-                      :key="edge.id"
-                      class="shared-block-preview-edge"
-                      :x1="edge.x1"
-                      :y1="edge.y1"
-                      :x2="edge.x2"
-                      :y2="edge.y2"
-                    />
-                  </svg>
-                  <span
-                    v-for="node in getPreviewNodes(selectedBlock.template)"
-                    :key="node.id"
-                    class="shared-block-preview-node"
-                    :style="node.style"
-                  >
-                    <b>{{ node.label }}</b>
-                    <small>{{ node.type }}</small>
-                  </span>
-                </div>
+                <section class="shared-block-row-copy">
+                  <strong>作者文案</strong>
+                  <p>{{ selectedBlock.description || '作者暂未填写说明' }}</p>
+                  <div class="shared-block-tags">
+                    <span v-for="blockTag in selectedBlock.tags" :key="blockTag">{{ blockTag }}</span>
+                  </div>
+                </section>
+                <section class="shared-block-inline-preview">
+                  <div class="shared-block-preview-header">
+                    <strong>积木画布概览</strong>
+                    <small>
+                      {{ selectedBlock.template.nodes.length }} 个积木 ·
+                      {{ selectedBlock.template.edges.length }} 条连接
+                    </small>
+                  </div>
+                  <div class="shared-block-preview-canvas" aria-label="积木画布概览">
+                    <svg class="shared-block-preview-lines" aria-hidden="true">
+                      <line
+                        v-for="edge in getPreviewEdges(selectedBlock.template)"
+                        :key="edge.id"
+                        class="shared-block-preview-edge"
+                        :x1="edge.x1"
+                        :y1="edge.y1"
+                        :x2="edge.x2"
+                        :y2="edge.y2"
+                      />
+                    </svg>
+                    <span
+                      v-for="node in getPreviewNodes(selectedBlock.template)"
+                      :key="node.id"
+                      class="shared-block-preview-node"
+                      :style="node.style"
+                    >
+                      <b>{{ node.label }}</b>
+                      <small>{{ node.type }}</small>
+                    </span>
+                  </div>
+                </section>
               </template>
             </div>
           </article>
