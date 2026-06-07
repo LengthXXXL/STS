@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { apiClient } from '../api/http'
 import { useAuthStore } from '../stores/auth'
 
@@ -42,6 +42,7 @@ interface ForumPostListResponse {
 
 const authStore = useAuthStore()
 const route = useRoute()
+const router = useRouter()
 const posts = ref<ForumPostItem[]>([])
 const selectedPost = ref<ForumPostDetail | null>(null)
 const keyword = ref('')
@@ -88,17 +89,29 @@ async function searchPosts() {
   await loadPosts()
 }
 
-async function openPost(post: ForumPostItem) {
+async function openPost(post: ForumPostItem, options: { syncUrl?: boolean } = {}) {
   detailLoading.value = true
   error.value = ''
   try {
     const response = await apiClient.get<ForumPostDetail>(`/forum/posts/${post.id}`)
     selectedPost.value = response.data
+    commentContent.value = ''
+    if (options.syncUrl ?? true) {
+      void router.replace({ name: 'forum', query: { ...route.query, postId: String(post.id) } })
+    }
   } catch {
     error.value = '帖子详情加载失败'
   } finally {
     detailLoading.value = false
   }
+}
+
+function closePost() {
+  selectedPost.value = null
+  commentContent.value = ''
+  const { postId, ...query } = route.query
+  void postId
+  void router.replace({ name: 'forum', query })
 }
 
 async function openPostFromRouteQuery() {
@@ -108,7 +121,7 @@ async function openPostFromRouteQuery() {
     return
   }
 
-  await openPost({ id: postId } as ForumPostItem)
+  await openPost({ id: postId } as ForumPostItem, { syncUrl: false })
 }
 
 async function submitPost() {
@@ -245,6 +258,9 @@ onMounted(() => {
         <p v-if="detailLoading" class="space-muted">正在加载帖子详情</p>
         <template v-else-if="selectedPost">
           <div class="forum-thread-main">
+            <button class="forum-thread-close-button" type="button" @click="closePost">
+              收起
+            </button>
             <span>{{ selectedPost.topic }}</span>
             <h2>{{ selectedPost.title }}</h2>
             <p>{{ selectedPost.content }}</p>

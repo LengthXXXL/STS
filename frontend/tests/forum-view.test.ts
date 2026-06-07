@@ -9,9 +9,13 @@ import ForumView from '../src/views/ForumView.vue'
 const routeMock = vi.hoisted(() => ({
   query: {} as Record<string, string>
 }))
+const routerReplaceMock = vi.hoisted(() => vi.fn())
 
 vi.mock('vue-router', () => ({
-  useRoute: () => routeMock
+  useRoute: () => routeMock,
+  useRouter: () => ({
+    replace: routerReplaceMock
+  })
 }))
 
 vi.mock('../src/api/http', () => ({
@@ -72,6 +76,7 @@ describe('forum view', () => {
     setActivePinia(createPinia())
     localStorage.clear()
     routeMock.query = {}
+    routerReplaceMock.mockReset()
     vi.clearAllMocks()
   })
 
@@ -91,8 +96,14 @@ describe('forum view', () => {
     await flushPromises()
 
     expect(apiClient.get).toHaveBeenCalledWith('/forum/posts/12')
+    expect(routerReplaceMock).toHaveBeenCalledWith({ name: 'forum', query: { postId: '12' } })
     expect(wrapper.find('.forum-thread-panel').exists()).toBe(true)
     expect(wrapper.text()).toContain('这个案例很适合新手复盘。')
+
+    await wrapper.find('.forum-thread-close-button').trigger('click')
+
+    expect(wrapper.text()).toContain('选择一个帖子查看详情和评论。')
+    expect(routerReplaceMock).toHaveBeenCalledWith({ name: 'forum', query: {} })
   })
 
   it('opens a forum detail from the postId route query', async () => {
