@@ -136,6 +136,7 @@ const pageSize = 10
 const total = ref(0)
 const loading = ref(false)
 const detailLoading = ref(false)
+const detailLoadingPostId = ref<number | null>(null)
 const error = ref('')
 const status = ref('')
 const postTitle = ref('')
@@ -251,10 +252,14 @@ async function changeSort() {
 
 async function openPost(post: ForumPostItem, options: { syncUrl?: boolean } = {}) {
   detailLoading.value = true
+  detailLoadingPostId.value = post.id
   error.value = ''
   try {
     const response = await apiClient.get<ForumPostDetail>(`/forum/posts/${post.id}`)
     selectedPost.value = response.data
+    if (!posts.value.some((item) => item.id === response.data.id)) {
+      posts.value = [response.data, ...posts.value]
+    }
     commentContent.value = ''
     if (options.syncUrl ?? true) {
       void router.replace({ name: 'forum', query: { ...route.query, postId: String(post.id) } })
@@ -263,12 +268,22 @@ async function openPost(post: ForumPostItem, options: { syncUrl?: boolean } = {}
     error.value = '帖子详情加载失败'
   } finally {
     detailLoading.value = false
+    detailLoadingPostId.value = null
   }
+}
+
+async function togglePost(post: ForumPostItem) {
+  if (selectedPost.value?.id === post.id && !detailLoading.value) {
+    closePost()
+    return
+  }
+  await openPost(post)
 }
 
 function closePost() {
   selectedPost.value = null
   commentContent.value = ''
+  detailLoadingPostId.value = null
   const { postId, ...query } = route.query
   void postId
   void router.replace({ name: 'forum', query })
@@ -499,55 +514,39 @@ onMounted(() => {
     <p v-if="error" class="form-error">{{ error }}</p>
     <p v-if="status" class="space-muted">{{ status }}</p>
 
-    <div class="forum-layout">
-      <section class="forum-post-list">
-        <p v-if="loading" class="space-muted">正在加载帖子</p>
-        <p v-else-if="posts.length === 0" class="space-muted">暂无公开帖子</p>
-        <article v-for="post in posts" v-else :key="post.id" class="forum-post-item">
-          <div class="forum-post-topic">{{ post.topic }}</div>
-          <div>
-            <h2>{{ post.title }}</h2>
-            <p>{{ post.content }}</p>
-            <div v-if="post.relatedTitle" class="forum-related-chip">
-              {{ formatRelatedType(post.relatedType) }} · {{ post.relatedTitle }}
-            </div>
-            <small>
-              作者 {{ post.authorName }} · 评论 {{ post.commentCount }} ·
-              {{ formatDate(post.updatedAt) }}
-            </small>
+    <section class="forum-post-list">
+      <p v-if="loading" class="space-muted">正在加载帖子</p>
+      <p v-else-if="posts.length === 0" class="space-muted">暂无公开帖子</p>
+      <article
+        v-for="post in posts"
+        v-else
+        :key="post.id"
+        class="forum-post-item"
+        :class="{ 'is-expanded': selectedPost?.id === post.id }"
+      >
+        <div class="forum-post-topic">{{ post.topic }}</div>
+        <div>
+          <h2>{{ post.title }}</h2>
+          <p>{{ post.content }}</p>
+          <div v-if="post.relatedTitle" class="forum-related-chip">
+            {{ formatRelatedType(post.relatedType) }} · {{ post.relatedTitle }}
           </div>
-          <button class="forum-post-detail-button" type="button" @click="openPost(post)">
-            查看
-          </button>
-        </article>
+          <small>
+            作者 {{ post.authorName }} · 评论 {{ post.commentCount }} ·
+            {{ formatDate(post.updatedAt) }}
+          </small>
+        </div>
+        <button class="forum-post-detail-button" type="button" @click="togglePost(post)">
+          {{ selectedPost?.id === post.id ? '收起' : '查看' }}
+        </button>
 
-        <footer class="space-footer">
-          <span>共 {{ total }} 个公开帖子</span>
-          <div class="space-pagination">
-            <button
-              type="button"
-              data-pagination="forum-prev"
-              :disabled="page <= 1"
-              @click="changePage(page - 1)"
-            >
-              上一页
-            </button>
-            <span>第 {{ page }} / {{ totalPages }} 页 · 每页 {{ pageSize }} 条</span>
-            <button
-              type="button"
-              data-pagination="forum-next"
-              :disabled="page >= totalPages"
-              @click="changePage(page + 1)"
-            >
-              下一页
-            </button>
-          </div>
-        </footer>
-      </section>
-
-      <aside class="forum-thread-panel">
-        <p v-if="detailLoading" class="space-muted">正在加载帖子详情</p>
-        <template v-else-if="selectedPost">
+        <div v-if="detailLoading && detailLoadingPostId === post.id" class="forum-inline-thread-panel">
+          <p class="space-muted">正在加载帖子详情</p>
+        </div>
+        <div
+          v-else-if="selectedPost?.id === post.id"
+          class="forum-inline-thread-panel"
+        >
           <div class="forum-thread-main">
             <button class="forum-thread-close-button" type="button" @click="closePost">
               收起
@@ -590,9 +589,31 @@ onMounted(() => {
               提交评论审核
             </button>
           </div>
-        </template>
-        <p v-else class="space-muted">选择一个帖子查看详情和评论。</p>
-      </aside>
-    </div>
+        </div>
+      </article>
+
+      <footer class="space-footer">
+        <span>共 {{ total }} 个公开帖子</span>
+        <div class="space-pagination">
+          <button
+            type="button"
+            data-pagination="forum-prev"
+            :disabled="page <= 1"
+            @click="changePage(page - 1)"
+          >
+            上一页
+          </button>
+          <span>第 {{ page }} / {{ totalPages }} 页 · 每页 {{ pageSize }} 条</span>
+          <button
+            type="button"
+            data-pagination="forum-next"
+            :disabled="page >= totalPages"
+            @click="changePage(page + 1)"
+          >
+            下一页
+          </button>
+        </div>
+      </footer>
+    </section>
   </section>
 </template>

@@ -168,12 +168,13 @@ describe('forum view', () => {
 
     expect(apiClient.get).toHaveBeenCalledWith('/forum/posts/12')
     expect(routerReplaceMock).toHaveBeenCalledWith({ name: 'forum', query: { postId: '12' } })
-    expect(wrapper.find('.forum-thread-panel').exists()).toBe(true)
+    expect(wrapper.find('.forum-thread-panel').exists()).toBe(false)
+    expect(wrapper.find('.forum-post-item.is-expanded .forum-inline-thread-panel').exists()).toBe(true)
     expect(wrapper.text()).toContain('这个案例很适合新手复盘。')
 
     await wrapper.find('.forum-thread-close-button').trigger('click')
 
-    expect(wrapper.text()).toContain('选择一个帖子查看详情和评论。')
+    expect(wrapper.find('.forum-inline-thread-panel').exists()).toBe(false)
     expect(routerReplaceMock).toHaveBeenCalledWith({ name: 'forum', query: {} })
   })
 
@@ -199,6 +200,7 @@ describe('forum view', () => {
     await flushPromises()
 
     expect(apiClient.get).toHaveBeenCalledWith('/forum/posts/12')
+    expect(wrapper.find('.forum-post-item.is-expanded .forum-inline-thread-panel').exists()).toBe(true)
     expect(wrapper.text()).toContain('这个案例很适合新手复盘。')
   })
 
