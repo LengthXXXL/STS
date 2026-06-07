@@ -86,11 +86,12 @@ describe('forum view', () => {
     await flushPromises()
 
     expect(apiClient.get).toHaveBeenCalledWith('/forum/posts', {
-      params: { keyword: '', page: 1, pageSize: 10 }
+      params: { keyword: '', sort: 'latest_reply', page: 1, pageSize: 10 }
     })
     expect(wrapper.text()).toContain('止盈积木复盘')
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('评论 1')
+    expect(wrapper.text()).toContain('第 1 / 1 页 · 每页 10 条')
 
     await wrapper.find('.forum-post-detail-button').trigger('click')
     await flushPromises()
@@ -104,6 +105,21 @@ describe('forum view', () => {
 
     expect(wrapper.text()).toContain('选择一个帖子查看详情和评论。')
     expect(routerReplaceMock).toHaveBeenCalledWith({ name: 'forum', query: {} })
+  })
+
+  it('changes public forum sorting without losing pagination state clarity', async () => {
+    mockForum()
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    await wrapper.find('.forum-sort-select').setValue('most_commented')
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenLastCalledWith('/forum/posts', {
+      params: { keyword: '', sort: 'most_commented', page: 1, pageSize: 10 }
+    })
+    expect(wrapper.text()).toContain('最多评论')
+    expect(wrapper.text()).toContain('第 1 / 1 页 · 每页 10 条')
   })
 
   it('opens a forum detail from the postId route query', async () => {

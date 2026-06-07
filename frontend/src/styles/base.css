@@ -1299,6 +1299,34 @@ button {
   min-width: min(420px, 100%);
 }
 
+.forum-sort-control {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(58, 49, 80, 0.92);
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #bcb1d1;
+  background: rgba(6, 5, 10, 0.74);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.forum-sort-select {
+  border: 0;
+  color: #f7f2ff;
+  background: transparent;
+  outline: none;
+  font: inherit;
+  cursor: pointer;
+}
+
+.forum-sort-select option {
+  color: #f7f2ff;
+  background: #111019;
+}
+
 .forum-search input,
 .forum-composer input,
 .forum-composer textarea,

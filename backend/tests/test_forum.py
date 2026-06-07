@@ -1,5 +1,8 @@
+from datetime import datetime, timedelta
+
 from sqlalchemy import select
 
+from app.models.forum import ForumComment, ForumPost
 from app.models.user import Role, User
 from tests.test_strategies import auth_headers, register_and_token
 
@@ -116,6 +119,85 @@ def test_forum_comments_require_login_and_review_before_public_detail(client, db
     detail = detail_after_review.json()
     assert detail["commentCount"] == 1
     assert detail["comments"][0]["content"] == "这个案例很适合新手复盘。"
+
+
+def test_public_forum_posts_support_reply_publish_and_comment_sorting(client, db_session):
+    author_token = register_and_token(client, "alice", "alice@example.com")
+    commenter_token = register_and_token(client, "bob", "bob@example.com")
+    admin_token = register_and_token(client, "admin", "admin@example.com")
+    grant_admin_role(db_session, "admin@example.com")
+
+    older_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("早发布但有新回复", "这条帖子发布时间较早，但后续讨论更多。"),
+        headers=auth_headers(author_token),
+    )
+    newer_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("最新发布帖子", "这条帖子创建时间更新，但还没有足够讨论。"),
+        headers=auth_headers(author_token),
+    )
+    assert older_post.status_code == 201
+    assert newer_post.status_code == 201
+    older_post_id = older_post.json()["id"]
+    newer_post_id = newer_post.json()["id"]
+    assert (
+        client.post(
+            f"/api/admin/forum-posts/{older_post_id}/approve",
+            headers=auth_headers(admin_token),
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/admin/forum-posts/{newer_post_id}/approve",
+            headers=auth_headers(admin_token),
+        ).status_code
+        == 200
+    )
+
+    first_comment = client.post(
+        f"/api/forum/posts/{older_post_id}/comments",
+        json=comment_payload("第一条公开回复"),
+        headers=auth_headers(commenter_token),
+    )
+    second_comment = client.post(
+        f"/api/forum/posts/{older_post_id}/comments",
+        json=comment_payload("第二条公开回复"),
+        headers=auth_headers(commenter_token),
+    )
+    assert first_comment.status_code == 201
+    assert second_comment.status_code == 201
+    for comment_id in (first_comment.json()["id"], second_comment.json()["id"]):
+        assert (
+            client.post(
+                f"/api/admin/forum-comments/{comment_id}/approve",
+                headers=auth_headers(admin_token),
+            ).status_code
+            == 200
+        )
+
+    base_time = datetime(2026, 6, 7, 9, 0, 0)
+    db_session.get(ForumPost, older_post_id).created_at = base_time
+    db_session.get(ForumPost, older_post_id).updated_at = base_time
+    db_session.get(ForumPost, newer_post_id).created_at = base_time + timedelta(hours=1)
+    db_session.get(ForumPost, newer_post_id).updated_at = base_time + timedelta(hours=1)
+    db_session.get(ForumComment, first_comment.json()["id"]).updated_at = base_time + timedelta(hours=2)
+    db_session.get(ForumComment, second_comment.json()["id"]).updated_at = base_time + timedelta(hours=3)
+    db_session.commit()
+
+    latest_reply = client.get("/api/forum/posts?sort=latest_reply&page=1&pageSize=10")
+    assert latest_reply.status_code == 200
+    assert latest_reply.json()["items"][0]["title"] == "早发布但有新回复"
+
+    newest = client.get("/api/forum/posts?sort=newest&page=1&pageSize=10")
+    assert newest.status_code == 200
+    assert newest.json()["items"][0]["title"] == "最新发布帖子"
+
+    most_commented = client.get("/api/forum/posts?sort=most_commented&page=1&pageSize=10")
+    assert most_commented.status_code == 200
+    assert most_commented.json()["items"][0]["title"] == "早发布但有新回复"
+    assert most_commented.json()["items"][0]["commentCount"] == 2
 
 
 def test_admin_can_reject_forum_posts_and_comments(client, db_session):

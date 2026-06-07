@@ -1,3 +1,5 @@
+from typing import Literal
+
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
@@ -15,6 +17,7 @@ from app.schemas.forum import (
 APPROVED = "approved"
 PENDING_REVIEW = "pending_review"
 REJECTED = "rejected"
+ForumPostSort = Literal["latest_reply", "newest", "most_commented"]
 
 
 def forum_post_to_response(db: Session, post: ForumPost) -> ForumPostItemResponse:
@@ -79,10 +82,12 @@ def list_forum_posts(
     db: Session,
     *,
     keyword: str = "",
+    sort: ForumPostSort = "latest_reply",
     page: int = 1,
     page_size: int = 10,
 ) -> tuple[list[ForumPostItemResponse], int]:
-    statement = _approved_post_statement()
+    activity = _approved_comment_activity_subquery()
+    statement = _approved_post_statement().outerjoin(activity, ForumPost.id == activity.c.post_id)
     keyword = keyword.strip()
     if keyword:
         statement = statement.where(
@@ -95,7 +100,7 @@ def list_forum_posts(
 
     total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
     posts = db.scalars(
-        statement.order_by(ForumPost.updated_at.desc(), ForumPost.id.desc())
+        statement.order_by(*_public_post_order_by(sort, activity))
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
@@ -269,6 +274,29 @@ def review_forum_comment(
 
 def _approved_post_statement() -> Select[tuple[ForumPost]]:
     return select(ForumPost).where(ForumPost.review_status == APPROVED)
+
+
+def _approved_comment_activity_subquery():
+    return (
+        select(
+            ForumComment.post_id.label("post_id"),
+            func.max(ForumComment.updated_at).label("latest_comment_at"),
+            func.count(ForumComment.id).label("approved_comment_count"),
+        )
+        .where(ForumComment.review_status == APPROVED)
+        .group_by(ForumComment.post_id)
+        .subquery()
+    )
+
+
+def _public_post_order_by(sort: ForumPostSort, activity):
+    latest_reply_at = func.coalesce(activity.c.latest_comment_at, ForumPost.updated_at)
+    approved_comment_count = func.coalesce(activity.c.approved_comment_count, 0)
+    if sort == "newest":
+        return (ForumPost.created_at.desc(), ForumPost.id.desc())
+    if sort == "most_commented":
+        return (approved_comment_count.desc(), latest_reply_at.desc(), ForumPost.id.desc())
+    return (latest_reply_at.desc(), ForumPost.id.desc())
 
 
 def _approved_comment_count(db: Session, post_id: int) -> int:

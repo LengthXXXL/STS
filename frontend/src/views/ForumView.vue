@@ -46,6 +46,7 @@ const router = useRouter()
 const posts = ref<ForumPostItem[]>([])
 const selectedPost = ref<ForumPostDetail | null>(null)
 const keyword = ref('')
+const sort = ref<'latest_reply' | 'newest' | 'most_commented'>('latest_reply')
 const page = ref(1)
 const pageSize = 10
 const total = ref(0)
@@ -71,6 +72,7 @@ async function loadPosts() {
     const response = await apiClient.get<ForumPostListResponse>('/forum/posts', {
       params: {
         keyword: keyword.value.trim(),
+        sort: sort.value,
         page: page.value,
         pageSize
       }
@@ -85,6 +87,11 @@ async function loadPosts() {
 }
 
 async function searchPosts() {
+  page.value = 1
+  await loadPosts()
+}
+
+async function changeSort() {
   page.value = 1
   await loadPosts()
 }
@@ -198,6 +205,14 @@ onMounted(() => {
         <p>分享交易策略、回测结果和积木使用经验。帖子与评论提交后会进入审核。</p>
       </div>
       <form class="forum-search" @submit.prevent="searchPosts">
+        <label class="forum-sort-control">
+          <span>排序</span>
+          <select v-model="sort" class="forum-sort-select" @change="changeSort">
+            <option value="latest_reply">最新回复</option>
+            <option value="newest">最新发布</option>
+            <option value="most_commented">最多评论</option>
+          </select>
+        </label>
         <input v-model="keyword" class="forum-search-input" placeholder="搜索帖子" />
         <button class="forum-search-button" type="button" @click="searchPosts">搜索</button>
       </form>
@@ -243,11 +258,21 @@ onMounted(() => {
         <footer class="space-footer">
           <span>共 {{ total }} 个公开帖子</span>
           <div class="space-pagination">
-            <button type="button" :disabled="page <= 1" @click="changePage(page - 1)">
+            <button
+              type="button"
+              data-pagination="forum-prev"
+              :disabled="page <= 1"
+              @click="changePage(page - 1)"
+            >
               上一页
             </button>
-            <span>第 {{ page }} / {{ totalPages }} 页</span>
-            <button type="button" :disabled="page >= totalPages" @click="changePage(page + 1)">
+            <span>第 {{ page }} / {{ totalPages }} 页 · 每页 {{ pageSize }} 条</span>
+            <button
+              type="button"
+              data-pagination="forum-next"
+              :disabled="page >= totalPages"
+              @click="changePage(page + 1)"
+            >
               下一页
             </button>
           </div>

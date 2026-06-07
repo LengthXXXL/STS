@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -28,11 +30,18 @@ router = APIRouter(prefix="/forum", tags=["forum"])
 @router.get("/posts", response_model=ForumPostListResponse)
 def list_posts(
     keyword: str = "",
+    sort: Literal["latest_reply", "newest", "most_commented"] = Query(default="latest_reply"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, alias="pageSize", ge=1, le=50),
     db: Session = Depends(get_db),
 ) -> ForumPostListResponse:
-    items, total = list_forum_posts(db, keyword=keyword, page=page, page_size=page_size)
+    items, total = list_forum_posts(
+        db,
+        keyword=keyword,
+        sort=sort,
+        page=page,
+        page_size=page_size,
+    )
     return ForumPostListResponse(items=items, total=total, page=page, pageSize=page_size)
 
 
