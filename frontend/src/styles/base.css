@@ -1344,8 +1344,8 @@ button {
 
 .forum-composer .forum-post-title-input,
 .forum-composer .forum-post-topic-input {
-  min-height: 64px;
-  padding-block: 18px;
+  min-height: 86px;
+  padding-block: 28px;
   font-size: 15px;
   line-height: 1.35;
 }
