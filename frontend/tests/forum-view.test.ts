@@ -217,6 +217,11 @@ describe('forum view', () => {
     const wrapper = mount(ForumView)
     await flushPromises()
 
+    expect(wrapper.find('.forum-post-topic-input').attributes('placeholder')).toBe(
+      '帖子分类，例如：策略复盘、回测问题、积木组合'
+    )
+    expect((wrapper.find('.forum-post-topic-input').element as HTMLInputElement).value).toBe('')
+
     await wrapper.find('.forum-post-title-input').setValue('移动止损经验')
     await wrapper.find('.forum-post-topic-input').setValue('策略复盘')
     await wrapper.find('.forum-post-content-input').setValue('移动止损适合高波动盘中策略。')
@@ -264,7 +269,7 @@ describe('forum view', () => {
 
     expect(apiClient.post).toHaveBeenCalledWith('/forum/posts', {
       title: '关联策略复盘',
-      topic: '积木经验',
+      topic: '交流',
       content: '我想分享这个策略的使用经验。',
       sharedBlockId: null,
       relatedType: 'strategy',

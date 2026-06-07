@@ -140,7 +140,7 @@ const detailLoadingPostId = ref<number | null>(null)
 const error = ref('')
 const status = ref('')
 const postTitle = ref('')
-const postTopic = ref('积木经验')
+const postTopic = ref('')
 const postContent = ref('')
 const commentContent = ref('')
 const relatedType = ref<ForumRelatedTypeSelection>('')
@@ -322,7 +322,7 @@ async function submitPost() {
   })
   postTitle.value = ''
   postContent.value = ''
-  postTopic.value = '积木经验'
+  postTopic.value = ''
   relatedType.value = ''
   relatedId.value = ''
   status.value = '帖子已提交审核，可在个人空间-我的论坛查看进度'
@@ -472,10 +472,14 @@ onMounted(() => {
     <section class="forum-composer">
       <div>
         <strong>发布新帖</strong>
-        <p>写下策略思路、回测结论或积木组合经验。</p>
+        <p>写下策略思路、回测结论或积木组合方法。</p>
       </div>
       <input v-model="postTitle" class="forum-post-title-input" placeholder="帖子标题" />
-      <input v-model="postTopic" class="forum-post-topic-input" placeholder="主题，例如：积木经验" />
+      <input
+        v-model="postTopic"
+        class="forum-post-topic-input"
+        placeholder="帖子分类，例如：策略复盘、回测问题、积木组合"
+      />
       <div class="forum-related-picker">
         <select
           v-model="relatedType"
