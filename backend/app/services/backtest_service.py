@@ -30,6 +30,9 @@ class Position:
 
 CONDITION_NODE_TYPES = {
     "if",
+    "and",
+    "or",
+    "not",
     "current-price",
     "price-change",
     "moving-average",
@@ -439,10 +442,10 @@ def _condition_node_passes(
 ) -> bool:
     candle = candles[candle_index]
 
-    if node.type == "if":
+    if node.type in {"if", "and", "or", "not"}:
         incoming_nodes = _incoming_condition_nodes(request, node)
         if not incoming_nodes:
-            return True
+            return node.type == "if"
 
         results = [
             _condition_node_passes(
@@ -454,7 +457,11 @@ def _condition_node_passes(
             )
             for incoming_node in incoming_nodes
         ]
-        return any(results) if node.params.get("mode") == "any" else all(results)
+        if node.type == "or":
+            return any(results)
+        if node.type == "not":
+            return not results[0]
+        return all(results)
 
     if node.type == "current-price":
         return _compare(

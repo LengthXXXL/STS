@@ -243,7 +243,7 @@ type LibraryDragSource =
 const BLOCK_WIDTH = 132
 const BLOCK_HEIGHT = 44
 const STRATEGY_DRAFT_STORAGE_KEY = 'sts.builder.strategyDraft.v1'
-const blockCategoryOrder = ['动作', '条件', '行情指标', '持仓', '时间', '风控']
+const blockCategoryOrder = ['动作', '条件', '逻辑', '行情指标', '持仓', '时间', '风控']
 const DEFAULT_STRATEGY_NAME = '未命名策略'
 
 const blockDefinitions: BlockDefinition[] = [
@@ -327,18 +327,28 @@ const blockDefinitions: BlockDefinition[] = [
     label: '如果',
     category: '条件',
     tone: 'condition',
-    fields: [
-      {
-        key: 'mode',
-        label: '条件组合',
-        type: 'select',
-        defaultValue: 'all',
-        options: [
-          { label: '全部满足', value: 'all' },
-          { label: '任一满足', value: 'any' }
-        ]
-      }
-    ]
+    fields: []
+  },
+  {
+    id: 'and',
+    label: '与',
+    category: '逻辑',
+    tone: 'condition',
+    fields: []
+  },
+  {
+    id: 'or',
+    label: '或',
+    category: '逻辑',
+    tone: 'condition',
+    fields: []
+  },
+  {
+    id: 'not',
+    label: '非',
+    category: '逻辑',
+    tone: 'condition',
+    fields: []
   },
   {
     id: 'current-price',

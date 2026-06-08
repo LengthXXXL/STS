@@ -217,7 +217,7 @@ def test_engine_applies_stop_loss_and_cooldown_before_reentering():
     assert cooldown_items[0].details == {"durationBars": 2, "reason": "止损后冷却"}
 
 
-def test_engine_uses_connected_conditions_before_buying():
+def test_engine_uses_and_logic_before_buying():
     request = _request(
         [
             {
@@ -229,25 +229,34 @@ def test_engine_uses_connected_conditions_before_buying():
                 "params": {"lookbackBars": "1", "comparator": ">=", "changePercent": "5"},
             },
             {
-                "id": "if-1",
-                "type": "if",
-                "label": "如果",
+                "id": "time-window-1",
+                "type": "time-window",
+                "label": "交易时段",
                 "x": 160,
                 "y": 0,
-                "params": {"mode": "all"},
+                "params": {"startTime": "09:45", "endTime": "09:45"},
+            },
+            {
+                "id": "and-1",
+                "type": "and",
+                "label": "与",
+                "x": 320,
+                "y": 0,
+                "params": {},
             },
             {
                 "id": "buy-1",
                 "type": "buy",
                 "label": "买入",
-                "x": 320,
+                "x": 480,
                 "y": 0,
                 "params": {"sizePercent": "100", "orderType": "market"},
             },
         ],
         edges=[
-            {"id": "signal-if", "from": "price-change-1", "to": "if-1"},
-            {"id": "if-buy", "from": "if-1", "to": "buy-1"},
+            {"id": "signal-and", "from": "price-change-1", "to": "and-1"},
+            {"id": "time-and", "from": "time-window-1", "to": "and-1"},
+            {"id": "and-buy", "from": "and-1", "to": "buy-1"},
         ],
     )
     candles = [
@@ -261,6 +270,106 @@ def test_engine_uses_connected_conditions_before_buying():
     assert result.trades[0].side == "BUY"
     assert result.trades[0].time == "2026-01-01 09:45"
     assert result.trades[0].price == 10.8
+
+
+def test_engine_uses_or_logic_before_buying():
+    request = _request(
+        [
+            {
+                "id": "current-price-1",
+                "type": "current-price",
+                "label": "当前价",
+                "x": 0,
+                "y": 0,
+                "params": {"comparator": "<=", "price": "9"},
+            },
+            {
+                "id": "price-change-1",
+                "type": "price-change",
+                "label": "N根收益率",
+                "x": 0,
+                "y": 72,
+                "params": {"lookbackBars": "1", "comparator": ">=", "changePercent": "5"},
+            },
+            {
+                "id": "or-1",
+                "type": "or",
+                "label": "或",
+                "x": 180,
+                "y": 36,
+                "params": {},
+            },
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 340,
+                "y": 36,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+        ],
+        edges=[
+            {"id": "current-or", "from": "current-price-1", "to": "or-1"},
+            {"id": "change-or", "from": "price-change-1", "to": "or-1"},
+            {"id": "or-buy", "from": "or-1", "to": "buy-1"},
+        ],
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", close=10.2),
+        MarketCandle(time="2026-01-01 09:45", close=10.8),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades[0].side == "BUY"
+    assert result.trades[0].time == "2026-01-01 09:45"
+    assert result.trades[0].price == 10.8
+
+
+def test_engine_uses_not_logic_before_buying():
+    request = _request(
+        [
+            {
+                "id": "current-price-1",
+                "type": "current-price",
+                "label": "当前价",
+                "x": 0,
+                "y": 0,
+                "params": {"comparator": "<=", "price": "10.1"},
+            },
+            {
+                "id": "not-1",
+                "type": "not",
+                "label": "非",
+                "x": 160,
+                "y": 0,
+                "params": {},
+            },
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 320,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+        ],
+        edges=[
+            {"id": "price-not", "from": "current-price-1", "to": "not-1"},
+            {"id": "not-buy", "from": "not-1", "to": "buy-1"},
+        ],
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", close=10.2),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades[0].side == "BUY"
+    assert result.trades[0].time == "2026-01-01 09:40"
+    assert result.trades[0].price == 10.2
 
 
 def test_engine_applies_moving_stop_after_profit_retraces():

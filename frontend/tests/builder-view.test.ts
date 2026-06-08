@@ -157,8 +157,9 @@ describe('builder view', () => {
 
     expect(wrapper.find('.builder-canvas').exists()).toBe(true)
     expect(wrapper.find('.floating-block-library').exists()).toBe(true)
-    expect(wrapper.findAll('.block-library-group')).toHaveLength(6)
+    expect(wrapper.findAll('.block-library-group')).toHaveLength(7)
     expect(wrapper.find('.block-library').text()).toContain('行情指标')
+    expect(wrapper.find('.block-library').text()).toContain('逻辑')
     expect(wrapper.find('.block-library').text()).toContain('持仓')
     expect(wrapper.find('.block-library').text()).toContain('时间')
     expect(wrapper.find('.strategy-draft-panel').exists()).toBe(false)
@@ -166,6 +167,9 @@ describe('builder view', () => {
     expect(wrapper.text()).toContain('积木库')
     expect(wrapper.text()).toContain('买入')
     expect(wrapper.text()).toContain('如果')
+    expect(wrapper.text()).toContain('与')
+    expect(wrapper.text()).toContain('或')
+    expect(wrapper.text()).toContain('非')
     expect(wrapper.text()).toContain('N根收益率')
     expect(wrapper.text()).toContain('移动止损')
     expect(wrapper.text()).toContain('止损')
@@ -176,7 +180,7 @@ describe('builder view', () => {
     const wrapper = mount(BuilderView)
 
     expect(wrapper.find('.block-library-search').exists()).toBe(true)
-    expect(wrapper.findAll('.block-library-group')).toHaveLength(6)
+    expect(wrapper.findAll('.block-library-group')).toHaveLength(7)
     expect(wrapper.find('.floating-block-library').classes()).not.toContain('is-collapsed')
 
     await wrapper.find('.block-library-collapse-toggle').trigger('click')
@@ -192,7 +196,7 @@ describe('builder view', () => {
 
     expect(wrapper.find('.floating-block-library').classes()).not.toContain('is-collapsed')
     expect(wrapper.find('.block-library-search').exists()).toBe(true)
-    expect(wrapper.findAll('.block-library-group')).toHaveLength(6)
+    expect(wrapper.findAll('.block-library-group')).toHaveLength(7)
     expect(wrapper.find('.block-library-collapse-toggle').attributes('aria-label')).toBe(
       '收起积木库'
     )
@@ -273,10 +277,22 @@ describe('builder view', () => {
     )
   })
 
+  it('keeps boolean composition out of the if block inspector', async () => {
+    const wrapper = mount(BuilderView)
+    await dropBlock(wrapper, 'if', 260, 170)
+
+    await wrapper.find('.canvas-block').trigger('contextmenu', { clientX: 260, clientY: 170 })
+
+    const inspector = wrapper.find('.block-inspector')
+    expect(inspector.exists()).toBe(true)
+    expect(inspector.text()).toContain('如果')
+    expect(inspector.text()).not.toContain('条件组合')
+  })
+
   it('filters the block library by the search keyword', async () => {
     const wrapper = mount(BuilderView)
 
-    expect(wrapper.findAll('.library-block')).toHaveLength(14)
+    expect(wrapper.findAll('.library-block')).toHaveLength(17)
 
     await wrapper.find('.block-library-search').setValue('移动')
 
