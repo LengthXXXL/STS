@@ -2061,6 +2061,71 @@ button {
   color: #d8d0e8;
 }
 
+.backtest-events {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(234, 179, 8, 0.34);
+  border-radius: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(49, 35, 13, 0.46), rgba(23, 18, 31, 0.68));
+}
+
+.backtest-events header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.backtest-events header strong {
+  color: #f7f2ff;
+}
+
+.backtest-events header small {
+  color: #c7b792;
+  font-size: 12px;
+}
+
+.backtest-events ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backtest-events li {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(234, 179, 8, 0.22);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(8, 7, 11, 0.5);
+}
+
+.backtest-events li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.backtest-events b {
+  color: #f7f2ff;
+}
+
+.backtest-events span,
+.backtest-events small {
+  color: #c7b792;
+  font-size: 12px;
+}
+
+.backtest-events p {
+  margin: 0;
+  color: #ded5ee;
+}
+
 .space-table {
   width: 100%;
   border-collapse: collapse;

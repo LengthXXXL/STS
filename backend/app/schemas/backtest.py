@@ -62,6 +62,18 @@ class BacktestTrade(BaseModel):
     reason: str
 
 
+class BacktestEvent(BaseModel):
+    time: str
+    event_type: Literal["BLOCKED_ORDER"] = Field(alias="eventType")
+    side: Literal["BUY", "SELL"]
+    price: float
+    quantity: int
+    reason: str
+    rule: str
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class EquityPoint(BaseModel):
     time: str
     equity: float
@@ -73,6 +85,7 @@ class BacktestRunResponse(BaseModel):
     config: BacktestConfig
     summary: BacktestSummary
     trades: list[BacktestTrade]
+    events: list[BacktestEvent] = Field(default_factory=list)
     equityCurve: list[EquityPoint]
 
 
@@ -111,4 +124,5 @@ class BacktestRecordDetailResponse(BacktestRecordListItem):
     config: BacktestConfig
     summary: BacktestSummary
     trades: list[BacktestTrade]
+    events: list[BacktestEvent] = Field(default_factory=list)
     equityCurve: list[EquityPoint]

@@ -37,6 +37,14 @@ def _backtest_payload():
                     "x": 120,
                     "y": 96,
                     "params": {"sizePercent": "20", "orderType": "market"},
+                },
+                {
+                    "id": "take-profit-1",
+                    "type": "take-profit",
+                    "label": "止盈",
+                    "x": 280,
+                    "y": 96,
+                    "params": {"profitRate": "1", "sellPercent": "100"},
                 }
             ],
             "edges": [],
@@ -75,6 +83,11 @@ def test_run_backtest_returns_computed_metrics_and_trade_path(client):
     assert payload["config"]["symbol"] == "000001.SZ"
     assert payload["runId"] == "engine-000001.SZ-5m"
     assert [trade["side"] for trade in payload["trades"]] == ["BUY"]
+    assert payload["events"]
+    assert {event["eventType"] for event in payload["events"]} == {"BLOCKED_ORDER"}
+    assert payload["events"][0]["side"] == "SELL"
+    assert payload["events"][0]["rule"] == "T+1"
+    assert payload["events"][0]["reason"] == "A股 T+1 规则限制，当日买入持仓不可卖出"
     assert payload["trades"][0]["price"] > 0
     assert payload["equityCurve"][0]["equity"] == 100000
     assert payload["equityCurve"][-1]["equity"] == payload["summary"]["endingEquity"]
@@ -147,6 +160,11 @@ def test_run_backtest_persists_owned_task_trades_and_equity_curve(client, db_ses
     assert trades[0].price == payload["trades"][0]["price"]
     assert len(equity_points) == len(payload["equityCurve"])
     assert equity_points[-1].equity == payload["equityCurve"][-1]["equity"]
+
+    detail = client.get(f"/api/backtests/{task.id}", headers=auth_headers(token))
+    assert detail.status_code == 200
+    detail_payload = detail.json()
+    assert detail_payload["events"] == payload["events"]
 
 
 def test_list_backtests_only_returns_current_user_records(client):

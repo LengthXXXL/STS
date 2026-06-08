@@ -120,6 +120,16 @@ interface BacktestTradeResult {
   reason: string
 }
 
+interface BacktestEventResult {
+  time: string
+  eventType: 'BLOCKED_ORDER'
+  side: 'BUY' | 'SELL'
+  price: number
+  quantity: number
+  reason: string
+  rule: string
+}
+
 interface EquityPointResult {
   time: string
   equity: number
@@ -131,6 +141,7 @@ interface BacktestRunResult {
   config: BacktestConfig
   summary: BacktestSummaryResult
   trades: BacktestTradeResult[]
+  events: BacktestEventResult[]
   equityCurve: EquityPointResult[]
 }
 
@@ -2613,6 +2624,27 @@ function clearCanvas() {
                     </tr>
                   </tbody>
                 </table>
+                <section v-if="backtestRunResult.events.length" class="backtest-events">
+                  <header>
+                    <strong>规则提示</strong>
+                    <small>{{ backtestRunResult.events.length }} 条被拦截信号</small>
+                  </header>
+                  <ul>
+                    <li
+                      v-for="(event, index) in backtestRunResult.events"
+                      :key="`${event.time}-${event.side}-${event.rule}-${index}`"
+                    >
+                      <div>
+                        <b>
+                          {{ event.time }} · {{ event.side === 'BUY' ? '买入' : '卖出' }}信号被拦截
+                        </b>
+                        <span>{{ event.rule }}</span>
+                      </div>
+                      <p>{{ event.reason }}</p>
+                      <small>{{ event.quantity }} 股 · {{ event.price }}</small>
+                    </li>
+                  </ul>
+                </section>
               </template>
               <p v-else class="backtest-run-error">{{ backtestRunError }}</p>
             </section>

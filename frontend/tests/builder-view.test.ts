@@ -969,6 +969,17 @@ describe('builder view', () => {
             reason: '买入积木触发'
           }
         ],
+        events: [
+          {
+            time: '2026-01-05 10:35',
+            eventType: 'BLOCKED_ORDER',
+            side: 'SELL',
+            price: 10.6,
+            quantity: 1900,
+            reason: 'A股 T+1 规则限制，当日买入持仓不可卖出',
+            rule: 'T+1'
+          }
+        ],
         equityCurve: [
           { time: '2026-01-01', equity: 100000 },
           { time: '2026-03-01', equity: 107300 }
@@ -1004,6 +1015,8 @@ describe('builder view', () => {
     expect(wrapper.find('.backtest-result-card').text()).toContain('2.8%')
     expect(wrapper.find('.backtest-trades').text()).toContain('BUY')
     expect(wrapper.find('.backtest-trades').text()).toContain('买入积木触发')
+    expect(wrapper.find('.backtest-events').text()).toContain('规则提示')
+    expect(wrapper.find('.backtest-events').text()).toContain('A股 T+1 规则限制')
   })
 
   it('links authenticated backtest runs to the saved personal-space record list', async () => {
@@ -1045,6 +1058,7 @@ describe('builder view', () => {
           initialCash: 100000
         },
         trades: [],
+        events: [],
         equityCurve: []
       }
     })
@@ -1134,6 +1148,7 @@ describe('builder view', () => {
           simulationAccountId: 3
         },
         trades: [],
+        events: [],
         equityCurve: []
       }
     })

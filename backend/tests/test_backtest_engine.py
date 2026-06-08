@@ -97,6 +97,11 @@ def test_engine_blocks_a_share_same_day_sell_until_next_trading_day():
     result = run_backtest_with_candles(request, candles)
 
     assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
+    assert [event.event_type for event in result.events] == ["BLOCKED_ORDER"]
+    assert result.events[0].time == "2026-01-01 09:40"
+    assert result.events[0].side == "SELL"
+    assert result.events[0].reason == "A股 T+1 规则限制，当日买入持仓不可卖出"
+    assert result.events[0].rule == "T+1"
     assert result.trades[0].time == "2026-01-01 09:35"
     assert result.trades[0].quantity == 1000
     assert result.trades[1].time == "2026-01-02 09:35"
@@ -136,6 +141,8 @@ def test_engine_keeps_a_share_position_open_when_backtest_ends_on_buy_day():
     result = run_backtest_with_candles(request, candles)
 
     assert [trade.side for trade in result.trades] == ["BUY"]
+    assert [event.event_type for event in result.events] == ["BLOCKED_ORDER"]
+    assert result.events[0].reason == "A股 T+1 规则限制，当日买入持仓不可卖出"
     assert result.summary.endingEquity == 11000
     assert result.summary.tradeCount == 1
     assert result.equityCurve[-1].equity == 11000

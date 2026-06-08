@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from app.schemas.backtest import (
+    BacktestEvent,
     BacktestRunRequest,
     BacktestRunResponse,
     BacktestSummary,
@@ -55,6 +56,7 @@ def run_backtest_with_candles(
     cash = initial_cash
     position = Position()
     trades: list[BacktestTrade] = []
+    events: list[BacktestEvent] = []
     equity_curve: list[EquityPoint] = []
     closed_trade_count = 0
     closed_trade_wins = 0
@@ -74,6 +76,7 @@ def run_backtest_with_candles(
             initial_cash=initial_cash,
             ending_equity=initial_cash,
             trades=trades,
+            events=events,
             equity_curve=[EquityPoint(time=request.config.startDate, equity=initial_cash)],
             closed_trade_count=closed_trade_count,
             closed_trade_wins=closed_trade_wins,
@@ -96,11 +99,24 @@ def run_backtest_with_candles(
                 clear_node=clear_node,
                 sell_node=sell_node,
             )
-            if exit_rule and market_rule and _can_sell_position(position, candle, market_rule):
+            if exit_rule:
                 sell_quantity = _quantity_from_percent(
                     position.quantity,
                     _node_percent(exit_rule.node, exit_rule.param_key, exit_rule.default_percent),
                 )
+                if market_rule and not _can_sell_position(position, candle, market_rule):
+                    events.append(
+                        BacktestEvent(
+                            time=candle.time,
+                            eventType="BLOCKED_ORDER",
+                            side="SELL",
+                            price=round(candle.close, 4),
+                            quantity=sell_quantity,
+                            reason=_sell_block_reason(market_rule),
+                            rule=market_rule.settlement_cycle,
+                        )
+                    )
+                    sell_quantity = 0
                 if sell_quantity > 0:
                     cash = round(cash + sell_quantity * candle.close, 2)
                     trades.append(
@@ -201,6 +217,7 @@ def run_backtest_with_candles(
         initial_cash=initial_cash,
         ending_equity=round(ending_equity, 2),
         trades=trades,
+        events=events,
         equity_curve=equity_curve,
         closed_trade_count=closed_trade_count,
         closed_trade_wins=closed_trade_wins,
@@ -448,6 +465,7 @@ def _build_response(
     initial_cash: float,
     ending_equity: float,
     trades: list[BacktestTrade],
+    events: list[BacktestEvent],
     equity_curve: list[EquityPoint],
     closed_trade_count: int,
     closed_trade_wins: int,
@@ -471,6 +489,7 @@ def _build_response(
             tradeCount=len(trades),
         ),
         trades=trades,
+        events=events,
         equityCurve=equity_curve,
     )
 
@@ -530,6 +549,12 @@ def _can_sell_position(
     if market_rule.supports_intraday_round_trip:
         return True
     return position.entry_date is not None and _trade_date(candle.time) > position.entry_date
+
+
+def _sell_block_reason(market_rule: MarketRuleResponse) -> str:
+    if market_rule.settlement_cycle == "T+1" and not market_rule.supports_intraday_round_trip:
+        return "A股 T+1 规则限制，当日买入持仓不可卖出"
+    return "市场规则限制，本次卖出信号未成交"
 
 
 def _trade_date(time_value: str) -> str:

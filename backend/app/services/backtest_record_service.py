@@ -1,7 +1,12 @@
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models.backtest import BacktestEquityPointRecord, BacktestTask, BacktestTradeRecord
+from app.models.backtest import (
+    BacktestEquityPointRecord,
+    BacktestEventRecord,
+    BacktestTask,
+    BacktestTradeRecord,
+)
 from app.models.simulation_account import SimulationAccount
 from app.models.user import User
 from app.schemas.backtest import (
@@ -10,6 +15,7 @@ from app.schemas.backtest import (
     BacktestRunRequest,
     BacktestRunResponse,
     BacktestSummary,
+    BacktestEvent,
     BacktestTrade,
     EquityPoint,
 )
@@ -52,6 +58,21 @@ def save_backtest_result(
                 price=trade.price,
                 quantity=trade.quantity,
                 reason=trade.reason,
+            )
+        )
+
+    for sequence, event in enumerate(result.events):
+        db.add(
+            BacktestEventRecord(
+                task_id=task.id,
+                sequence=sequence,
+                event_time=event.time,
+                event_type=event.event_type,
+                side=event.side,
+                price=event.price,
+                quantity=event.quantity,
+                reason=event.reason,
+                rule=event.rule,
             )
         )
 
@@ -129,6 +150,18 @@ def get_backtest_record(
                 reason=trade.reason,
             )
             for trade in task.trades
+        ],
+        events=[
+            BacktestEvent(
+                time=event.event_time,
+                eventType=event.event_type,
+                side=event.side,
+                price=event.price,
+                quantity=event.quantity,
+                reason=event.reason,
+                rule=event.rule,
+            )
+            for event in task.events
         ],
         equityCurve=[
             EquityPoint(time=point.point_time, equity=point.equity)

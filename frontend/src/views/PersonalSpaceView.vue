@@ -167,6 +167,16 @@ interface BacktestTrade {
   reason: string
 }
 
+interface BacktestEvent {
+  time: string
+  eventType: 'BLOCKED_ORDER'
+  side: BacktestTrade['side']
+  price: number
+  quantity: number
+  reason: string
+  rule: string
+}
+
 interface EquityPoint {
   time: string
   equity: number
@@ -242,6 +252,7 @@ interface BacktestDetail extends BacktestListItem {
     tradeCount: number
   }
   trades: BacktestTrade[]
+  events: BacktestEvent[]
   equityCurve: EquityPoint[]
 }
 
@@ -2013,6 +2024,27 @@ onMounted(() => {
                   <small>{{ review.priceText }}</small>
                 </li>
               </ol>
+            </section>
+            <section v-if="selectedBacktest.events.length" class="backtest-events">
+              <header>
+                <strong>规则提示</strong>
+                <small>{{ selectedBacktest.events.length }} 条被拦截信号</small>
+              </header>
+              <ul>
+                <li
+                  v-for="(event, index) in selectedBacktest.events"
+                  :key="`${event.time}-${event.side}-${event.rule}-${index}`"
+                >
+                  <div>
+                    <b>
+                      {{ event.time }} · {{ event.side === 'BUY' ? '买入' : '卖出' }}信号被拦截
+                    </b>
+                    <span>{{ event.rule }}</span>
+                  </div>
+                  <p>{{ event.reason }}</p>
+                  <small>{{ event.quantity }} 股 · {{ event.price }}</small>
+                </li>
+              </ul>
             </section>
             <table class="space-table">
               <thead>

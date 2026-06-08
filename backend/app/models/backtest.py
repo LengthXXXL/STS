@@ -39,6 +39,11 @@ class BacktestTask(Base):
         cascade="all, delete-orphan",
         order_by="BacktestTradeRecord.sequence",
     )
+    events: Mapped[list["BacktestEventRecord"]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+        order_by="BacktestEventRecord.sequence",
+    )
     equity_points: Mapped[list["BacktestEquityPointRecord"]] = relationship(
         back_populates="task",
         cascade="all, delete-orphan",
@@ -63,6 +68,27 @@ class BacktestTradeRecord(Base):
     reason: Mapped[str] = mapped_column(Text, nullable=False)
 
     task = relationship("BacktestTask", back_populates="trades")
+
+
+class BacktestEventRecord(Base):
+    __tablename__ = "backtest_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("backtest_tasks.id"),
+        nullable=False,
+        index=True,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_time: Mapped[str] = mapped_column(String(16), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    side: Mapped[str] = mapped_column(String(8), nullable=False)
+    price: Mapped[float] = mapped_column(Float, nullable=False)
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    rule: Mapped[str] = mapped_column(String(40), nullable=False)
+
+    task = relationship("BacktestTask", back_populates="events")
 
 
 class BacktestEquityPointRecord(Base):

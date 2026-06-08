@@ -217,6 +217,17 @@ const backtestDetail = {
       reason: '回测结束清仓'
     }
   ],
+  events: [
+    {
+      time: '2026-01-01 09:40',
+      eventType: 'BLOCKED_ORDER',
+      side: 'SELL',
+      price: 10.6,
+      quantity: 1900,
+      reason: 'A股 T+1 规则限制，当日买入持仓不可卖出',
+      rule: 'T+1'
+    }
+  ],
   equityCurve: [
     { time: '2026-01-01 09:35', equity: 100000 },
     { time: '2026-01-01 10:00', equity: 107350 }
@@ -691,6 +702,8 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('交易复盘')
     expect(wrapper.text()).toContain('买入 1900 股')
     expect(wrapper.text()).toContain('卖出 1900 股')
+    expect(wrapper.text()).toContain('规则提示')
+    expect(wrapper.text()).toContain('A股 T+1 规则限制')
     expect(wrapper.text()).toContain('回测快照')
     expect(wrapper.text()).toContain('市场A股')
     expect(wrapper.text()).toContain('股票000001.SZ')
