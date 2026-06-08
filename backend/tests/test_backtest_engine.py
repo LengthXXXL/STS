@@ -65,6 +65,82 @@ def test_engine_buys_once_and_sells_when_take_profit_is_hit():
     assert result.equityCurve[-1].equity == 1030
 
 
+def test_engine_blocks_a_share_same_day_sell_until_next_trading_day():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+            {
+                "id": "take-profit-1",
+                "type": "take-profit",
+                "label": "止盈",
+                "x": 160,
+                "y": 0,
+                "params": {"profitRate": "1", "sellPercent": "100"},
+            },
+        ],
+        initial_cash=10000,
+        market="A_SHARE",
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", close=11.0),
+        MarketCandle(time="2026-01-02 09:35", close=11.5),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
+    assert result.trades[0].time == "2026-01-01 09:35"
+    assert result.trades[0].quantity == 1000
+    assert result.trades[1].time == "2026-01-02 09:35"
+    assert result.trades[1].reason == "止盈触发"
+    assert result.summary.endingEquity == 11500
+    assert result.summary.totalReturnPercent == 15
+
+
+def test_engine_keeps_a_share_position_open_when_backtest_ends_on_buy_day():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+            {
+                "id": "take-profit-1",
+                "type": "take-profit",
+                "label": "止盈",
+                "x": 160,
+                "y": 0,
+                "params": {"profitRate": "1", "sellPercent": "100"},
+            },
+        ],
+        initial_cash=10000,
+        market="A_SHARE",
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", close=11.0),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades] == ["BUY"]
+    assert result.summary.endingEquity == 11000
+    assert result.summary.tradeCount == 1
+    assert result.equityCurve[-1].equity == 11000
+
+
 def test_engine_applies_stop_loss_and_cooldown_before_reentering():
     request = _request(
         [

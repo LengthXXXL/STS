@@ -8,11 +8,13 @@ from app.schemas.backtest import (
     EquityPoint,
     StrategyNode,
 )
+from app.schemas.market_rule import MarketRuleResponse
 from app.services.market_data_service import (
     DefaultMarketDataProvider,
     MarketCandle,
     MarketDataProvider,
 )
+from app.services.market_rule_service import get_market_rule
 
 
 @dataclass(slots=True)
@@ -21,6 +23,7 @@ class Position:
     average_price: float = 0
     highest_price: float = 0
     holding_bars: int = 0
+    entry_date: str | None = None
 
 
 CONDITION_NODE_TYPES = {
@@ -47,6 +50,7 @@ def run_backtest_with_candles(
     request: BacktestRunRequest,
     candles: list[MarketCandle],
 ) -> BacktestRunResponse:
+    market_rule = get_market_rule(request.config.market)
     initial_cash = round(request.config.initialCash, 2)
     cash = initial_cash
     position = Position()
@@ -92,7 +96,7 @@ def run_backtest_with_candles(
                 clear_node=clear_node,
                 sell_node=sell_node,
             )
-            if exit_rule:
+            if exit_rule and market_rule and _can_sell_position(position, candle, market_rule):
                 sell_quantity = _quantity_from_percent(
                     position.quantity,
                     _node_percent(exit_rule.node, exit_rule.param_key, exit_rule.default_percent),
@@ -118,6 +122,7 @@ def run_backtest_with_candles(
                         position.average_price = 0
                         position.highest_price = 0
                         position.holding_bars = 0
+                        position.entry_date = None
                     if exit_rule.kind == "stop-loss" and cooldown_node:
                         cooldown_remaining = _node_int(cooldown_node, "durationBars", 3)
                     sold_this_candle = True
@@ -141,7 +146,8 @@ def run_backtest_with_candles(
                     cash=cash,
                     price=candle.close,
                     buy_percent=_node_percent(buy_node, "sizePercent", 20),
-                    market=request.config.market,
+                    buy_lot_size=market_rule.buy_lot_size if market_rule else 1,
+                    min_order_shares=market_rule.min_order_shares if market_rule else 1,
                 )
                 if buy_quantity > 0:
                     cash = round(cash - buy_quantity * candle.close, 2)
@@ -149,6 +155,7 @@ def run_backtest_with_candles(
                     position.average_price = candle.close
                     position.highest_price = candle.close
                     position.holding_bars = 0
+                    position.entry_date = _trade_date(candle.time)
                     trades.append(
                         BacktestTrade(
                             time=candle.time,
@@ -168,7 +175,8 @@ def run_backtest_with_candles(
         if position.quantity > 0:
             position.holding_bars += 1
 
-    if position.quantity > 0:
+    ending_equity = equity_curve[-1].equity if equity_curve else initial_cash
+    if position.quantity > 0 and (not market_rule or _can_sell_position(position, candles[-1], market_rule)):
         last_candle = candles[-1]
         cash = _sell_remaining_position(
             cash=cash,
@@ -184,12 +192,14 @@ def run_backtest_with_candles(
         position.average_price = 0
         position.highest_price = 0
         position.holding_bars = 0
+        position.entry_date = None
         equity_curve[-1] = EquityPoint(time=last_candle.time, equity=round(cash, 2))
+        ending_equity = round(cash, 2)
 
     return _build_response(
         request=request,
         initial_cash=initial_cash,
-        ending_equity=round(cash, 2),
+        ending_equity=round(ending_equity, 2),
         trades=trades,
         equity_curve=equity_curve,
         closed_trade_count=closed_trade_count,
@@ -497,12 +507,33 @@ def _final_sell_reason(
     return "回测结束清仓"
 
 
-def _buy_quantity(*, cash: float, price: float, buy_percent: float, market: str) -> int:
+def _buy_quantity(
+    *,
+    cash: float,
+    price: float,
+    buy_percent: float,
+    buy_lot_size: int,
+    min_order_shares: int,
+) -> int:
     budget = cash * buy_percent / 100
     raw_quantity = int(budget / price)
-    if market == "A_SHARE":
-        return raw_quantity // 100 * 100
-    return raw_quantity
+    lot_size = max(1, buy_lot_size)
+    quantity = raw_quantity // lot_size * lot_size
+    return quantity if quantity >= min_order_shares else 0
+
+
+def _can_sell_position(
+    position: Position,
+    candle: MarketCandle,
+    market_rule: MarketRuleResponse,
+) -> bool:
+    if market_rule.supports_intraday_round_trip:
+        return True
+    return position.entry_date is not None and _trade_date(candle.time) > position.entry_date
+
+
+def _trade_date(time_value: str) -> str:
+    return time_value[:10]
 
 
 def _quantity_from_percent(quantity: int, percent: float) -> int:

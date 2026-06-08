@@ -69,12 +69,12 @@ def test_run_backtest_returns_computed_metrics_and_trade_path(client):
     payload = response.json()
     assert payload["summary"]["totalReturnPercent"] > 0
     assert payload["summary"]["maxDrawdownPercent"] >= 0
-    assert payload["summary"]["winRatePercent"] == 100
+    assert payload["summary"]["winRatePercent"] == 0
     assert payload["summary"]["endingEquity"] > 100000
     assert payload["summary"]["tradeCount"] == len(payload["trades"])
     assert payload["config"]["symbol"] == "000001.SZ"
     assert payload["runId"] == "engine-000001.SZ-5m"
-    assert payload["trades"][0]["side"] == "BUY"
+    assert [trade["side"] for trade in payload["trades"]] == ["BUY"]
     assert payload["trades"][0]["price"] > 0
     assert payload["equityCurve"][0]["equity"] == 100000
     assert payload["equityCurve"][-1]["equity"] == payload["summary"]["endingEquity"]
