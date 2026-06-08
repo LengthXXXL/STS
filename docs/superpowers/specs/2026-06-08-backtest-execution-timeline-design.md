@@ -177,6 +177,7 @@
 - `id`
 - `task_id`
 - `sequence`
+- `item_id`
 - `item_time`
 - `event_type`
 - `title`

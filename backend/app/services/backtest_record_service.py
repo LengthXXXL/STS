@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.models.backtest import (
     BacktestEquityPointRecord,
     BacktestEventRecord,
+    BacktestTimelineRecord,
     BacktestTask,
     BacktestTradeRecord,
 )
@@ -16,6 +17,7 @@ from app.schemas.backtest import (
     BacktestRunResponse,
     BacktestSummary,
     BacktestEvent,
+    BacktestTimelineItem,
     BacktestTrade,
     EquityPoint,
 )
@@ -73,6 +75,28 @@ def save_backtest_result(
                 quantity=event.quantity,
                 reason=event.reason,
                 rule=event.rule,
+            )
+        )
+
+    for sequence, item in enumerate(result.timeline):
+        db.add(
+            BacktestTimelineRecord(
+                task_id=task.id,
+                sequence=sequence,
+                item_id=item.id,
+                item_time=item.time,
+                event_type=item.event_type,
+                title=item.title,
+                description=item.description,
+                severity=item.severity,
+                side=item.side,
+                price=item.price,
+                quantity=item.quantity,
+                rule=item.rule,
+                node_id=item.node_id,
+                node_type=item.node_type,
+                node_label=item.node_label,
+                details_json=item.details,
             )
         )
 
@@ -162,6 +186,25 @@ def get_backtest_record(
                 rule=event.rule,
             )
             for event in task.events
+        ],
+        timeline=[
+            BacktestTimelineItem(
+                id=item.item_id,
+                time=item.item_time,
+                eventType=item.event_type,
+                title=item.title,
+                description=item.description,
+                severity=item.severity,
+                side=item.side,
+                price=item.price,
+                quantity=item.quantity,
+                rule=item.rule,
+                nodeId=item.node_id,
+                nodeType=item.node_type,
+                nodeLabel=item.node_label,
+                details=item.details_json or {},
+            )
+            for item in task.timeline_items
         ],
         equityCurve=[
             EquityPoint(time=point.point_time, equity=point.equity)

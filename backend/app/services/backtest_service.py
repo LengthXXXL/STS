@@ -5,6 +5,7 @@ from app.schemas.backtest import (
     BacktestRunRequest,
     BacktestRunResponse,
     BacktestSummary,
+    BacktestTimelineItem,
     BacktestTrade,
     EquityPoint,
     StrategyNode,
@@ -57,6 +58,7 @@ def run_backtest_with_candles(
     position = Position()
     trades: list[BacktestTrade] = []
     events: list[BacktestEvent] = []
+    timeline: list[BacktestTimelineItem] = []
     equity_curve: list[EquityPoint] = []
     closed_trade_count = 0
     closed_trade_wins = 0
@@ -77,6 +79,7 @@ def run_backtest_with_candles(
             ending_equity=initial_cash,
             trades=trades,
             events=events,
+            timeline=timeline,
             equity_curve=[EquityPoint(time=request.config.startDate, equity=initial_cash)],
             closed_trade_count=closed_trade_count,
             closed_trade_wins=closed_trade_wins,
@@ -105,6 +108,7 @@ def run_backtest_with_candles(
                     _node_percent(exit_rule.node, exit_rule.param_key, exit_rule.default_percent),
                 )
                 if market_rule and not _can_sell_position(position, candle, market_rule):
+                    block_reason = _sell_block_reason(market_rule)
                     events.append(
                         BacktestEvent(
                             time=candle.time,
@@ -112,8 +116,20 @@ def run_backtest_with_candles(
                             side="SELL",
                             price=round(candle.close, 4),
                             quantity=sell_quantity,
-                            reason=_sell_block_reason(market_rule),
+                            reason=block_reason,
                             rule=market_rule.settlement_cycle,
+                        )
+                    )
+                    timeline.append(
+                        _timeline_order_blocked(
+                            sequence=len(timeline),
+                            time=candle.time,
+                            side="SELL",
+                            price=round(candle.close, 4),
+                            quantity=sell_quantity,
+                            reason=block_reason,
+                            rule=market_rule.settlement_cycle,
+                            node=exit_rule.node,
                         )
                     )
                     sell_quantity = 0
@@ -128,19 +144,51 @@ def run_backtest_with_candles(
                             reason=exit_rule.reason,
                         )
                     )
+                    timeline.append(
+                        _timeline_trade_filled(
+                            sequence=len(timeline),
+                            time=candle.time,
+                            side="SELL",
+                            price=round(candle.close, 4),
+                            quantity=sell_quantity,
+                            reason=exit_rule.reason,
+                            node=exit_rule.node,
+                        )
+                    )
                     closed_trade_count += 1
                     if candle.close > position.average_price:
                         closed_trade_wins += 1
 
                     position.quantity -= sell_quantity
+                    closed_by_clear = exit_rule.kind == "clear" and position.quantity <= 0
                     if position.quantity <= 0:
                         position.quantity = 0
                         position.average_price = 0
                         position.highest_price = 0
                         position.holding_bars = 0
                         position.entry_date = None
+                    if closed_by_clear:
+                        timeline.append(
+                            _timeline_position_closed(
+                                sequence=len(timeline),
+                                time=candle.time,
+                                reason=exit_rule.reason,
+                                node=exit_rule.node,
+                            )
+                        )
                     if exit_rule.kind == "stop-loss" and cooldown_node:
-                        cooldown_remaining = _node_int(cooldown_node, "durationBars", 3)
+                        cooldown_duration = _node_int(cooldown_node, "durationBars", 3)
+                        cooldown_remaining = cooldown_duration
+                        cooldown_reason = cooldown_node.params.get("abnormalRule") or "止损后冷却"
+                        timeline.append(
+                            _timeline_cooldown_started(
+                                sequence=len(timeline),
+                                time=candle.time,
+                                duration_bars=cooldown_duration,
+                                reason=cooldown_reason,
+                                node=cooldown_node,
+                            )
+                        )
                     sold_this_candle = True
 
         if (
@@ -181,6 +229,17 @@ def run_backtest_with_candles(
                             reason="买入积木触发",
                         )
                     )
+                    timeline.append(
+                        _timeline_trade_filled(
+                            sequence=len(timeline),
+                            time=candle.time,
+                            side="BUY",
+                            price=round(candle.close, 4),
+                            quantity=buy_quantity,
+                            reason="买入积木触发",
+                            node=buy_node,
+                        )
+                    )
 
         equity_curve.append(
             EquityPoint(
@@ -201,6 +260,27 @@ def run_backtest_with_candles(
             trades=trades,
             reason=_final_sell_reason(sell_node=sell_node, clear_node=clear_node),
         )
+        final_reason = trades[-1].reason
+        final_node = clear_node or sell_node
+        timeline.append(
+            _timeline_trade_filled(
+                sequence=len(timeline),
+                time=last_candle.time,
+                side="SELL",
+                price=round(last_candle.close, 4),
+                quantity=trades[-1].quantity,
+                reason=final_reason,
+                node=final_node,
+            )
+        )
+        timeline.append(
+            _timeline_position_closed(
+                sequence=len(timeline),
+                time=last_candle.time,
+                reason=final_reason,
+                node=final_node,
+            )
+        )
         closed_trade_count += 1
         if last_candle.close > position.average_price:
             closed_trade_wins += 1
@@ -218,6 +298,7 @@ def run_backtest_with_candles(
         ending_equity=round(ending_equity, 2),
         trades=trades,
         events=events,
+        timeline=timeline,
         equity_curve=equity_curve,
         closed_trade_count=closed_trade_count,
         closed_trade_wins=closed_trade_wins,
@@ -466,6 +547,7 @@ def _build_response(
     ending_equity: float,
     trades: list[BacktestTrade],
     events: list[BacktestEvent],
+    timeline: list[BacktestTimelineItem],
     equity_curve: list[EquityPoint],
     closed_trade_count: int,
     closed_trade_wins: int,
@@ -490,7 +572,104 @@ def _build_response(
         ),
         trades=trades,
         events=events,
+        timeline=timeline,
         equityCurve=equity_curve,
+    )
+
+
+def _timeline_trade_filled(
+    *,
+    sequence: int,
+    time: str,
+    side: str,
+    price: float,
+    quantity: int,
+    reason: str,
+    node: StrategyNode | None,
+) -> BacktestTimelineItem:
+    return BacktestTimelineItem(
+        id=f"trade-filled-{sequence}",
+        time=time,
+        eventType="TRADE_FILLED",
+        title="买入成交" if side == "BUY" else "卖出成交",
+        description=reason,
+        severity="success",
+        side=side,
+        price=price,
+        quantity=quantity,
+        nodeId=node.id if node else None,
+        nodeType=node.type if node else None,
+        nodeLabel=node.label if node else None,
+    )
+
+
+def _timeline_order_blocked(
+    *,
+    sequence: int,
+    time: str,
+    side: str,
+    price: float,
+    quantity: int,
+    reason: str,
+    rule: str,
+    node: StrategyNode,
+) -> BacktestTimelineItem:
+    return BacktestTimelineItem(
+        id=f"order-blocked-{sequence}",
+        time=time,
+        eventType="ORDER_BLOCKED",
+        title="买入信号被拦截" if side == "BUY" else "卖出信号被拦截",
+        description=reason,
+        severity="warning",
+        side=side,
+        price=price,
+        quantity=quantity,
+        rule=rule,
+        nodeId=node.id,
+        nodeType=node.type,
+        nodeLabel=node.label,
+    )
+
+
+def _timeline_cooldown_started(
+    *,
+    sequence: int,
+    time: str,
+    duration_bars: int,
+    reason: str,
+    node: StrategyNode,
+) -> BacktestTimelineItem:
+    return BacktestTimelineItem(
+        id=f"cooldown-started-{sequence}",
+        time=time,
+        eventType="COOLDOWN_STARTED",
+        title="进入冷却",
+        description=reason,
+        severity="info",
+        nodeId=node.id,
+        nodeType=node.type,
+        nodeLabel=node.label,
+        details={"durationBars": duration_bars, "reason": reason},
+    )
+
+
+def _timeline_position_closed(
+    *,
+    sequence: int,
+    time: str,
+    reason: str,
+    node: StrategyNode | None,
+) -> BacktestTimelineItem:
+    return BacktestTimelineItem(
+        id=f"position-closed-{sequence}",
+        time=time,
+        eventType="POSITION_CLOSED",
+        title="持仓已关闭",
+        description=reason,
+        severity="info",
+        nodeId=node.id if node else None,
+        nodeType=node.type if node else None,
+        nodeLabel=node.label if node else None,
     )
 
 

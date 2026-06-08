@@ -74,6 +74,30 @@ class BacktestEvent(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class BacktestTimelineItem(BaseModel):
+    id: str
+    time: str
+    event_type: Literal[
+        "TRADE_FILLED",
+        "ORDER_BLOCKED",
+        "COOLDOWN_STARTED",
+        "POSITION_CLOSED",
+    ] = Field(alias="eventType")
+    title: str
+    description: str
+    severity: Literal["info", "success", "warning", "danger"]
+    side: Literal["BUY", "SELL"] | None = None
+    price: float | None = None
+    quantity: int | None = None
+    rule: str | None = None
+    node_id: str | None = Field(default=None, alias="nodeId")
+    node_type: str | None = Field(default=None, alias="nodeType")
+    node_label: str | None = Field(default=None, alias="nodeLabel")
+    details: dict[str, int | float | str | bool] = Field(default_factory=dict)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class EquityPoint(BaseModel):
     time: str
     equity: float
@@ -86,6 +110,7 @@ class BacktestRunResponse(BaseModel):
     summary: BacktestSummary
     trades: list[BacktestTrade]
     events: list[BacktestEvent] = Field(default_factory=list)
+    timeline: list[BacktestTimelineItem] = Field(default_factory=list)
     equityCurve: list[EquityPoint]
 
 
@@ -125,4 +150,5 @@ class BacktestRecordDetailResponse(BacktestRecordListItem):
     summary: BacktestSummary
     trades: list[BacktestTrade]
     events: list[BacktestEvent] = Field(default_factory=list)
+    timeline: list[BacktestTimelineItem] = Field(default_factory=list)
     equityCurve: list[EquityPoint]

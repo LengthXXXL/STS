@@ -980,6 +980,40 @@ describe('builder view', () => {
             rule: 'T+1'
           }
         ],
+        timeline: [
+          {
+            id: 'trade-filled-0',
+            time: '2026-01-05 10:30',
+            eventType: 'TRADE_FILLED',
+            title: '买入成交',
+            description: '买入积木触发',
+            severity: 'success',
+            side: 'BUY',
+            price: 10.2,
+            quantity: 1900,
+            rule: null,
+            nodeId: 'buy-1',
+            nodeType: 'buy',
+            nodeLabel: '买入',
+            details: {}
+          },
+          {
+            id: 'order-blocked-1',
+            time: '2026-01-05 10:35',
+            eventType: 'ORDER_BLOCKED',
+            title: '卖出信号被拦截',
+            description: 'A股 T+1 规则限制，当日买入持仓不可卖出',
+            severity: 'warning',
+            side: 'SELL',
+            price: 10.6,
+            quantity: 1900,
+            rule: 'T+1',
+            nodeId: 'take-profit-1',
+            nodeType: 'take-profit',
+            nodeLabel: '止盈',
+            details: {}
+          }
+        ],
         equityCurve: [
           { time: '2026-01-01', equity: 100000 },
           { time: '2026-03-01', equity: 107300 }
@@ -1017,6 +1051,10 @@ describe('builder view', () => {
     expect(wrapper.find('.backtest-trades').text()).toContain('买入积木触发')
     expect(wrapper.find('.backtest-events').text()).toContain('规则提示')
     expect(wrapper.find('.backtest-events').text()).toContain('A股 T+1 规则限制')
+    expect(wrapper.find('.backtest-timeline').text()).toContain('策略执行时间线')
+    expect(wrapper.find('.backtest-timeline').text()).toContain('买入成交')
+    expect(wrapper.find('.backtest-timeline').text()).toContain('卖出信号被拦截')
+    expect(wrapper.find('.backtest-timeline').text()).toContain('止盈')
   })
 
   it('links authenticated backtest runs to the saved personal-space record list', async () => {
@@ -1059,6 +1097,7 @@ describe('builder view', () => {
         },
         trades: [],
         events: [],
+        timeline: [],
         equityCurve: []
       }
     })
@@ -1149,6 +1188,7 @@ describe('builder view', () => {
         },
         trades: [],
         events: [],
+        timeline: [],
         equityCurve: []
       }
     })

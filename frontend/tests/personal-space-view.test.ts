@@ -228,6 +228,40 @@ const backtestDetail = {
       rule: 'T+1'
     }
   ],
+  timeline: [
+    {
+      id: 'trade-filled-0',
+      time: '2026-01-01 09:35',
+      eventType: 'TRADE_FILLED',
+      title: '买入成交',
+      description: '买入积木触发',
+      severity: 'success',
+      side: 'BUY',
+      price: 10.25,
+      quantity: 1900,
+      rule: null,
+      nodeId: 'buy-1',
+      nodeType: 'buy',
+      nodeLabel: '买入',
+      details: {}
+    },
+    {
+      id: 'order-blocked-1',
+      time: '2026-01-01 09:40',
+      eventType: 'ORDER_BLOCKED',
+      title: '卖出信号被拦截',
+      description: 'A股 T+1 规则限制，当日买入持仓不可卖出',
+      severity: 'warning',
+      side: 'SELL',
+      price: 10.6,
+      quantity: 1900,
+      rule: 'T+1',
+      nodeId: 'take-profit-1',
+      nodeType: 'take-profit',
+      nodeLabel: '止盈',
+      details: {}
+    }
+  ],
   equityCurve: [
     { time: '2026-01-01 09:35', equity: 100000 },
     { time: '2026-01-01 10:00', equity: 107350 }
@@ -704,6 +738,9 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('卖出 1900 股')
     expect(wrapper.text()).toContain('规则提示')
     expect(wrapper.text()).toContain('A股 T+1 规则限制')
+    expect(wrapper.text()).toContain('策略执行时间线')
+    expect(wrapper.text()).toContain('买入成交')
+    expect(wrapper.text()).toContain('卖出信号被拦截')
     expect(wrapper.text()).toContain('回测快照')
     expect(wrapper.text()).toContain('市场A股')
     expect(wrapper.text()).toContain('股票000001.SZ')

@@ -1,6 +1,7 @@
 from app.models.backtest import (
     BacktestEquityPointRecord,
     BacktestEventRecord,
+    BacktestTimelineRecord,
     BacktestTask,
     BacktestTradeRecord,
 )
@@ -20,6 +21,7 @@ from app.models.user import Role, User, user_roles
 __all__ = [
     "BacktestEquityPointRecord",
     "BacktestEventRecord",
+    "BacktestTimelineRecord",
     "BacktestTask",
     "BacktestTradeRecord",
     "CustomBlock",

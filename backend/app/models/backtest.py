@@ -44,6 +44,11 @@ class BacktestTask(Base):
         cascade="all, delete-orphan",
         order_by="BacktestEventRecord.sequence",
     )
+    timeline_items: Mapped[list["BacktestTimelineRecord"]] = relationship(
+        back_populates="task",
+        cascade="all, delete-orphan",
+        order_by="BacktestTimelineRecord.sequence",
+    )
     equity_points: Mapped[list["BacktestEquityPointRecord"]] = relationship(
         back_populates="task",
         cascade="all, delete-orphan",
@@ -89,6 +94,34 @@ class BacktestEventRecord(Base):
     rule: Mapped[str] = mapped_column(String(40), nullable=False)
 
     task = relationship("BacktestTask", back_populates="events")
+
+
+class BacktestTimelineRecord(Base):
+    __tablename__ = "backtest_timeline_items"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    task_id: Mapped[int] = mapped_column(
+        ForeignKey("backtest_tasks.id"),
+        nullable=False,
+        index=True,
+    )
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    item_id: Mapped[str] = mapped_column(String(80), nullable=False)
+    item_time: Mapped[str] = mapped_column(String(16), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    title: Mapped[str] = mapped_column(String(80), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False)
+    side: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    price: Mapped[float | None] = mapped_column(Float, nullable=True)
+    quantity: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    rule: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    node_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    node_type: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    node_label: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    details_json: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+
+    task = relationship("BacktestTask", back_populates="timeline_items")
 
 
 class BacktestEquityPointRecord(Base):

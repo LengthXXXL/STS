@@ -2126,6 +2126,94 @@ button {
   color: #ded5ee;
 }
 
+.backtest-timeline {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(124, 77, 255, 0.34);
+  border-radius: 8px;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(23, 18, 38, 0.82), rgba(8, 7, 12, 0.76));
+}
+
+.backtest-timeline header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.backtest-timeline header strong {
+  color: #f7f2ff;
+}
+
+.backtest-timeline header small {
+  color: #9e91b8;
+  font-size: 12px;
+}
+
+.backtest-timeline ol {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.backtest-timeline li {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(58, 49, 80, 0.72);
+  border-radius: 8px;
+  padding: 10px 10px 10px 16px;
+  background: rgba(6, 5, 10, 0.52);
+}
+
+.backtest-timeline li::before {
+  content: "";
+  position: absolute;
+  inset: 10px auto 10px 0;
+  width: 3px;
+  border-radius: 0 999px 999px 0;
+  background: #8f6cff;
+}
+
+.backtest-timeline .timeline-item--success::before {
+  background: #5ee6c8;
+}
+
+.backtest-timeline .timeline-item--warning::before {
+  background: #eab308;
+}
+
+.backtest-timeline .timeline-item--danger::before {
+  background: #ff8ba7;
+}
+
+.backtest-timeline li > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.backtest-timeline b {
+  color: #f7f2ff;
+}
+
+.backtest-timeline span,
+.backtest-timeline small {
+  color: #a89bc1;
+  font-size: 12px;
+}
+
+.backtest-timeline p {
+  margin: 0;
+  color: #ded5ee;
+}
+
 .space-table {
   width: 100%;
   border-collapse: collapse;

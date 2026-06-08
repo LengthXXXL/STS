@@ -63,6 +63,16 @@ def test_engine_buys_once_and_sells_when_take_profit_is_hit():
     assert result.summary.maxDrawdownPercent == 0
     assert result.summary.winRatePercent == 100
     assert result.equityCurve[-1].equity == 1030
+    assert [item.event_type for item in result.timeline] == ["TRADE_FILLED", "TRADE_FILLED"]
+    assert result.timeline[0].title == "买入成交"
+    assert result.timeline[0].description == "买入积木触发"
+    assert result.timeline[0].node_label == "买入"
+    assert result.timeline[0].price == 10
+    assert result.timeline[0].quantity == 50
+    assert result.timeline[1].title == "卖出成交"
+    assert result.timeline[1].description == "止盈触发"
+    assert result.timeline[1].node_label == "止盈"
+    assert result.timeline[1].price == 10.6
 
 
 def test_engine_blocks_a_share_same_day_sell_until_next_trading_day():
@@ -102,6 +112,12 @@ def test_engine_blocks_a_share_same_day_sell_until_next_trading_day():
     assert result.events[0].side == "SELL"
     assert result.events[0].reason == "A股 T+1 规则限制，当日买入持仓不可卖出"
     assert result.events[0].rule == "T+1"
+    blocked_items = [item for item in result.timeline if item.event_type == "ORDER_BLOCKED"]
+    assert len(blocked_items) == 1
+    assert blocked_items[0].title == "卖出信号被拦截"
+    assert blocked_items[0].description == "A股 T+1 规则限制，当日买入持仓不可卖出"
+    assert blocked_items[0].rule == "T+1"
+    assert blocked_items[0].node_label == "止盈"
     assert result.trades[0].time == "2026-01-01 09:35"
     assert result.trades[0].quantity == 1000
     assert result.trades[1].time == "2026-01-02 09:35"
@@ -193,6 +209,12 @@ def test_engine_applies_stop_loss_and_cooldown_before_reentering():
     assert result.trades[1].side == "SELL"
     assert result.trades[1].reason == "止损触发"
     assert result.summary.maxDrawdownPercent > 0
+    cooldown_items = [item for item in result.timeline if item.event_type == "COOLDOWN_STARTED"]
+    assert len(cooldown_items) == 1
+    assert cooldown_items[0].title == "进入冷却"
+    assert cooldown_items[0].description == "止损后冷却"
+    assert cooldown_items[0].node_label == "冷却"
+    assert cooldown_items[0].details == {"durationBars": 2, "reason": "止损后冷却"}
 
 
 def test_engine_uses_connected_conditions_before_buying():
@@ -314,3 +336,6 @@ def test_run_backtest_uses_injected_market_data_provider():
     assert provider.received_config == request.config
     assert result.trades[0].price == 10
     assert result.trades[-1].price == 11
+    assert result.timeline[-1].event_type == "POSITION_CLOSED"
+    assert result.timeline[-1].title == "持仓已关闭"
+    assert result.timeline[-1].description == "回测结束清仓"

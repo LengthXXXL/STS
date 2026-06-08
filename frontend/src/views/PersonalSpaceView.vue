@@ -177,6 +177,23 @@ interface BacktestEvent {
   rule: string
 }
 
+interface BacktestTimelineItem {
+  id: string
+  time: string
+  eventType: 'TRADE_FILLED' | 'ORDER_BLOCKED' | 'COOLDOWN_STARTED' | 'POSITION_CLOSED'
+  title: string
+  description: string
+  severity: 'info' | 'success' | 'warning' | 'danger'
+  side?: BacktestTrade['side'] | null
+  price?: number | null
+  quantity?: number | null
+  rule?: string | null
+  nodeId?: string | null
+  nodeType?: string | null
+  nodeLabel?: string | null
+  details: Record<string, string | number | boolean>
+}
+
 interface EquityPoint {
   time: string
   equity: number
@@ -253,6 +270,7 @@ interface BacktestDetail extends BacktestListItem {
   }
   trades: BacktestTrade[]
   events: BacktestEvent[]
+  timeline?: BacktestTimelineItem[]
   equityCurve: EquityPoint[]
 }
 
@@ -1067,6 +1085,29 @@ function formatConnectionCount(count: number) {
 
 function formatTradeSide(side: BacktestTrade['side']) {
   return side === 'BUY' ? '买入' : '卖出'
+}
+
+function timelineMeta(item: BacktestTimelineItem) {
+  const parts: string[] = []
+  if (item.nodeLabel) {
+    parts.push(`积木 ${item.nodeLabel}`)
+  }
+  if (item.side) {
+    parts.push(formatTradeSide(item.side))
+  }
+  if (typeof item.quantity === 'number') {
+    parts.push(`${item.quantity} 股`)
+  }
+  if (typeof item.price === 'number') {
+    parts.push(formatAmount(item.price))
+  }
+  if (item.rule) {
+    parts.push(`规则 ${item.rule}`)
+  }
+  if (typeof item.details.durationBars === 'number') {
+    parts.push(`冷却 ${item.details.durationBars} 根K线`)
+  }
+  return parts.join(' · ') || item.time
 }
 
 function buildChartModel(
@@ -2022,6 +2063,26 @@ onMounted(() => {
                   </div>
                   <p>{{ review.reason }}</p>
                   <small>{{ review.priceText }}</small>
+                </li>
+              </ol>
+            </section>
+            <section v-if="selectedBacktest.timeline?.length" class="backtest-timeline">
+              <header>
+                <strong>策略执行时间线</strong>
+                <small>{{ (selectedBacktest.timeline ?? []).length }} 条记录</small>
+              </header>
+              <ol>
+                <li
+                  v-for="item in selectedBacktest.timeline ?? []"
+                  :key="item.id"
+                  :class="`timeline-item--${item.severity}`"
+                >
+                  <div>
+                    <b>{{ item.title }}</b>
+                    <span>{{ item.time }}</span>
+                  </div>
+                  <p>{{ item.description }}</p>
+                  <small>{{ timelineMeta(item) }}</small>
                 </li>
               </ol>
             </section>

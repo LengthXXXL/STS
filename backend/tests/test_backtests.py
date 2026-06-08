@@ -2,6 +2,7 @@ from sqlalchemy import select
 
 from app.models import (
     BacktestEquityPointRecord,
+    BacktestTimelineRecord,
     BacktestTask,
     BacktestTradeRecord,
     MarketKlineCache,
@@ -88,6 +89,10 @@ def test_run_backtest_returns_computed_metrics_and_trade_path(client):
     assert payload["events"][0]["side"] == "SELL"
     assert payload["events"][0]["rule"] == "T+1"
     assert payload["events"][0]["reason"] == "A股 T+1 规则限制，当日买入持仓不可卖出"
+    assert payload["timeline"]
+    assert payload["timeline"][0]["eventType"] == "TRADE_FILLED"
+    assert payload["timeline"][0]["title"] == "买入成交"
+    assert any(item["eventType"] == "ORDER_BLOCKED" for item in payload["timeline"])
     assert payload["trades"][0]["price"] > 0
     assert payload["equityCurve"][0]["equity"] == 100000
     assert payload["equityCurve"][-1]["equity"] == payload["summary"]["endingEquity"]
@@ -154,17 +159,26 @@ def test_run_backtest_persists_owned_task_trades_and_equity_curve(client, db_ses
         .where(BacktestEquityPointRecord.task_id == task.id)
         .order_by(BacktestEquityPointRecord.sequence)
     ).all()
+    timeline_items = db_session.scalars(
+        select(BacktestTimelineRecord)
+        .where(BacktestTimelineRecord.task_id == task.id)
+        .order_by(BacktestTimelineRecord.sequence)
+    ).all()
 
     assert len(trades) == len(payload["trades"])
     assert trades[0].side == payload["trades"][0]["side"]
     assert trades[0].price == payload["trades"][0]["price"]
     assert len(equity_points) == len(payload["equityCurve"])
     assert equity_points[-1].equity == payload["equityCurve"][-1]["equity"]
+    assert len(timeline_items) == len(payload["timeline"])
+    assert timeline_items[0].event_type == payload["timeline"][0]["eventType"]
+    assert timeline_items[0].title == payload["timeline"][0]["title"]
 
     detail = client.get(f"/api/backtests/{task.id}", headers=auth_headers(token))
     assert detail.status_code == 200
     detail_payload = detail.json()
     assert detail_payload["events"] == payload["events"]
+    assert detail_payload["timeline"] == payload["timeline"]
 
 
 def test_list_backtests_only_returns_current_user_records(client):
