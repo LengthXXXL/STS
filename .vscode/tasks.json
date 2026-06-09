@@ -1,0 +1,97 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Setup: backend venv",
+      "type": "shell",
+      "command": "python3.10 -m venv .venv && .venv/bin/python -m pip install --upgrade pip && .venv/bin/python -m pip install -e '.[dev]'",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Setup: frontend deps",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Run: backend API",
+      "type": "shell",
+      "command": ".venv/bin/python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "uvicorn",
+        "pattern": [
+          {
+            "regexp": "^.*$"
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "Uvicorn running on|Started reloader process",
+          "endsPattern": "Application startup complete"
+        }
+      }
+    },
+    {
+      "label": "Run: frontend Vite",
+      "type": "npm",
+      "script": "dev",
+      "path": "frontend",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": [
+          {
+            "regexp": "^.*$"
+          }
+        ],
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "Local:"
+        }
+      }
+    },
+    {
+      "label": "Run: STS full stack",
+      "dependsOrder": "parallel",
+      "dependsOn": [
+        "Run: backend API",
+        "Run: frontend Vite"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: backend",
+      "type": "shell",
+      "command": ".venv/bin/pytest tests -q",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: frontend",
+      "type": "npm",
+      "script": "test",
+      "path": "frontend",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build: frontend",
+      "type": "npm",
+      "script": "build",
+      "path": "frontend",
+      "problemMatcher": []
+    }
+  ]
+}
