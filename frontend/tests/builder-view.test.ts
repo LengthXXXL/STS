@@ -654,7 +654,7 @@ describe('builder view', () => {
     expect(wrapper.find('.draft-status').text()).toContain('已从本机浏览器加载草稿')
   })
 
-  it('saves the current strategy to the authenticated personal space', async () => {
+  it('asks for a strategy name before saving to the authenticated personal space', async () => {
     const authStore = useAuthStore()
     authStore.setSession({
       token: 'token-123',
@@ -663,7 +663,7 @@ describe('builder view', () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: {
         id: 7,
-        name: '未命名策略',
+        name: '五分钟突破策略',
         description: null,
         strategy: {},
         backtestConfig: null,
@@ -679,8 +679,18 @@ describe('builder view', () => {
     window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action: 'save' } }))
     await flushPromises()
 
+    expect(apiClient.post).not.toHaveBeenCalled()
+    expect(wrapper.find('.strategy-save-modal').exists()).toBe(true)
+    expect((wrapper.find('.strategy-name-input').element as HTMLInputElement).value).toBe(
+      '未命名策略'
+    )
+
+    await wrapper.find('.strategy-name-input').setValue('五分钟突破策略')
+    await wrapper.find('.strategy-save-confirm-button').trigger('click')
+    await flushPromises()
+
     expect(apiClient.post).toHaveBeenCalledWith('/strategies', {
-      name: '未命名策略',
+      name: '五分钟突破策略',
       description: null,
       strategy: expect.objectContaining({
         version: 1,
@@ -691,6 +701,7 @@ describe('builder view', () => {
         timeframe: '5m'
       })
     })
+    expect(wrapper.find('.strategy-save-modal').exists()).toBe(false)
     expect(wrapper.find('.strategy-save-status').text()).toContain('已保存到个人空间')
   })
 
@@ -762,6 +773,14 @@ describe('builder view', () => {
     expect(workspaceStore.pendingWorkspaceDraft).toBeNull()
 
     window.dispatchEvent(new CustomEvent('sts:builder-action', { detail: { action: 'save' } }))
+    await flushPromises()
+
+    expect(apiClient.post).not.toHaveBeenCalled()
+    expect((wrapper.find('.strategy-name-input').element as HTMLInputElement).value).toBe(
+      '回测复盘：000001.SZ 5分钟'
+    )
+
+    await wrapper.find('.strategy-save-confirm-button').trigger('click')
     await flushPromises()
 
     expect(apiClient.post).toHaveBeenCalledWith('/strategies', {

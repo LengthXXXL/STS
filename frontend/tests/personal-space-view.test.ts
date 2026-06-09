@@ -557,6 +557,37 @@ describe('personal space view', () => {
     })
   })
 
+  it('renames a saved strategy without changing its content', async () => {
+    mockPersonalSpaceRequests()
+    vi.mocked(apiClient.put).mockResolvedValueOnce({
+      data: { ...savedStrategy, name: '五分钟突破策略新版' }
+    })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="strategies"]').trigger('click')
+    await wrapper.find('.strategy-rename-button').trigger('click')
+
+    expect((wrapper.find('.strategy-name-input').element as HTMLInputElement).value).toBe(
+      '五分钟突破策略'
+    )
+
+    await wrapper.find('.strategy-name-input').setValue('五分钟突破策略新版')
+    await wrapper.find('.strategy-save-name-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.put).toHaveBeenCalledWith('/strategies/7', {
+      name: '五分钟突破策略新版',
+      description: savedStrategy.description,
+      strategy: savedStrategy.strategy,
+      backtestConfig: savedStrategy.backtestConfig
+    })
+    expect(apiClient.get).toHaveBeenCalledWith('/strategies', {
+      params: { keyword: '', page: 1, pageSize: 10 }
+    })
+    expect(wrapper.text()).toContain('已重命名策略：五分钟突破策略新版')
+  })
+
   it('shows custom block details and deletes after confirmation', async () => {
     mockPersonalSpaceRequests()
     vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: null })

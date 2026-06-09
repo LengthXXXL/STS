@@ -215,6 +215,7 @@ button {
 
 .space-search button,
 .strategy-item-actions button,
+.strategy-rename-actions button,
 .space-tabs button,
 .account-form-actions button,
 .custom-block-edit-actions button,
@@ -366,6 +367,11 @@ button {
   justify-content: flex-end;
 }
 
+.strategy-item-main {
+  min-width: 0;
+  flex: 1;
+}
+
 .strategy-item-actions a {
   display: inline-flex;
   align-items: center;
@@ -498,6 +504,7 @@ button {
   font-size: 12px;
 }
 
+.strategy-rename-form,
 .custom-block-edit-form {
   display: grid;
   grid-template-columns: repeat(2, minmax(160px, 1fr));
@@ -507,16 +514,23 @@ button {
   padding-top: 12px;
 }
 
+.strategy-rename-form {
+  margin-top: 12px;
+}
+
+.strategy-rename-form label,
 .custom-block-edit-form label {
   display: grid;
   gap: 6px;
 }
 
+.strategy-rename-form label span,
 .custom-block-edit-form label span {
   color: #a89bc1;
   font-size: 13px;
 }
 
+.strategy-rename-form input,
 .custom-block-edit-form input,
 .custom-block-edit-form textarea {
   width: 100%;
@@ -527,6 +541,8 @@ button {
   background: #09080d;
 }
 
+.strategy-rename-form label,
+.strategy-rename-actions,
 .custom-block-edit-form textarea,
 .custom-block-edit-actions,
 .custom-block-delete-confirm {
@@ -538,6 +554,7 @@ button {
   resize: vertical;
 }
 
+.strategy-rename-actions,
 .custom-block-edit-actions,
 .custom-block-delete-confirm {
   display: flex;
@@ -546,17 +563,20 @@ button {
   flex-wrap: wrap;
 }
 
+.strategy-rename-form .strategy-save-name-button,
 .custom-block-edit-form .custom-block-save-button {
   color: #eafffb !important;
   border-color: rgba(94, 230, 200, 0.44) !important;
   background: rgba(21, 57, 53, 0.76) !important;
 }
 
+.strategy-rename-form .strategy-save-name-button:hover,
 .custom-block-edit-form .custom-block-save-button:hover {
   border-color: rgba(94, 230, 200, 0.68) !important;
   background: rgba(28, 75, 69, 0.88) !important;
 }
 
+.strategy-cancel-rename-button,
 .custom-block-cancel-button {
   color: #d8ceff !important;
   border-color: rgba(124, 77, 255, 0.34) !important;

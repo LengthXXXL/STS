@@ -274,6 +274,8 @@ const forumPostLoading = ref(false)
 const forumCommentLoading = ref(false)
 const backtestDetailLoading = ref(false)
 const strategyError = ref('')
+const strategyActionError = ref('')
+const strategyActionMessage = ref('')
 const customBlockError = ref('')
 const customBlockActionError = ref('')
 const customBlockActionMessage = ref('')
@@ -282,6 +284,9 @@ const marketRuleError = ref('')
 const backtestError = ref('')
 const forumPostError = ref('')
 const forumCommentError = ref('')
+const editingStrategyId = ref<number | null>(null)
+const strategyNameForm = ref('')
+const isSavingStrategyName = ref(false)
 const editingCustomBlockId = ref<number | null>(null)
 const confirmingCustomBlockDeleteId = ref<number | null>(null)
 const customBlockForm = ref<CustomBlockForm>({
@@ -578,6 +583,57 @@ function openStrategy(strategy: SavedStrategy) {
   void router.push('/')
 }
 
+function editStrategyName(strategy: SavedStrategy) {
+  editingStrategyId.value = strategy.id
+  strategyNameForm.value = strategy.name
+  strategyActionError.value = ''
+  strategyActionMessage.value = ''
+}
+
+function cancelStrategyRename() {
+  editingStrategyId.value = null
+  strategyNameForm.value = ''
+  strategyActionError.value = ''
+}
+
+async function submitStrategyRename(strategy: SavedStrategy) {
+  const name = strategyNameForm.value.trim()
+  strategyActionError.value = ''
+  strategyActionMessage.value = ''
+
+  if (!name) {
+    strategyActionError.value = '请填写策略名称'
+    return
+  }
+
+  if (name.length > 80) {
+    strategyActionError.value = '策略名称最多 80 个字符'
+    return
+  }
+
+  if (isSavingStrategyName.value) {
+    return
+  }
+
+  isSavingStrategyName.value = true
+  try {
+    await apiClient.put(`/strategies/${strategy.id}`, {
+      name,
+      description: strategy.description,
+      strategy: strategy.strategy,
+      backtestConfig: strategy.backtestConfig
+    })
+    editingStrategyId.value = null
+    strategyNameForm.value = ''
+    strategyActionMessage.value = `已重命名策略：${name}`
+    await loadStrategies()
+  } catch {
+    strategyActionError.value = '策略重命名失败，请稍后重试'
+  } finally {
+    isSavingStrategyName.value = false
+  }
+}
+
 function openCustomBlock(block: CustomBlock) {
   workspaceStore.openCustomBlockTemplate({
     name: block.name,
@@ -625,6 +681,9 @@ async function publishCustomBlock(block: CustomBlock) {
 }
 
 async function deleteStrategy(strategy: SavedStrategy) {
+  if (editingStrategyId.value === strategy.id) {
+    cancelStrategyRename()
+  }
   await apiClient.delete(`/strategies/${strategy.id}`)
   await loadStrategies()
 }
@@ -1221,12 +1280,22 @@ onMounted(() => {
 
     <section v-else-if="activeTab === 'strategies'" class="space-section">
       <p v-if="strategyError" class="form-error">{{ strategyError }}</p>
-      <p v-else-if="strategyLoading" class="space-muted">正在加载策略</p>
-      <p v-else-if="strategies.length === 0" class="space-muted">暂无已保存策略</p>
+      <p v-if="strategyActionError" class="form-error">{{ strategyActionError }}</p>
+      <p v-if="strategyActionMessage" class="space-muted">{{ strategyActionMessage }}</p>
+      <p v-if="strategyLoading" class="space-muted">正在加载策略</p>
+      <p
+        v-else-if="!strategyError && strategies.length === 0"
+        class="space-muted"
+      >
+        暂无已保存策略
+      </p>
 
-      <div v-else class="strategy-list">
+      <div
+        v-if="!strategyError && !strategyLoading && strategies.length > 0"
+        class="strategy-list"
+      >
         <article v-for="strategy in strategies" :key="strategy.id" class="strategy-item">
-          <div>
+          <div class="strategy-item-main">
             <h2>{{ strategy.name }}</h2>
             <p>{{ strategy.description || '无描述' }}</p>
             <small>
@@ -1236,10 +1305,48 @@ onMounted(() => {
               ·
               更新于 {{ formatDate(strategy.updatedAt) }}
             </small>
+            <form
+              v-if="editingStrategyId === strategy.id"
+              class="strategy-rename-form"
+              @submit.prevent="submitStrategyRename(strategy)"
+            >
+              <label>
+                <span>策略名称</span>
+                <input
+                  v-model="strategyNameForm"
+                  class="strategy-name-input"
+                  maxlength="80"
+                />
+              </label>
+              <div class="strategy-rename-actions">
+                <button
+                  class="strategy-save-name-button"
+                  type="submit"
+                  :disabled="isSavingStrategyName"
+                  @click.prevent="submitStrategyRename(strategy)"
+                >
+                  {{ isSavingStrategyName ? '保存中' : '保存修改' }}
+                </button>
+                <button
+                  class="strategy-cancel-rename-button"
+                  type="button"
+                  @click="cancelStrategyRename"
+                >
+                  取消
+                </button>
+              </div>
+            </form>
           </div>
           <div class="strategy-item-actions">
             <button class="strategy-open-button" type="button" @click="openStrategy(strategy)">
               打开
+            </button>
+            <button
+              class="strategy-rename-button"
+              type="button"
+              @click="editStrategyName(strategy)"
+            >
+              重命名
             </button>
             <button class="strategy-delete-button" type="button" @click="deleteStrategy(strategy)">
               删除

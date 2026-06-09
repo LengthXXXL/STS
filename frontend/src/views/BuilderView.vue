@@ -651,6 +651,9 @@ const currentStrategyId = ref<number | null>(null)
 const currentStrategyName = ref(DEFAULT_STRATEGY_NAME)
 const isSavingStrategy = ref(false)
 const strategySaveStatus = ref('')
+const isStrategySaveModalOpen = ref(false)
+const strategyNameDraft = ref(DEFAULT_STRATEGY_NAME)
+const strategySaveModalStatus = ref('')
 const customBlockForm = reactive<CustomBlockForm>({
   name: '',
   category: '自定义',
@@ -1205,7 +1208,7 @@ function loadDraft() {
   }
 }
 
-async function saveStrategyToSpace() {
+function openStrategySaveModal() {
   contextMenu.value = null
 
   if (!authStore.isAuthenticated) {
@@ -1223,11 +1226,42 @@ async function saveStrategyToSpace() {
     return
   }
 
+  strategyNameDraft.value = currentStrategyName.value.trim() || DEFAULT_STRATEGY_NAME
+  strategySaveModalStatus.value = ''
+  isStrategySaveModalOpen.value = true
+}
+
+function closeStrategySaveModal() {
+  if (isSavingStrategy.value) {
+    return
+  }
+  isStrategySaveModalOpen.value = false
+  strategySaveModalStatus.value = ''
+}
+
+async function saveStrategyToSpace() {
+  const name = strategyNameDraft.value.trim()
+  if (!name) {
+    strategySaveModalStatus.value = '请填写策略名称'
+    return
+  }
+
+  if (name.length > 80) {
+    strategySaveModalStatus.value = '策略名称最多 80 个字符'
+    return
+  }
+
+  if (isSavingStrategy.value) {
+    return
+  }
+
+  const wasNewStrategy = currentStrategyId.value === null
   isSavingStrategy.value = true
-  strategySaveStatus.value = '正在保存策略'
+  strategySaveStatus.value = ''
+  strategySaveModalStatus.value = '正在保存策略'
 
   const payload = {
-    name: currentStrategyName.value || DEFAULT_STRATEGY_NAME,
+    name,
     description: null,
     strategy: strategyDraft.value,
     backtestConfig: backtestConfig.value
@@ -1244,12 +1278,14 @@ async function saveStrategyToSpace() {
 
     currentStrategyId.value = response.data.id
     currentStrategyName.value = response.data.name
+    isStrategySaveModalOpen.value = false
+    strategySaveModalStatus.value = ''
     strategySaveStatus.value =
-      currentStrategyId.value === null
-        ? '策略已保存到个人空间'
+      wasNewStrategy
+        ? `策略已保存到个人空间：${response.data.name}`
         : `策略已保存到个人空间：${response.data.name}`
   } catch {
-    strategySaveStatus.value = '保存失败，请稍后重试'
+    strategySaveModalStatus.value = '保存失败，请稍后重试'
   } finally {
     isSavingStrategy.value = false
   }
@@ -1420,7 +1456,7 @@ function handleBuilderAction(event: Event) {
   const detail = (event as CustomEvent<{ action?: string }>).detail
 
   if (detail?.action === 'save') {
-    void saveStrategyToSpace()
+    openStrategySaveModal()
     return
   }
 
@@ -2381,6 +2417,71 @@ function clearCanvas() {
             @click="saveCustomBlockTemplate"
           >
             {{ isCustomBlockSaving ? '保存中' : '保存到我的积木' }}
+          </button>
+        </footer>
+      </aside>
+    </div>
+
+    <div
+      v-if="isStrategySaveModalOpen"
+      class="custom-block-modal-backdrop strategy-save-modal-backdrop"
+      @click.self="closeStrategySaveModal"
+      @pointerdown.stop
+      @wheel.stop
+    >
+      <aside
+        class="custom-block-modal strategy-save-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="strategy-save-modal-title"
+        @click.stop
+        @pointerdown.stop
+        @contextmenu.stop
+      >
+        <header class="custom-block-modal-header">
+          <div>
+            <small>个人空间</small>
+            <h2 id="strategy-save-modal-title">保存策略</h2>
+          </div>
+          <button
+            class="custom-block-modal-close"
+            type="button"
+            aria-label="关闭保存策略"
+            @click="closeStrategySaveModal"
+          >
+            ×
+          </button>
+        </header>
+
+        <form class="custom-block-form" @submit.prevent="saveStrategyToSpace">
+          <label>
+            <span>策略名称</span>
+            <input
+              v-model="strategyNameDraft"
+              class="strategy-name-input"
+              maxlength="80"
+              placeholder="例如：五分钟突破策略"
+            />
+          </label>
+        </form>
+
+        <p class="custom-block-status">{{ strategySaveModalStatus }}</p>
+
+        <footer class="custom-block-modal-footer">
+          <button
+            class="custom-block-cancel-button"
+            type="button"
+            @click="closeStrategySaveModal"
+          >
+            取消
+          </button>
+          <button
+            class="custom-block-save-button strategy-save-confirm-button"
+            type="button"
+            :disabled="isSavingStrategy"
+            @click="saveStrategyToSpace"
+          >
+            {{ isSavingStrategy ? '保存中' : '保存到个人空间' }}
           </button>
         </footer>
       </aside>
