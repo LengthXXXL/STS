@@ -220,6 +220,17 @@ def test_default_provider_falls_back_when_yahoo_is_unavailable():
     assert candles == [MarketCandle(time="2026-01-01 09:35", close=10)]
 
 
+def test_default_provider_raises_when_primary_source_unavailable_without_explicit_fallback():
+    class BrokenProvider:
+        def get_intraday_candles(self, config):
+            raise MarketDataUnavailableError("network failed")
+
+    provider = DefaultMarketDataProvider(yahoo_provider=BrokenProvider())
+
+    with pytest.raises(MarketDataUnavailableError):
+        provider.get_intraday_candles(_config(market="US_STOCK", symbol="AAPL"))
+
+
 def test_default_provider_uses_eastmoney_for_a_share_before_fallback():
     class EastMoneyProvider:
         def __init__(self):
@@ -302,11 +313,19 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
     ]
     cached_rows = db_session.scalars(select(MarketKlineCache)).all()
     assert [
-        (row.candle_time, row.open_price, row.high_price, row.low_price, row.close, row.volume)
+        (
+            row.candle_time,
+            row.source,
+            row.open_price,
+            row.high_price,
+            row.low_price,
+            row.close,
+            row.volume,
+        )
         for row in cached_rows
     ] == [
-        ("2026-01-01 09:35", 10.1, 10.3, 10.0, 10.25, 1200),
-        ("2026-01-01 09:40", 10.25, 10.5, 10.2, 10.45, 1500),
+        ("2026-01-01 09:35", "LIVE", 10.1, 10.3, 10.0, 10.25, 1200),
+        ("2026-01-01 09:40", "LIVE", 10.25, 10.5, 10.2, 10.45, 1500),
     ]
 
     cached_again = CachedMarketDataProvider(
@@ -315,6 +334,57 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
     ).get_intraday_candles(config)
 
     assert cached_again == first_candles
+
+
+def test_cached_provider_ignores_unknown_source_rows_and_replaces_them(db_session):
+    db_session.add(
+        models.MarketKlineCache(
+            market="A_SHARE",
+            symbol="000001.SZ",
+            timeframe="5m",
+            source="UNKNOWN",
+            candle_time="2026-01-01 09:35",
+            open_price=9.8,
+            high_price=10.0,
+            low_price=9.7,
+            close=9.9,
+            volume=500,
+        )
+    )
+    db_session.commit()
+
+    class SourceProvider:
+        def get_intraday_candles(self, config):
+            return [
+                MarketCandle(
+                    time="2026-01-01 09:35",
+                    open=10.1,
+                    high=10.3,
+                    low=10.0,
+                    close=10.25,
+                    volume=1200,
+                )
+            ]
+
+    provider = market_data_service.CachedMarketDataProvider(
+        db_session,
+        source_provider=SourceProvider(),
+    )
+
+    candles = provider.get_intraday_candles(_config(market="A_SHARE", symbol="000001.SZ"))
+
+    assert candles == [
+        MarketCandle(
+            time="2026-01-01 09:35",
+            open=10.1,
+            high=10.3,
+            low=10.0,
+            close=10.25,
+            volume=1200,
+        )
+    ]
+    rows = db_session.scalars(select(models.MarketKlineCache)).all()
+    assert [(row.source, row.close) for row in rows] == [("LIVE", 10.25)]
 
 
 def test_fetch_json_uses_explicit_ssl_context(monkeypatch):

@@ -1,5 +1,6 @@
 from sqlalchemy import select
 
+from app.api import backtests as backtests_api
 from app.models import (
     BacktestEquityPointRecord,
     BacktestTimelineRecord,
@@ -7,6 +8,7 @@ from app.models import (
     BacktestTradeRecord,
     MarketKlineCache,
 )
+from app.services.market_data_service import MarketDataUnavailableError
 
 
 def register_and_token(client, username: str, email: str) -> str:
@@ -62,6 +64,42 @@ def _backtest_payload():
     }
 
 
+def _seed_market_cache(
+    db_session,
+    *,
+    market: str = "A_SHARE",
+    symbol: str = "000001.SZ",
+    timeframe: str = "5m",
+) -> None:
+    base_price = 10.2 if market == "A_SHARE" else 186.4
+    candle_times = [
+        "2026-01-01 09:35",
+        "2026-01-01 09:40",
+        "2026-01-01 09:45",
+        "2026-01-01 09:50",
+        "2026-01-01 09:55",
+        "2026-01-01 10:00",
+    ]
+    open_factors = [1, 1, 1.025, 0.992, 1.055, 1.038]
+    for index, factor in enumerate([1, 1.025, 0.992, 1.055, 1.038, 1.073]):
+        close = round(base_price * factor, 4)
+        db_session.add(
+            MarketKlineCache(
+                market=market,
+                symbol=symbol,
+                timeframe=timeframe,
+                source="LIVE",
+                candle_time=candle_times[index],
+                open_price=round(base_price * open_factors[index], 4),
+                high_price=round(close * 1.004, 4),
+                low_price=round(close * 0.996, 4),
+                close=close,
+                volume=1000 + index * 120,
+            )
+        )
+    db_session.commit()
+
+
 def account_payload(name: str = "A股日内账户") -> dict:
     return {
         "name": name,
@@ -71,7 +109,9 @@ def account_payload(name: str = "A股日内账户") -> dict:
     }
 
 
-def test_run_backtest_returns_computed_metrics_and_trade_path(client):
+def test_run_backtest_returns_computed_metrics_and_trade_path(client, db_session):
+    _seed_market_cache(db_session)
+
     response = client.post("/api/backtests/run", json=_backtest_payload())
 
     assert response.status_code == 200
@@ -108,7 +148,25 @@ def test_run_backtest_rejects_empty_strategy(client):
     assert response.json()["detail"] == "Strategy must contain at least one node"
 
 
+def test_run_backtest_reports_market_data_unavailable(client, monkeypatch):
+    class FailingCachedProvider:
+        def __init__(self, db):
+            pass
+
+        def get_intraday_candles(self, config):
+            raise MarketDataUnavailableError("source unavailable")
+
+    monkeypatch.setattr(backtests_api, "CachedMarketDataProvider", FailingCachedProvider)
+
+    response = client.post("/api/backtests/run", json=_backtest_payload())
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "未能获取该股票在所选时间段的分钟行情，请检查股票代码、市场和日期范围，或稍后重试"
+
+
 def test_run_backtest_caches_market_data_rows(client, db_session):
+    _seed_market_cache(db_session)
+
     response = client.post("/api/backtests/run", json=_backtest_payload())
 
     assert response.status_code == 200
@@ -125,6 +183,8 @@ def test_run_backtest_caches_market_data_rows(client, db_session):
 
 
 def test_run_backtest_persists_owned_task_trades_and_equity_curve(client, db_session):
+    _seed_market_cache(db_session)
+
     token = register_and_token(client, "backtester", "backtester@example.com")
 
     response = client.post(
@@ -181,7 +241,10 @@ def test_run_backtest_persists_owned_task_trades_and_equity_curve(client, db_ses
     assert detail_payload["timeline"] == payload["timeline"]
 
 
-def test_list_backtests_only_returns_current_user_records(client):
+def test_list_backtests_only_returns_current_user_records(client, db_session):
+    _seed_market_cache(db_session, symbol="000001.SZ")
+    _seed_market_cache(db_session, symbol="600000.SH")
+
     alice_token = register_and_token(client, "alice-backtest", "alice-backtest@example.com")
     bob_token = register_and_token(client, "bob-backtest", "bob-backtest@example.com")
 
@@ -215,7 +278,9 @@ def test_list_backtests_only_returns_current_user_records(client):
     assert bob_list.json()["items"][0]["symbol"] == "600000.SH"
 
 
-def test_backtest_detail_requires_owner(client):
+def test_backtest_detail_requires_owner(client, db_session):
+    _seed_market_cache(db_session)
+
     alice_token = register_and_token(client, "alice-detail", "alice-detail@example.com")
     bob_token = register_and_token(client, "bob-detail", "bob-detail@example.com")
 
@@ -242,7 +307,9 @@ def test_backtest_detail_requires_owner(client):
     assert bob_detail.status_code == 404
 
 
-def test_run_backtest_uses_owned_simulation_account_settings(client):
+def test_run_backtest_uses_owned_simulation_account_settings(client, db_session):
+    _seed_market_cache(db_session, market="US_STOCK", symbol="AAPL")
+
     token = register_and_token(client, "account-runner", "account-runner@example.com")
     account_response = client.post(
         "/api/simulation-accounts",

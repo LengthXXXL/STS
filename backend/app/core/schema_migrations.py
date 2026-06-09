@@ -32,6 +32,13 @@ def ensure_development_schema(engine: Engine) -> None:
     if inspector.has_table("market_kline_cache"):
         column_names = {column["name"] for column in inspector.get_columns("market_kline_cache")}
         with engine.begin() as connection:
+            if "source" not in column_names:
+                connection.execute(
+                    text(
+                        "ALTER TABLE market_kline_cache "
+                        "ADD COLUMN source VARCHAR(20) NOT NULL DEFAULT 'UNKNOWN'"
+                    )
+                )
             for column_name in ("open_price", "high_price", "low_price"):
                 if column_name not in column_names:
                     connection.execute(

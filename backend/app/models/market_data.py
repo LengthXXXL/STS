@@ -23,6 +23,7 @@ class MarketKlineCache(Base):
     symbol: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     timeframe: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
     candle_time: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="LIVE", index=True)
     open_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     high_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     low_price: Mapped[float | None] = mapped_column(Float, nullable=True)

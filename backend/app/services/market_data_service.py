@@ -15,6 +15,8 @@ from sqlalchemy.orm import Session
 from app.models.market_data import MarketKlineCache
 from app.schemas.backtest import BacktestConfig
 
+LIVE_CACHE_SOURCE = "LIVE"
+
 
 @dataclass(frozen=True, slots=True)
 class MarketCandle:
@@ -223,22 +225,26 @@ class DefaultMarketDataProvider:
     ):
         self.yahoo_provider = yahoo_provider or YahooChartMarketDataProvider()
         self.eastmoney_provider = eastmoney_provider or EastMoneyMarketDataProvider()
-        self.fallback_provider = fallback_provider or LocalMarketDataProvider()
+        self.fallback_provider = fallback_provider
 
     def get_intraday_candles(self, config: BacktestConfig) -> list[MarketCandle]:
         if config.market == "US_STOCK":
             try:
                 return self.yahoo_provider.get_intraday_candles(config)
             except MarketDataUnavailableError:
+                if self.fallback_provider is None:
+                    raise
                 return self.fallback_provider.get_intraday_candles(config)
 
         if config.market == "A_SHARE":
             try:
                 return self.eastmoney_provider.get_intraday_candles(config)
             except MarketDataUnavailableError:
+                if self.fallback_provider is None:
+                    raise
                 return self.fallback_provider.get_intraday_candles(config)
 
-        return self.fallback_provider.get_intraday_candles(config)
+        raise MarketDataUnavailableError(f"Unsupported market: {config.market}")
 
 
 class CachedMarketDataProvider:
@@ -265,6 +271,7 @@ class CachedMarketDataProvider:
             .where(MarketKlineCache.market == config.market)
             .where(MarketKlineCache.symbol == _normalized_symbol(config.symbol))
             .where(MarketKlineCache.timeframe == config.timeframe)
+            .where(MarketKlineCache.source == LIVE_CACHE_SOURCE)
             .where(MarketKlineCache.candle_time >= _day_start_key(config.startDate))
             .where(MarketKlineCache.candle_time <= _day_end_key(config.endDate))
             .order_by(MarketKlineCache.candle_time)
@@ -288,19 +295,27 @@ class CachedMarketDataProvider:
 
         symbol = _normalized_symbol(config.symbol)
         candle_times = sorted({candle.time for candle in candles})
-        existing_times = set(
-            self.db.scalars(
-                select(MarketKlineCache.candle_time)
-                .where(MarketKlineCache.market == config.market)
-                .where(MarketKlineCache.symbol == symbol)
-                .where(MarketKlineCache.timeframe == config.timeframe)
-                .where(MarketKlineCache.candle_time.in_(candle_times))
-            ).all()
-        )
+        existing_rows = self.db.scalars(
+            select(MarketKlineCache)
+            .where(MarketKlineCache.market == config.market)
+            .where(MarketKlineCache.symbol == symbol)
+            .where(MarketKlineCache.timeframe == config.timeframe)
+            .where(MarketKlineCache.candle_time.in_(candle_times))
+        ).all()
+        existing_live_times = {
+            row.candle_time for row in existing_rows if row.source == LIVE_CACHE_SOURCE
+        }
+        has_stale_rows = False
+        for row in existing_rows:
+            if row.source != LIVE_CACHE_SOURCE:
+                has_stale_rows = True
+                self.db.delete(row)
+        if has_stale_rows:
+            self.db.flush()
         seen_times: set[str] = set()
 
         for candle in candles:
-            if candle.time in existing_times or candle.time in seen_times:
+            if candle.time in existing_live_times or candle.time in seen_times:
                 continue
             seen_times.add(candle.time)
             self.db.add(
@@ -308,6 +323,7 @@ class CachedMarketDataProvider:
                     market=config.market,
                     symbol=symbol,
                     timeframe=config.timeframe,
+                    source=LIVE_CACHE_SOURCE,
                     candle_time=candle.time,
                     open_price=float(candle.open_price),
                     high_price=float(candle.high_price),

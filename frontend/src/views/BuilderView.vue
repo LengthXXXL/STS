@@ -10,6 +10,7 @@ import {
   type CanvasRect,
   type CanvasTransform
 } from '../utils/builderCanvas'
+import { getApiErrorMessage } from '../utils/apiErrorMessages'
 import { apiClient } from '../api/http'
 import BacktestResultVisualization from '../components/BacktestResultVisualization.vue'
 import { useAuthStore } from '../stores/auth'
@@ -1285,8 +1286,8 @@ async function runBacktest() {
     backtestPersistStatus.value = authStore.isAuthenticated
       ? '回测结果已保存到个人空间，可在我的回测中查看'
       : '访客回测仅在当前页面展示，登录后运行可保存到个人空间'
-  } catch {
-    backtestRunError.value = '回测运行失败，请稍后重试'
+  } catch (requestError) {
+    backtestRunError.value = getApiErrorMessage(requestError, '回测运行失败，请稍后重试')
   } finally {
     isBacktestRunning.value = false
   }

@@ -1088,6 +1088,28 @@ describe('builder view', () => {
     expect(wrapper.find('.backtest-timeline').text()).toContain('止盈')
   })
 
+  it('shows the market data detail when a backtest cannot fetch candles', async () => {
+    vi.mocked(apiClient.post).mockRejectedValueOnce({
+      isAxiosError: true,
+      response: {
+        data: {
+          detail: '未能获取该股票在所选时间段的分钟行情，请检查股票代码、市场和日期范围，或稍后重试'
+        }
+      }
+    })
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
+
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.backtest-run-error').text()).toContain(
+      '未能获取该股票在所选时间段的分钟行情'
+    )
+  })
+
   it('links authenticated backtest runs to the saved personal-space record list', async () => {
     const authStore = useAuthStore()
     authStore.setSession({
