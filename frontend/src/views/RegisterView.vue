@@ -2,6 +2,7 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { getApiErrorMessage } from '../utils/apiErrorMessages'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -17,8 +18,8 @@ async function submit() {
   try {
     await authStore.register(username.value, email.value, password.value)
     await router.push('/')
-  } catch {
-    error.value = '注册失败，请检查用户名、邮箱或密码'
+  } catch (requestError) {
+    error.value = getApiErrorMessage(requestError, '注册失败，请检查用户名、邮箱或密码')
   } finally {
     loading.value = false
   }

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { getApiErrorMessage } from '../utils/apiErrorMessages'
 
 type AuthMode = 'login' | 'register'
 
@@ -57,8 +58,11 @@ async function submit() {
       await authStore.register(username.value, email.value, password.value)
     }
     closeModal()
-  } catch {
-    error.value = activeMode.value === 'login' ? '邮箱或密码错误' : '注册失败，请检查信息'
+  } catch (requestError) {
+    error.value =
+      activeMode.value === 'login'
+        ? '邮箱或密码错误'
+        : getApiErrorMessage(requestError, '注册失败，请检查信息')
   } finally {
     loading.value = false
   }
