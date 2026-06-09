@@ -2901,6 +2901,12 @@ button {
   background: rgba(48, 33, 87, 0.34);
 }
 
+.backtest-visualization {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
 .backtest-result-card strong {
   color: #f7f2ff;
   font-size: 13px;

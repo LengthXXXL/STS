@@ -983,6 +983,13 @@ describe('builder view', () => {
             price: 10.2,
             quantity: 1900,
             reason: '买入积木触发'
+          },
+          {
+            time: '2026-01-05 10:40',
+            side: 'SELL',
+            price: 10.8,
+            quantity: 1900,
+            reason: '止盈触发'
           }
         ],
         events: [
@@ -1031,8 +1038,9 @@ describe('builder view', () => {
           }
         ],
         equityCurve: [
-          { time: '2026-01-01', equity: 100000 },
-          { time: '2026-03-01', equity: 107300 }
+          { time: '2026-01-05 10:30', equity: 100000 },
+          { time: '2026-01-05 10:35', equity: 102100 },
+          { time: '2026-01-05 10:40', equity: 107300 }
         ]
       }
     })
@@ -1063,6 +1071,13 @@ describe('builder view', () => {
     expect(wrapper.find('.backtest-result-card').text()).toContain('7.3%')
     expect(wrapper.find('.backtest-result-card').text()).toContain('最大回撤')
     expect(wrapper.find('.backtest-result-card').text()).toContain('2.8%')
+    expect(wrapper.find('[data-testid="equity-chart-line"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="drawdown-chart-line"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="trade-marker-buy"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="trade-marker-sell"]').exists()).toBe(true)
+    expect(wrapper.find('.trade-review').text()).toContain('交易复盘')
+    expect(wrapper.find('.trade-review').text()).toContain('买入 1900 股')
+    expect(wrapper.find('.trade-review').text()).toContain('卖出 1900 股')
     expect(wrapper.find('.backtest-trades').text()).toContain('BUY')
     expect(wrapper.find('.backtest-trades').text()).toContain('买入积木触发')
     expect(wrapper.find('.backtest-events').text()).toContain('规则提示')

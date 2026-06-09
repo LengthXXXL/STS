@@ -11,6 +11,7 @@ import {
   type CanvasTransform
 } from '../utils/builderCanvas'
 import { apiClient } from '../api/http'
+import BacktestResultVisualization from '../components/BacktestResultVisualization.vue'
 import { useAuthStore } from '../stores/auth'
 import { useStrategyWorkspaceStore } from '../stores/strategyWorkspace'
 
@@ -1296,29 +1297,6 @@ function openPersonalBacktests() {
     path: '/space',
     query: { tab: 'backtests' }
   })
-}
-
-function timelineMeta(item: BacktestTimelineItem) {
-  const parts: string[] = []
-  if (item.nodeLabel) {
-    parts.push(`积木 ${item.nodeLabel}`)
-  }
-  if (item.side) {
-    parts.push(item.side === 'BUY' ? '买入' : '卖出')
-  }
-  if (typeof item.quantity === 'number') {
-    parts.push(`${item.quantity} 股`)
-  }
-  if (typeof item.price === 'number') {
-    parts.push(`${item.price}`)
-  }
-  if (item.rule) {
-    parts.push(`规则 ${item.rule}`)
-  }
-  if (typeof item.details.durationBars === 'number') {
-    parts.push(`冷却 ${item.details.durationBars} 根K线`)
-  }
-  return parts.join(' · ') || item.time
 }
 
 function openCustomBlockModal() {
@@ -2637,85 +2615,7 @@ function clearCanvas() {
                 <p v-if="backtestPersistStatus" class="backtest-persist-status">
                   {{ backtestPersistStatus }}
                 </p>
-                <div class="backtest-metrics">
-                  <span>
-                    <small>总收益率</small>
-                    <b>{{ backtestRunResult.summary.totalReturnPercent }}%</b>
-                  </span>
-                  <span>
-                    <small>最大回撤</small>
-                    <b>{{ backtestRunResult.summary.maxDrawdownPercent }}%</b>
-                  </span>
-                  <span>
-                    <small>胜率</small>
-                    <b>{{ backtestRunResult.summary.winRatePercent }}%</b>
-                  </span>
-                  <span>
-                    <small>期末资产</small>
-                    <b>{{ backtestRunResult.summary.endingEquity }}</b>
-                  </span>
-                </div>
-                <section v-if="backtestRunResult.timeline?.length" class="backtest-timeline">
-                  <header>
-                    <strong>策略执行时间线</strong>
-                    <small>{{ (backtestRunResult.timeline ?? []).length }} 条记录</small>
-                  </header>
-                  <ol>
-                    <li
-                      v-for="item in backtestRunResult.timeline ?? []"
-                      :key="item.id"
-                      :class="`timeline-item--${item.severity}`"
-                    >
-                      <div>
-                        <b>{{ item.title }}</b>
-                        <span>{{ item.time }}</span>
-                      </div>
-                      <p>{{ item.description }}</p>
-                      <small>{{ timelineMeta(item) }}</small>
-                    </li>
-                  </ol>
-                </section>
-                <table class="backtest-trades">
-                  <thead>
-                    <tr>
-                      <th>时间</th>
-                      <th>方向</th>
-                      <th>价格</th>
-                      <th>数量</th>
-                      <th>原因</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="trade in backtestRunResult.trades" :key="`${trade.time}-${trade.side}`">
-                      <td>{{ trade.time }}</td>
-                      <td>{{ trade.side }}</td>
-                      <td>{{ trade.price }}</td>
-                      <td>{{ trade.quantity }}</td>
-                      <td>{{ trade.reason }}</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <section v-if="backtestRunResult.events.length" class="backtest-events">
-                  <header>
-                    <strong>规则提示</strong>
-                    <small>{{ backtestRunResult.events.length }} 条被拦截信号</small>
-                  </header>
-                  <ul>
-                    <li
-                      v-for="(event, index) in backtestRunResult.events"
-                      :key="`${event.time}-${event.side}-${event.rule}-${index}`"
-                    >
-                      <div>
-                        <b>
-                          {{ event.time }} · {{ event.side === 'BUY' ? '买入' : '卖出' }}信号被拦截
-                        </b>
-                        <span>{{ event.rule }}</span>
-                      </div>
-                      <p>{{ event.reason }}</p>
-                      <small>{{ event.quantity }} 股 · {{ event.price }}</small>
-                    </li>
-                  </ul>
-                </section>
+                <BacktestResultVisualization :result="backtestRunResult" show-metrics />
               </template>
               <p v-else class="backtest-run-error">{{ backtestRunError }}</p>
             </section>
