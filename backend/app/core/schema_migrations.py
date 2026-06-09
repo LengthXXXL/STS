@@ -28,3 +28,19 @@ def ensure_development_schema(engine: Engine) -> None:
                         "ADD COLUMN item_id VARCHAR(80) NOT NULL DEFAULT ''"
                     )
                 )
+
+    if inspector.has_table("market_kline_cache"):
+        column_names = {column["name"] for column in inspector.get_columns("market_kline_cache")}
+        with engine.begin() as connection:
+            for column_name in ("open_price", "high_price", "low_price"):
+                if column_name not in column_names:
+                    connection.execute(
+                        text(f"ALTER TABLE market_kline_cache ADD COLUMN {column_name} FLOAT")
+                    )
+                connection.execute(
+                    text(
+                        f"UPDATE market_kline_cache "
+                        f"SET {column_name} = close "
+                        f"WHERE {column_name} IS NULL"
+                    )
+                )

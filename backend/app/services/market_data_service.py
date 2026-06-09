@@ -21,6 +21,21 @@ class MarketCandle:
     time: str
     close: float
     volume: float = 0
+    open: float | None = None
+    high: float | None = None
+    low: float | None = None
+
+    @property
+    def open_price(self) -> float:
+        return self.close if self.open is None else self.open
+
+    @property
+    def high_price(self) -> float:
+        return self.close if self.high is None else self.high
+
+    @property
+    def low_price(self) -> float:
+        return self.close if self.low is None else self.low
 
 
 class MarketDataProvider(Protocol):
@@ -41,16 +56,27 @@ class LocalMarketDataProvider:
         price_factors = [1, 1.025, 0.992, 1.055, 1.038, 1.073]
         session_start = datetime.fromisoformat(f"{config.startDate}T09:30:00")
 
-        return [
-            MarketCandle(
-                time=(session_start + timedelta(minutes=minute_step * (index + 1))).strftime(
-                    "%Y-%m-%d %H:%M"
-                ),
-                close=round(base_price * factor, 4),
-                volume=1000 + index * 120,
+        candles: list[MarketCandle] = []
+        previous_close = base_price
+        for index, factor in enumerate(price_factors):
+            close = round(base_price * factor, 4)
+            open_price = round(previous_close, 4)
+            high = round(max(open_price, close) * 1.004, 4)
+            low = round(min(open_price, close) * 0.996, 4)
+            candles.append(
+                MarketCandle(
+                    time=(
+                        session_start + timedelta(minutes=minute_step * (index + 1))
+                    ).strftime("%Y-%m-%d %H:%M"),
+                    open=open_price,
+                    high=high,
+                    low=low,
+                    close=close,
+                    volume=1000 + index * 120,
+                )
             )
-            for index, factor in enumerate(price_factors)
-        ]
+            previous_close = close
+        return candles
 
 
 class YahooChartMarketDataProvider:
@@ -100,20 +126,29 @@ class YahooChartMarketDataProvider:
         timestamps = result.get("timestamp") or []
         quote_sets = result.get("indicators", {}).get("quote") or []
         quote = quote_sets[0] if quote_sets else {}
+        opens = quote.get("open") or []
+        highs = quote.get("high") or []
+        lows = quote.get("low") or []
         closes = quote.get("close") or []
         volumes = quote.get("volume") or []
 
-        candles = [
-            MarketCandle(
-                time=datetime.fromtimestamp(timestamp, timezone.utc)
-                .astimezone(exchange_timezone)
-                .strftime("%Y-%m-%d %H:%M"),
-                close=round(float(close), 4),
-                volume=_safe_float_at(volumes, index),
+        candles: list[MarketCandle] = []
+        for index, (timestamp, close) in enumerate(zip(timestamps, closes, strict=False)):
+            if close is None:
+                continue
+            close_price = round(float(close), 4)
+            candles.append(
+                MarketCandle(
+                    time=datetime.fromtimestamp(timestamp, timezone.utc)
+                    .astimezone(exchange_timezone)
+                    .strftime("%Y-%m-%d %H:%M"),
+                    open=_safe_price_at(opens, index, close_price),
+                    high=_safe_price_at(highs, index, close_price),
+                    low=_safe_price_at(lows, index, close_price),
+                    close=close_price,
+                    volume=_safe_float_at(volumes, index),
+                )
             )
-            for index, (timestamp, close) in enumerate(zip(timestamps, closes, strict=False))
-            if close is not None
-        ]
         if not candles:
             raise MarketDataUnavailableError("Yahoo response contains no usable candles")
         return candles
@@ -158,12 +193,15 @@ class EastMoneyMarketDataProvider:
         candles: list[MarketCandle] = []
         for raw_kline in klines:
             parts = raw_kline.split(",")
-            if len(parts) < 3:
+            if len(parts) < 5:
                 continue
             try:
                 candles.append(
                     MarketCandle(
                         time=parts[0],
+                        open=round(float(parts[1]), 4),
+                        high=round(float(parts[3]), 4),
+                        low=round(float(parts[4]), 4),
                         close=round(float(parts[2]), 4),
                         volume=float(parts[5]) if len(parts) > 5 else 0,
                     )
@@ -233,7 +271,14 @@ class CachedMarketDataProvider:
         ).all()
 
         return [
-            MarketCandle(time=row.candle_time, close=row.close, volume=row.volume)
+            MarketCandle(
+                time=row.candle_time,
+                open=row.open_price if row.open_price is not None else row.close,
+                high=row.high_price if row.high_price is not None else row.close,
+                low=row.low_price if row.low_price is not None else row.close,
+                close=row.close,
+                volume=row.volume,
+            )
             for row in rows
         ]
 
@@ -264,6 +309,9 @@ class CachedMarketDataProvider:
                     symbol=symbol,
                     timeframe=config.timeframe,
                     candle_time=candle.time,
+                    open_price=float(candle.open_price),
+                    high_price=float(candle.high_price),
+                    low_price=float(candle.low_price),
                     close=float(candle.close),
                     volume=float(candle.volume),
                 )
@@ -327,6 +375,15 @@ def _safe_float_at(values: list[Any], index: int) -> float:
         return float(values[index])
     except (TypeError, ValueError):
         return 0
+
+
+def _safe_price_at(values: list[Any], index: int, fallback: float) -> float:
+    if index >= len(values) or values[index] is None:
+        return fallback
+    try:
+        return round(float(values[index]), 4)
+    except (TypeError, ValueError):
+        return fallback
 
 
 def _normalized_symbol(symbol: str) -> str:

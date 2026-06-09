@@ -66,6 +66,8 @@ def run_backtest_with_candles(
     closed_trade_count = 0
     closed_trade_wins = 0
     cooldown_remaining = 0
+    pending_buy_node: StrategyNode | None = None
+    pending_exit_rule: ExitRule | None = None
 
     buy_node = _first_node(request, "buy")
     sell_node = _first_node(request, "sell")
@@ -88,97 +90,72 @@ def run_backtest_with_candles(
             closed_trade_wins=closed_trade_wins,
         )
 
-    for candle in candles:
+    for candle_index, candle in enumerate(candles):
         sold_this_candle = False
 
+        if pending_exit_rule and position.quantity > 0:
+            cash, exit_filled, exit_won = _fill_exit_rule(
+                cash=cash,
+                position=position,
+                candle=candle,
+                execution_price=candle.open_price,
+                exit_rule=pending_exit_rule,
+                market_rule=market_rule,
+                trades=trades,
+                events=events,
+                timeline=timeline,
+            )
+            if exit_filled:
+                closed_trade_count += 1
+                if exit_won:
+                    closed_trade_wins += 1
+                sold_this_candle = True
+            pending_exit_rule = None
+
+        if pending_buy_node and position.quantity == 0 and not sold_this_candle:
+            if cooldown_remaining > 0:
+                cooldown_remaining -= 1
+            else:
+                cash = _fill_buy_order(
+                    cash=cash,
+                    position=position,
+                    candle=candle,
+                    execution_price=candle.open_price,
+                    buy_node=pending_buy_node,
+                    buy_percent=_node_percent(pending_buy_node, "sizePercent", 20),
+                    market_rule=market_rule,
+                    trades=trades,
+                    timeline=timeline,
+                )
+            pending_buy_node = None
+
         if position.quantity > 0:
-            position.highest_price = max(position.highest_price, candle.close)
-            exit_rule = _select_exit_rule(
+            exit_rule = _select_touch_exit_rule(
                 request=request,
                 position=position,
-                close=candle.close,
+                candle=candle,
                 candles=candles,
-                candle_index=len(equity_curve),
+                candle_index=candle_index,
                 take_profit_node=take_profit_node,
                 stop_loss_node=stop_loss_node,
                 moving_stop_node=moving_stop_node,
-                clear_node=clear_node,
-                sell_node=sell_node,
             )
             if exit_rule:
-                sell_quantity = _quantity_from_percent(
-                    position.quantity,
-                    _node_percent(exit_rule.node, exit_rule.param_key, exit_rule.default_percent),
+                cash, exit_filled, exit_won = _fill_exit_rule(
+                    cash=cash,
+                    position=position,
+                    candle=candle,
+                    execution_price=exit_rule.execution_price or candle.close,
+                    exit_rule=exit_rule,
+                    market_rule=market_rule,
+                    trades=trades,
+                    events=events,
+                    timeline=timeline,
                 )
-                if market_rule and not _can_sell_position(position, candle, market_rule):
-                    block_reason = _sell_block_reason(market_rule)
-                    events.append(
-                        BacktestEvent(
-                            time=candle.time,
-                            eventType="BLOCKED_ORDER",
-                            side="SELL",
-                            price=round(candle.close, 4),
-                            quantity=sell_quantity,
-                            reason=block_reason,
-                            rule=market_rule.settlement_cycle,
-                        )
-                    )
-                    timeline.append(
-                        _timeline_order_blocked(
-                            sequence=len(timeline),
-                            time=candle.time,
-                            side="SELL",
-                            price=round(candle.close, 4),
-                            quantity=sell_quantity,
-                            reason=block_reason,
-                            rule=market_rule.settlement_cycle,
-                            node=exit_rule.node,
-                        )
-                    )
-                    sell_quantity = 0
-                if sell_quantity > 0:
-                    cash = round(cash + sell_quantity * candle.close, 2)
-                    trades.append(
-                        BacktestTrade(
-                            time=candle.time,
-                            side="SELL",
-                            price=round(candle.close, 4),
-                            quantity=sell_quantity,
-                            reason=exit_rule.reason,
-                        )
-                    )
-                    timeline.append(
-                        _timeline_trade_filled(
-                            sequence=len(timeline),
-                            time=candle.time,
-                            side="SELL",
-                            price=round(candle.close, 4),
-                            quantity=sell_quantity,
-                            reason=exit_rule.reason,
-                            node=exit_rule.node,
-                        )
-                    )
+                if exit_filled:
                     closed_trade_count += 1
-                    if candle.close > position.average_price:
+                    if exit_won:
                         closed_trade_wins += 1
-
-                    position.quantity -= sell_quantity
-                    closed_by_clear = exit_rule.kind == "clear" and position.quantity <= 0
-                    if position.quantity <= 0:
-                        position.quantity = 0
-                        position.average_price = 0
-                        position.highest_price = 0
-                        position.holding_bars = 0
-                        position.entry_date = None
-                    if closed_by_clear:
-                        timeline.append(
-                            _timeline_position_closed(
-                                sequence=len(timeline),
-                                time=candle.time,
-                                reason=exit_rule.reason,
-                                node=exit_rule.node,
-                            )
-                        )
                     if exit_rule.kind == "stop-loss" and cooldown_node:
                         cooldown_duration = _node_int(cooldown_node, "durationBars", 3)
                         cooldown_remaining = cooldown_duration
@@ -193,56 +170,35 @@ def run_backtest_with_candles(
                             )
                         )
                     sold_this_candle = True
+            if position.quantity > 0:
+                position.highest_price = max(position.highest_price, candle.high_price)
+
+        if position.quantity > 0 and not sold_this_candle and candle_index + 1 < len(candles):
+            ordinary_exit_rule = _select_ordinary_exit_rule(
+                request=request,
+                position=position,
+                candles=candles,
+                candle_index=candle_index,
+                clear_node=clear_node,
+                sell_node=sell_node,
+            )
+            if ordinary_exit_rule:
+                pending_exit_rule = ordinary_exit_rule
 
         if (
             position.quantity == 0
             and buy_node
             and not sold_this_candle
+            and candle_index + 1 < len(candles)
             and _action_conditions_pass(
                 request=request,
                 target_node=buy_node,
                 candles=candles,
-                candle_index=len(equity_curve),
+                candle_index=candle_index,
                 position=position,
             )
         ):
-            if cooldown_remaining > 0:
-                cooldown_remaining -= 1
-            else:
-                buy_quantity = _buy_quantity(
-                    cash=cash,
-                    price=candle.close,
-                    buy_percent=_node_percent(buy_node, "sizePercent", 20),
-                    buy_lot_size=market_rule.buy_lot_size if market_rule else 1,
-                    min_order_shares=market_rule.min_order_shares if market_rule else 1,
-                )
-                if buy_quantity > 0:
-                    cash = round(cash - buy_quantity * candle.close, 2)
-                    position.quantity = buy_quantity
-                    position.average_price = candle.close
-                    position.highest_price = candle.close
-                    position.holding_bars = 0
-                    position.entry_date = _trade_date(candle.time)
-                    trades.append(
-                        BacktestTrade(
-                            time=candle.time,
-                            side="BUY",
-                            price=round(candle.close, 4),
-                            quantity=buy_quantity,
-                            reason="买入积木触发",
-                        )
-                    )
-                    timeline.append(
-                        _timeline_trade_filled(
-                            sequence=len(timeline),
-                            time=candle.time,
-                            side="BUY",
-                            price=round(candle.close, 4),
-                            quantity=buy_quantity,
-                            reason="买入积木触发",
-                            node=buy_node,
-                        )
-                    )
+            pending_buy_node = buy_node
 
         equity_curve.append(
             EquityPoint(
@@ -315,52 +271,211 @@ class ExitRule:
     param_key: str
     default_percent: float
     reason: str
+    execution_price: float | None = None
 
 
-def _select_exit_rule(
+def _fill_buy_order(
+    *,
+    cash: float,
+    position: Position,
+    candle: MarketCandle,
+    execution_price: float,
+    buy_node: StrategyNode,
+    buy_percent: float,
+    market_rule: MarketRuleResponse | None,
+    trades: list[BacktestTrade],
+    timeline: list[BacktestTimelineItem],
+) -> float:
+    buy_quantity = _buy_quantity(
+        cash=cash,
+        price=execution_price,
+        buy_percent=buy_percent,
+        buy_lot_size=market_rule.buy_lot_size if market_rule else 1,
+        min_order_shares=market_rule.min_order_shares if market_rule else 1,
+    )
+    if buy_quantity <= 0:
+        return cash
+
+    fill_price = round(execution_price, 4)
+    cash = round(cash - buy_quantity * fill_price, 2)
+    position.quantity = buy_quantity
+    position.average_price = fill_price
+    position.highest_price = fill_price
+    position.holding_bars = 0
+    position.entry_date = _trade_date(candle.time)
+    trades.append(
+        BacktestTrade(
+            time=candle.time,
+            side="BUY",
+            price=fill_price,
+            quantity=buy_quantity,
+            reason="买入积木触发",
+        )
+    )
+    timeline.append(
+        _timeline_trade_filled(
+            sequence=len(timeline),
+            time=candle.time,
+            side="BUY",
+            price=fill_price,
+            quantity=buy_quantity,
+            reason="买入积木触发",
+            node=buy_node,
+        )
+    )
+    return cash
+
+
+def _fill_exit_rule(
+    *,
+    cash: float,
+    position: Position,
+    candle: MarketCandle,
+    execution_price: float,
+    exit_rule: ExitRule,
+    market_rule: MarketRuleResponse | None,
+    trades: list[BacktestTrade],
+    events: list[BacktestEvent],
+    timeline: list[BacktestTimelineItem],
+) -> tuple[float, bool, bool]:
+    fill_price = round(execution_price, 4)
+    sell_quantity = _quantity_from_percent(
+        position.quantity,
+        _node_percent(exit_rule.node, exit_rule.param_key, exit_rule.default_percent),
+    )
+    if market_rule and not _can_sell_position(position, candle, market_rule):
+        block_reason = _sell_block_reason(market_rule)
+        events.append(
+            BacktestEvent(
+                time=candle.time,
+                eventType="BLOCKED_ORDER",
+                side="SELL",
+                price=fill_price,
+                quantity=sell_quantity,
+                reason=block_reason,
+                rule=market_rule.settlement_cycle,
+            )
+        )
+        timeline.append(
+            _timeline_order_blocked(
+                sequence=len(timeline),
+                time=candle.time,
+                side="SELL",
+                price=fill_price,
+                quantity=sell_quantity,
+                reason=block_reason,
+                rule=market_rule.settlement_cycle,
+                node=exit_rule.node,
+            )
+        )
+        return cash, False, False
+
+    if sell_quantity <= 0:
+        return cash, False, False
+
+    trade_won = fill_price > position.average_price
+    cash = round(cash + sell_quantity * fill_price, 2)
+    trades.append(
+        BacktestTrade(
+            time=candle.time,
+            side="SELL",
+            price=fill_price,
+            quantity=sell_quantity,
+            reason=exit_rule.reason,
+        )
+    )
+    timeline.append(
+        _timeline_trade_filled(
+            sequence=len(timeline),
+            time=candle.time,
+            side="SELL",
+            price=fill_price,
+            quantity=sell_quantity,
+            reason=exit_rule.reason,
+            node=exit_rule.node,
+        )
+    )
+
+    position.quantity -= sell_quantity
+    closed_by_clear = exit_rule.kind == "clear" and position.quantity <= 0
+    if position.quantity <= 0:
+        position.quantity = 0
+        position.average_price = 0
+        position.highest_price = 0
+        position.holding_bars = 0
+        position.entry_date = None
+    if closed_by_clear:
+        timeline.append(
+            _timeline_position_closed(
+                sequence=len(timeline),
+                time=candle.time,
+                reason=exit_rule.reason,
+                node=exit_rule.node,
+            )
+        )
+    return cash, True, trade_won
+
+
+def _select_touch_exit_rule(
     *,
     request: BacktestRunRequest,
     position: Position,
-    close: float,
+    candle: MarketCandle,
     candles: list[MarketCandle],
     candle_index: int,
     take_profit_node: StrategyNode | None,
     stop_loss_node: StrategyNode | None,
     moving_stop_node: StrategyNode | None,
-    clear_node: StrategyNode | None,
-    sell_node: StrategyNode | None,
 ) -> ExitRule | None:
-    if take_profit_node and _position_return_percent(position, close) >= _node_float(
-        take_profit_node, "profitRate", 5
-    ):
-        return ExitRule(
-            node=take_profit_node,
-            kind="take-profit",
-            param_key="sellPercent",
-            default_percent=50,
-            reason="止盈触发",
-        )
+    if stop_loss_node:
+        stop_loss_price = _stop_loss_price(position, stop_loss_node)
+        if candle.low_price <= stop_loss_price:
+            return ExitRule(
+                node=stop_loss_node,
+                kind="stop-loss",
+                param_key="sellPercent",
+                default_percent=100,
+                reason="止损触发",
+                execution_price=stop_loss_price,
+            )
 
-    if stop_loss_node and _position_loss_percent(position, close) >= _node_float(
-        stop_loss_node, "lossRate", 3
-    ):
-        return ExitRule(
-            node=stop_loss_node,
-            kind="stop-loss",
-            param_key="sellPercent",
-            default_percent=100,
-            reason="止损触发",
-        )
+    if take_profit_node:
+        take_profit_price = _take_profit_price(position, take_profit_node)
+        if candle.high_price >= take_profit_price:
+            return ExitRule(
+                node=take_profit_node,
+                kind="take-profit",
+                param_key="sellPercent",
+                default_percent=50,
+                reason="止盈触发",
+                execution_price=take_profit_price,
+            )
 
-    if moving_stop_node and _moving_stop_triggered(position, close, moving_stop_node):
+    moving_stop_price = (
+        _moving_stop_price(position, moving_stop_node) if moving_stop_node else None
+    )
+    if moving_stop_node and moving_stop_price is not None and candle.low_price <= moving_stop_price:
         return ExitRule(
             node=moving_stop_node,
             kind="moving-stop",
             param_key="sellPercent",
             default_percent=100,
             reason="移动止损触发",
+            execution_price=moving_stop_price,
         )
 
+    return None
+
+
+def _select_ordinary_exit_rule(
+    *,
+    request: BacktestRunRequest,
+    position: Position,
+    candles: list[MarketCandle],
+    candle_index: int,
+    clear_node: StrategyNode | None,
+    sell_node: StrategyNode | None,
+) -> ExitRule | None:
     if clear_node and _action_conditions_pass(
         request=request,
         target_node=clear_node,
@@ -530,21 +645,33 @@ def _condition_node_passes(
     return True
 
 
-def _moving_stop_triggered(
+def _take_profit_price(position: Position, take_profit_node: StrategyNode) -> float:
+    profit_rate = _node_float(take_profit_node, "profitRate", 5)
+    return round(position.average_price * (1 + profit_rate / 100), 4)
+
+
+def _stop_loss_price(position: Position, stop_loss_node: StrategyNode) -> float:
+    loss_rate = _node_float(stop_loss_node, "lossRate", 3)
+    return round(position.average_price * (1 - loss_rate / 100), 4)
+
+
+def _moving_stop_price(
     position: Position,
-    close: float,
-    moving_stop_node: StrategyNode,
-) -> bool:
+    moving_stop_node: StrategyNode | None,
+) -> float | None:
+    if moving_stop_node is None:
+        return None
     if position.highest_price <= 0 or position.average_price <= 0:
-        return False
+        return None
 
     highest_return_percent = (
         (position.highest_price - position.average_price) / position.average_price * 100
     )
-    pullback_percent = (position.highest_price - close) / position.highest_price * 100
-    return highest_return_percent >= _node_float(
-        moving_stop_node, "minProfitPercent", 5
-    ) and pullback_percent >= _node_float(moving_stop_node, "trailPercent", 3)
+    if highest_return_percent < _node_float(moving_stop_node, "minProfitPercent", 5):
+        return None
+
+    trail_percent = _node_float(moving_stop_node, "trailPercent", 3)
+    return round(position.highest_price * (1 - trail_percent / 100), 4)
 
 
 def _build_response(

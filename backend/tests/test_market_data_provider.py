@@ -65,7 +65,11 @@ def test_yahoo_provider_parses_chart_response_into_candles():
                         "indicators": {
                             "quote": [
                                 {
+                                    "open": [186.9, None, 188.0],
+                                    "high": [187.5, None, 189.0],
+                                    "low": [186.5, None, 187.8],
                                     "close": [187.125, None, 188.45678],
+                                    "volume": [12000, None, 18000],
                                 }
                             ]
                         },
@@ -84,8 +88,22 @@ def test_yahoo_provider_parses_chart_response_into_candles():
     assert "period1=" in requested_urls[0]
     assert "period2=" in requested_urls[0]
     assert candles == [
-        MarketCandle(time="2026-01-01 09:30", close=187.125),
-        MarketCandle(time="2026-01-01 09:40", close=188.4568),
+        MarketCandle(
+            time="2026-01-01 09:30",
+            open=186.9,
+            high=187.5,
+            low=186.5,
+            close=187.125,
+            volume=12000,
+        ),
+        MarketCandle(
+            time="2026-01-01 09:40",
+            open=188.0,
+            high=189.0,
+            low=187.8,
+            close=188.4568,
+            volume=18000,
+        ),
     ]
 
 
@@ -132,8 +150,22 @@ def test_eastmoney_provider_maps_a_share_symbol_and_parses_klines():
     assert "beg=20260101" in requested_urls[0]
     assert "end=20260102" in requested_urls[0]
     assert candles == [
-        MarketCandle(time="2026-01-01 09:35", close=10.25, volume=1200),
-        MarketCandle(time="2026-01-01 09:40", close=10.4568, volume=1500),
+        MarketCandle(
+            time="2026-01-01 09:35",
+            open=10.10,
+            high=10.30,
+            low=10.00,
+            close=10.25,
+            volume=1200,
+        ),
+        MarketCandle(
+            time="2026-01-01 09:40",
+            open=10.25,
+            high=10.50,
+            low=10.20,
+            close=10.4568,
+            volume=1500,
+        ),
     ]
 
 
@@ -221,8 +253,22 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
         def get_intraday_candles(self, config):
             self.calls += 1
             return [
-                MarketCandle(time="2026-01-01 09:35", close=10.25, volume=1200),
-                MarketCandle(time="2026-01-01 09:40", close=10.45, volume=1500),
+                MarketCandle(
+                    time="2026-01-01 09:35",
+                    open=10.1,
+                    high=10.3,
+                    low=10.0,
+                    close=10.25,
+                    volume=1200,
+                ),
+                MarketCandle(
+                    time="2026-01-01 09:40",
+                    open=10.25,
+                    high=10.5,
+                    low=10.2,
+                    close=10.45,
+                    volume=1500,
+                ),
             ]
 
     class FailingProvider:
@@ -237,13 +283,30 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
 
     assert source_provider.calls == 1
     assert first_candles == [
-        MarketCandle(time="2026-01-01 09:35", close=10.25, volume=1200),
-        MarketCandle(time="2026-01-01 09:40", close=10.45, volume=1500),
+        MarketCandle(
+            time="2026-01-01 09:35",
+            open=10.1,
+            high=10.3,
+            low=10.0,
+            close=10.25,
+            volume=1200,
+        ),
+        MarketCandle(
+            time="2026-01-01 09:40",
+            open=10.25,
+            high=10.5,
+            low=10.2,
+            close=10.45,
+            volume=1500,
+        ),
     ]
     cached_rows = db_session.scalars(select(MarketKlineCache)).all()
-    assert [(row.candle_time, row.close, row.volume) for row in cached_rows] == [
-        ("2026-01-01 09:35", 10.25, 1200),
-        ("2026-01-01 09:40", 10.45, 1500),
+    assert [
+        (row.candle_time, row.open_price, row.high_price, row.low_price, row.close, row.volume)
+        for row in cached_rows
+    ] == [
+        ("2026-01-01 09:35", 10.1, 10.3, 10.0, 10.25, 1200),
+        ("2026-01-01 09:40", 10.25, 10.5, 10.2, 10.45, 1500),
     ]
 
     cached_again = CachedMarketDataProvider(
