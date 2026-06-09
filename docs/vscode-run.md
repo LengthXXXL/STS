@@ -36,6 +36,14 @@ This starts:
 
 Open `http://127.0.0.1:5173` in the browser.
 
+If VSCode reports `ModuleNotFoundError: No module named 'fastapi'`, it is using the system Python instead of `backend/.venv`.
+
+Fix it by selecting:
+
+1. `Command Palette > Python: Select Interpreter`
+2. Choose `/Users/zluo/Project/STS/backend/.venv/bin/python`
+3. Run `Run: STS full stack` again
+
 ## Run Only One Side
 
 From `Terminal > Run Task...`:
