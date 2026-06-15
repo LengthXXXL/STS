@@ -134,6 +134,44 @@ def test_prepare_market_data_records_failed_range_without_claiming_ready(db_sess
     assert "network failed" in (failed_range.error_message or "")
 
 
+def test_prepare_market_data_records_generic_failure_and_returns_partial_failure_message(db_session):
+    class BrokenProvider:
+        def get_intraday_candles(self, config):
+            raise RuntimeError("boom")
+
+    response = prepare_market_data(db_session, _market_data_request(), source_provider=BrokenProvider())
+
+    assert response.ready is False
+    assert response.message == "部分行情下载失败，请重试失败区间"
+    assert response.downloadedRows == 0
+    assert [item.model_dump() for item in response.failedRanges] == [
+        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+    ]
+    failed_range = db_session.scalar(select(MarketDataDownloadRange))
+    assert failed_range is not None
+    assert failed_range.status == "failed"
+    assert "boom" in (failed_range.error_message or "")
+
+
+def test_market_data_request_rejects_invalid_market_with_chinese_message():
+    with pytest.raises(ValueError) as exc_info:
+        _market_data_request(market="CRYPTO")
+
+    assert "市场只支持" in str(exc_info.value)
+
+
+def test_market_data_request_rejects_invalid_timeframe_with_chinese_message():
+    with pytest.raises(ValueError) as exc_info:
+        _market_data_request(timeframe="15m")
+
+    assert "K线周期只支持" in str(exc_info.value)
+
+
 def test_market_data_request_rejects_range_longer_than_thirteen_months():
     with pytest.raises(ValueError):
         _market_data_request(startDate="2025-01-01", endDate="2026-06-15")
+
+
+def test_market_data_request_rejects_inclusive_398_day_range():
+    with pytest.raises(ValueError):
+        _market_data_request(startDate="2025-01-01", endDate="2026-02-02")

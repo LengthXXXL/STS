@@ -57,7 +57,8 @@ def prepare_market_data(
             try:
                 candles = provider.get_intraday_candles(config)
                 cache_provider.cache_candles(config, candles)
-            except MarketDataUnavailableError as exc:
+            except Exception as exc:
+                db.rollback()
                 failed_ranges.append(chunk)
                 _record_download_range(
                     db,
