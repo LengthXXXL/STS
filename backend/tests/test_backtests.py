@@ -7,6 +7,7 @@ from app.models import (
     BacktestTask,
     BacktestTradeRecord,
     MarketKlineCache,
+    MarketDataDownloadRange,
 )
 from app.services.market_data_service import MarketDataUnavailableError
 
@@ -97,6 +98,18 @@ def _seed_market_cache(
                 volume=1000 + index * 120,
             )
         )
+    db_session.add(
+        MarketDataDownloadRange(
+            market=market,
+            symbol=symbol,
+            timeframe=timeframe,
+            start_date="2026-01-01",
+            end_date="2026-03-01",
+            status="completed",
+            row_count=len(candle_times),
+            source="LIVE",
+        )
+    )
     db_session.commit()
 
 
@@ -148,20 +161,29 @@ def test_run_backtest_rejects_empty_strategy(client):
     assert response.json()["detail"] == "Strategy must contain at least one node"
 
 
-def test_run_backtest_reports_market_data_unavailable(client, monkeypatch):
-    class FailingCachedProvider:
+def test_run_backtest_rejects_unprepared_local_market_data(client):
+    response = client.post("/api/backtests/run", json=_backtest_payload())
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "本地行情尚未准备完成，请先下载行情后再运行回测"
+
+
+def test_run_backtest_reports_local_data_provider_failure(client, db_session, monkeypatch):
+    _seed_market_cache(db_session)
+
+    class FailingLocalProvider:
         def __init__(self, db):
             pass
 
         def get_intraday_candles(self, config):
-            raise MarketDataUnavailableError("source unavailable")
+            raise MarketDataUnavailableError("local cache missing")
 
-    monkeypatch.setattr(backtests_api, "CachedMarketDataProvider", FailingCachedProvider)
+    monkeypatch.setattr(backtests_api, "LocalOnlyMarketDataProvider", FailingLocalProvider)
 
     response = client.post("/api/backtests/run", json=_backtest_payload())
 
     assert response.status_code == 422
-    assert response.json()["detail"] == "未能获取该股票在所选时间段的分钟行情，请检查股票代码、市场和日期范围，或稍后重试"
+    assert response.json()["detail"] == "本地行情尚未准备完成，请先下载行情后再运行回测"
 
 
 def test_run_backtest_caches_market_data_rows(client, db_session):

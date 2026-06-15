@@ -17,7 +17,8 @@ from app.services.backtest_record_service import (
     save_backtest_result,
 )
 from app.services.backtest_service import run_backtest as run_backtest_service
-from app.services.market_data_service import CachedMarketDataProvider, MarketDataUnavailableError
+from app.services.market_data_download_service import ensure_market_data_ready
+from app.services.market_data_service import LocalOnlyMarketDataProvider, MarketDataUnavailableError
 from app.services.simulation_account_service import get_simulation_account
 
 router = APIRouter(prefix="/backtests", tags=["backtests"])
@@ -67,14 +68,15 @@ def run_backtest(
 
     effective_request = _apply_simulation_account(request, current_user, db)
     try:
+        ensure_market_data_ready(db, effective_request.config)
         result = run_backtest_service(
             effective_request,
-            market_data_provider=CachedMarketDataProvider(db),
+            market_data_provider=LocalOnlyMarketDataProvider(db),
         )
     except MarketDataUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="未能获取该股票在所选时间段的分钟行情，请检查股票代码、市场和日期范围，或稍后重试",
+            detail="本地行情尚未准备完成，请先下载行情后再运行回测",
         ) from exc
     save_backtest_result(db, effective_request, result, current_user)
     return result
