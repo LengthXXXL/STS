@@ -1,6 +1,7 @@
+from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class StrategyNode(BaseModel):
@@ -39,6 +40,24 @@ class BacktestConfig(BaseModel):
     endDate: str
     initialCash: float = Field(gt=0)
     simulationAccountId: int | None = Field(default=None, ge=1)
+
+    @field_validator("symbol")
+    @classmethod
+    def validate_symbol(cls, value: str) -> str:
+        normalized = value.strip().upper()
+        if not normalized:
+            raise ValueError("股票代码不能为空")
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_date_range(self):
+        start = date.fromisoformat(self.startDate)
+        end = date.fromisoformat(self.endDate)
+        if start > end:
+            raise ValueError("开始日期不能晚于结束日期")
+        if (end - start).days + 1 > 397:
+            raise ValueError("单次回测仅支持 1 只股票，时间范围最长 13 个月")
+        return self
 
 
 class BacktestRunRequest(BaseModel):

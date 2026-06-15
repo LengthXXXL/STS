@@ -1,3 +1,4 @@
+import pytest
 from sqlalchemy import select
 
 from app.api import backtests as backtests_api
@@ -166,6 +167,25 @@ def test_run_backtest_rejects_unprepared_local_market_data(client):
 
     assert response.status_code == 422
     assert response.json()["detail"] == "本地行情尚未准备完成，请先下载行情后再运行回测"
+
+
+@pytest.mark.parametrize(
+    ("start_date", "end_date"),
+    [
+        ("not-a-date", "2026-03-01"),
+        ("2026-03-02", "2026-03-01"),
+        ("2025-01-01", "2026-02-02"),
+    ],
+)
+def test_run_backtest_rejects_invalid_date_range_with_422(client, start_date, end_date):
+    payload = _backtest_payload()
+    payload["config"]["startDate"] = start_date
+    payload["config"]["endDate"] = end_date
+
+    response = client.post("/api/backtests/run", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] != "Internal Server Error"
 
 
 def test_run_backtest_reports_local_data_provider_failure(client, db_session, monkeypatch):
