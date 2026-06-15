@@ -976,93 +976,103 @@ describe('builder view', () => {
   })
 
   it('runs a backtest and renders the returned result summary', async () => {
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: {
-        runId: 'mock-run-1',
-        status: 'COMPLETED',
-        summary: {
-          totalReturnPercent: 7.3,
-          maxDrawdownPercent: 2.8,
-          winRatePercent: 66.7,
-          endingEquity: 107300,
-          tradeCount: 3
-        },
-        config: {
-          market: 'A_SHARE',
-          symbol: '000001.SZ',
-          timeframe: '5m',
-          startDate: '2026-01-01',
-          endDate: '2026-03-01',
-          initialCash: 100000
-        },
-        trades: [
-          {
-            time: '2026-01-05 10:30',
-            side: 'BUY',
-            price: 10.2,
-            quantity: 1900,
-            reason: '买入积木触发'
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          ready: true,
+          missingRanges: [],
+          estimatedRows: 0,
+          estimatedSeconds: 0,
+          message: '本地行情已准备完成，可以直接运行回测'
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          runId: 'mock-run-1',
+          status: 'COMPLETED',
+          summary: {
+            totalReturnPercent: 7.3,
+            maxDrawdownPercent: 2.8,
+            winRatePercent: 66.7,
+            endingEquity: 107300,
+            tradeCount: 3
           },
-          {
-            time: '2026-01-05 10:40',
-            side: 'SELL',
-            price: 10.8,
-            quantity: 1900,
-            reason: '止盈触发'
-          }
-        ],
-        events: [
-          {
-            time: '2026-01-05 10:35',
-            eventType: 'BLOCKED_ORDER',
-            side: 'SELL',
-            price: 10.6,
-            quantity: 1900,
-            reason: 'A股 T+1 规则限制，当日买入持仓不可卖出',
-            rule: 'T+1'
-          }
-        ],
-        timeline: [
-          {
-            id: 'trade-filled-0',
-            time: '2026-01-05 10:30',
-            eventType: 'TRADE_FILLED',
-            title: '买入成交',
-            description: '买入积木触发',
-            severity: 'success',
-            side: 'BUY',
-            price: 10.2,
-            quantity: 1900,
-            rule: null,
-            nodeId: 'buy-1',
-            nodeType: 'buy',
-            nodeLabel: '买入',
-            details: {}
+          config: {
+            market: 'A_SHARE',
+            symbol: '000001.SZ',
+            timeframe: '5m',
+            startDate: '2026-01-01',
+            endDate: '2026-03-01',
+            initialCash: 100000
           },
-          {
-            id: 'order-blocked-1',
-            time: '2026-01-05 10:35',
-            eventType: 'ORDER_BLOCKED',
-            title: '卖出信号被拦截',
-            description: 'A股 T+1 规则限制，当日买入持仓不可卖出',
-            severity: 'warning',
-            side: 'SELL',
-            price: 10.6,
-            quantity: 1900,
-            rule: 'T+1',
-            nodeId: 'take-profit-1',
-            nodeType: 'take-profit',
-            nodeLabel: '止盈',
-            details: {}
-          }
-        ],
-        equityCurve: [
-          { time: '2026-01-05 10:30', equity: 100000 },
-          { time: '2026-01-05 10:35', equity: 102100 },
-          { time: '2026-01-05 10:40', equity: 107300 }
-        ]
-      }
-    })
+          trades: [
+            {
+              time: '2026-01-05 10:30',
+              side: 'BUY',
+              price: 10.2,
+              quantity: 1900,
+              reason: '买入积木触发'
+            },
+            {
+              time: '2026-01-05 10:40',
+              side: 'SELL',
+              price: 10.8,
+              quantity: 1900,
+              reason: '止盈触发'
+            }
+          ],
+          events: [
+            {
+              time: '2026-01-05 10:35',
+              eventType: 'BLOCKED_ORDER',
+              side: 'SELL',
+              price: 10.6,
+              quantity: 1900,
+              reason: 'A股 T+1 规则限制，当日买入持仓不可卖出',
+              rule: 'T+1'
+            }
+          ],
+          timeline: [
+            {
+              id: 'trade-filled-0',
+              time: '2026-01-05 10:30',
+              eventType: 'TRADE_FILLED',
+              title: '买入成交',
+              description: '买入积木触发',
+              severity: 'success',
+              side: 'BUY',
+              price: 10.2,
+              quantity: 1900,
+              rule: null,
+              nodeId: 'buy-1',
+              nodeType: 'buy',
+              nodeLabel: '买入',
+              details: {}
+            },
+            {
+              id: 'order-blocked-1',
+              time: '2026-01-05 10:35',
+              eventType: 'ORDER_BLOCKED',
+              title: '卖出信号被拦截',
+              description: 'A股 T+1 规则限制，当日买入持仓不可卖出',
+              severity: 'warning',
+              side: 'SELL',
+              price: 10.6,
+              quantity: 1900,
+              rule: 'T+1',
+              nodeId: 'take-profit-1',
+              nodeType: 'take-profit',
+              nodeLabel: '止盈',
+              details: {}
+            }
+          ],
+          equityCurve: [
+            { time: '2026-01-05 10:30', equity: 100000 },
+            { time: '2026-01-05 10:35', equity: 102100 },
+            { time: '2026-01-05 10:40', equity: 107300 }
+          ]
+        }
+      })
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
@@ -1071,7 +1081,14 @@ describe('builder view', () => {
     await wrapper.find('.review-primary-button').trigger('click')
     await flushPromises()
 
-    expect(apiClient.post).toHaveBeenCalledWith('/backtests/run', {
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, '/market-data/coverage', {
+      market: 'A_SHARE',
+      symbol: '000001.SZ',
+      timeframe: '5m',
+      startDate: '2026-01-01',
+      endDate: '2026-03-01'
+    })
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, '/backtests/run', {
       strategy: expect.objectContaining({
         version: 1,
         nodes: expect.arrayContaining([
@@ -1107,15 +1124,168 @@ describe('builder view', () => {
     expect(wrapper.find('.backtest-timeline').text()).toContain('止盈')
   })
 
-  it('shows the market data detail when a backtest cannot fetch candles', async () => {
-    vi.mocked(apiClient.post).mockRejectedValueOnce({
-      isAxiosError: true,
-      response: {
+  it('asks before downloading missing market data and continues after prepare', async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
         data: {
-          detail: '未能获取该股票在所选时间段的分钟行情，请检查股票代码、市场和日期范围，或稍后重试'
+          ready: false,
+          missingRanges: [{ startDate: '2026-01-01', endDate: '2026-03-01' }],
+          estimatedRows: 12000,
+          estimatedSeconds: 20,
+          message:
+            '本地缺少 000001.SZ 的 5分钟K线，系统将下载 2026-01-01 至 2026-03-01 数据，预计 20 秒。'
         }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ready: true,
+          missingRanges: [],
+          estimatedRows: 0,
+          estimatedSeconds: 0,
+          message: '本地行情已准备完成，可以直接运行回测',
+          downloadedRows: 12000,
+          failedRanges: []
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          runId: 'mock-run-2',
+          status: 'COMPLETED',
+          summary: {
+            totalReturnPercent: 1.2,
+            maxDrawdownPercent: 0.4,
+            winRatePercent: 50,
+            endingEquity: 101200,
+            tradeCount: 1
+          },
+          config: {
+            market: 'A_SHARE',
+            symbol: '000001.SZ',
+            timeframe: '5m',
+            startDate: '2026-01-01',
+            endDate: '2026-03-01',
+            initialCash: 100000
+          },
+          trades: [],
+          events: [],
+          timeline: [],
+          equityCurve: [{ time: '2026-01-05 10:30', equity: 101200 }]
+        }
+      })
+
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
+
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.market-data-download-prompt').text()).toContain('需要下载本地行情')
+    expect(wrapper.find('.market-data-download-prompt').text()).toContain('预计 20 秒')
+    expect(apiClient.post).toHaveBeenCalledTimes(1)
+
+    await wrapper.find('[data-market-data-action="prepare"]').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, '/market-data/prepare', {
+      market: 'A_SHARE',
+      symbol: '000001.SZ',
+      timeframe: '5m',
+      startDate: '2026-01-01',
+      endDate: '2026-03-01'
+    })
+    expect(apiClient.post).toHaveBeenNthCalledWith(3, '/backtests/run', {
+      strategy: expect.objectContaining({ version: 1 }),
+      config: expect.objectContaining({ symbol: '000001.SZ' })
+    })
+    expect(wrapper.find('.backtest-result-card').text()).toContain('1.2%')
+  })
+
+  it('cancels missing market data download without running backtest', async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        ready: false,
+        missingRanges: [{ startDate: '2026-01-01', endDate: '2026-03-01' }],
+        estimatedRows: 12000,
+        estimatedSeconds: 20,
+        message:
+          '本地缺少 000001.SZ 的 5分钟K线，系统将下载 2026-01-01 至 2026-03-01 数据，预计 20 秒。'
       }
     })
+
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
+
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-market-data-action="cancel"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.market-data-download-prompt').exists()).toBe(false)
+    expect(apiClient.post).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows prepare failure and does not run backtest when market data download fails', async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          ready: false,
+          missingRanges: [{ startDate: '2026-01-01', endDate: '2026-03-01' }],
+          estimatedRows: 12000,
+          estimatedSeconds: 20,
+          message:
+            '本地缺少 000001.SZ 的 5分钟K线，系统将下载 2026-01-01 至 2026-03-01 数据，预计 20 秒。'
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ready: false,
+          missingRanges: [{ startDate: '2026-01-01', endDate: '2026-03-01' }],
+          estimatedRows: 12000,
+          estimatedSeconds: 20,
+          message: '部分行情下载失败，请重试失败区间',
+          downloadedRows: 0,
+          failedRanges: [{ startDate: '2026-01-01', endDate: '2026-03-01' }]
+        }
+      })
+
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
+
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-market-data-action="prepare"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.market-data-status').text()).toContain('部分行情下载失败')
+    expect(wrapper.find('.backtest-result-card').exists()).toBe(false)
+    expect(apiClient.post).toHaveBeenCalledTimes(2)
+  })
+
+  it('shows the market data detail when a backtest cannot fetch candles', async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          ready: true,
+          missingRanges: [],
+          estimatedRows: 0,
+          estimatedSeconds: 0,
+          message: '本地行情已准备完成，可以直接运行回测'
+        }
+      })
+      .mockRejectedValueOnce({
+        isAxiosError: true,
+        response: {
+          data: {
+            detail: '未能获取该股票在所选时间段的分钟行情，请检查股票代码、市场和日期范围，或稍后重试'
+          }
+        }
+      })
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
@@ -1148,31 +1318,41 @@ describe('builder view', () => {
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`))
     })
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: {
-        runId: 'mock-run-saved',
-        status: 'COMPLETED',
-        summary: {
-          totalReturnPercent: 5.2,
-          maxDrawdownPercent: 1.4,
-          winRatePercent: 60,
-          endingEquity: 105200,
-          tradeCount: 2
-        },
-        config: {
-          market: 'A_SHARE',
-          symbol: '000001.SZ',
-          timeframe: '5m',
-          startDate: '2026-01-01',
-          endDate: '2026-03-01',
-          initialCash: 100000
-        },
-        trades: [],
-        events: [],
-        timeline: [],
-        equityCurve: []
-      }
-    })
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          ready: true,
+          missingRanges: [],
+          estimatedRows: 0,
+          estimatedSeconds: 0,
+          message: '本地行情已准备完成，可以直接运行回测'
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          runId: 'mock-run-saved',
+          status: 'COMPLETED',
+          summary: {
+            totalReturnPercent: 5.2,
+            maxDrawdownPercent: 1.4,
+            winRatePercent: 60,
+            endingEquity: 105200,
+            tradeCount: 2
+          },
+          config: {
+            market: 'A_SHARE',
+            symbol: '000001.SZ',
+            timeframe: '5m',
+            startDate: '2026-01-01',
+            endDate: '2026-03-01',
+            initialCash: 100000
+          },
+          trades: [],
+          events: [],
+          timeline: [],
+          equityCurve: []
+        }
+      })
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
@@ -1238,32 +1418,42 @@ describe('builder view', () => {
       }
       return Promise.reject(new Error(`Unexpected GET ${url}`))
     })
-    vi.mocked(apiClient.post).mockResolvedValueOnce({
-      data: {
-        runId: 'mock-run-account',
-        status: 'COMPLETED',
-        summary: {
-          totalReturnPercent: 4.2,
-          maxDrawdownPercent: 1.8,
-          winRatePercent: 50,
-          endingEquity: 52100,
-          tradeCount: 2
-        },
-        config: {
-          market: 'US_STOCK',
-          symbol: 'AAPL',
-          timeframe: '5m',
-          startDate: '2026-01-01',
-          endDate: '2026-03-01',
-          initialCash: 50000,
-          simulationAccountId: 3
-        },
-        trades: [],
-        events: [],
-        timeline: [],
-        equityCurve: []
-      }
-    })
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          ready: true,
+          missingRanges: [],
+          estimatedRows: 0,
+          estimatedSeconds: 0,
+          message: '本地行情已准备完成，可以直接运行回测'
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          runId: 'mock-run-account',
+          status: 'COMPLETED',
+          summary: {
+            totalReturnPercent: 4.2,
+            maxDrawdownPercent: 1.8,
+            winRatePercent: 50,
+            endingEquity: 52100,
+            tradeCount: 2
+          },
+          config: {
+            market: 'US_STOCK',
+            symbol: 'AAPL',
+            timeframe: '5m',
+            startDate: '2026-01-01',
+            endDate: '2026-03-01',
+            initialCash: 50000,
+            simulationAccountId: 3
+          },
+          trades: [],
+          events: [],
+          timeline: [],
+          equityCurve: []
+        }
+      })
     const wrapper = mount(BuilderView)
     mockCanvasRect(wrapper)
     await dropBlock(wrapper, 'buy', 260, 170)
@@ -1295,7 +1485,14 @@ describe('builder view', () => {
     await wrapper.find('.review-primary-button').trigger('click')
     await flushPromises()
 
-    expect(apiClient.post).toHaveBeenCalledWith('/backtests/run', {
+    expect(apiClient.post).toHaveBeenNthCalledWith(1, '/market-data/coverage', {
+      market: 'US_STOCK',
+      symbol: 'AAPL',
+      timeframe: '5m',
+      startDate: '2026-01-01',
+      endDate: '2026-03-01'
+    })
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, '/backtests/run', {
       strategy: expect.any(Object),
       config: expect.objectContaining({
         market: 'US_STOCK',

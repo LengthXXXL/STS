@@ -165,6 +165,29 @@ interface BacktestRunResult {
   equityCurve: EquityPointResult[]
 }
 
+interface MarketDataRange {
+  startDate: string
+  endDate: string
+}
+
+interface MarketDataCoverage {
+  ready: boolean
+  missingRanges: MarketDataRange[]
+  estimatedRows: number
+  estimatedSeconds: number
+  message: string
+}
+
+interface MarketDataPrepareResult extends MarketDataCoverage {
+  downloadedRows: number
+  failedRanges: MarketDataRange[]
+}
+
+interface PendingBacktestPayload {
+  strategy: StrategyDraft
+  config: BacktestConfig
+}
+
 interface SavedStrategyResponse {
   id: number
   name: string
@@ -643,6 +666,10 @@ const isCustomBlockSaving = ref(false)
 const backtestRunError = ref('')
 const backtestRunResult = ref<BacktestRunResult | null>(null)
 const backtestPersistStatus = ref('')
+const marketDataPrompt = ref<MarketDataCoverage | null>(null)
+const marketDataStatus = ref('')
+const isMarketDataPreparing = ref(false)
+const pendingBacktestPayload = ref<PendingBacktestPayload | null>(null)
 const simulationAccounts = ref<SimulationAccount[]>([])
 const selectedSimulationAccountId = ref('')
 const isLoadingSimulationAccounts = ref(false)
@@ -833,6 +860,14 @@ const backtestConfig = computed<BacktestConfig>(() => ({
   ...(selectedSimulationAccountId.value
     ? { simulationAccountId: Number(selectedSimulationAccountId.value) }
     : {})
+}))
+
+const marketDataRequest = computed(() => ({
+  market: backtestConfig.value.market,
+  symbol: backtestConfig.value.symbol,
+  timeframe: backtestConfig.value.timeframe,
+  startDate: backtestConfig.value.startDate,
+  endDate: backtestConfig.value.endDate
 }))
 
 const backtestIssues = computed<ValidationIssue[]>(() => {
@@ -1304,20 +1339,51 @@ function closeReviewModal() {
 }
 
 async function runBacktest() {
-  if (backtestIssues.value.length > 0 || isBacktestRunning.value) {
+  if (backtestIssues.value.length > 0 || isBacktestRunning.value || isMarketDataPreparing.value) {
     return
+  }
+
+  const payload: PendingBacktestPayload = {
+    strategy: strategyDraft.value,
+    config: backtestConfig.value
   }
 
   isBacktestRunning.value = true
   backtestRunError.value = ''
   backtestRunResult.value = null
   backtestPersistStatus.value = ''
+  marketDataStatus.value = ''
+  marketDataPrompt.value = null
+  pendingBacktestPayload.value = payload
 
   try {
-    const response = await apiClient.post<BacktestRunResult>('/backtests/run', {
-      strategy: strategyDraft.value,
-      config: backtestConfig.value
-    })
+    const coverageResponse = await apiClient.post<MarketDataCoverage>(
+      '/market-data/coverage',
+      marketDataRequest.value
+    )
+
+    if (!coverageResponse.data.ready) {
+      marketDataPrompt.value = coverageResponse.data
+      return
+    }
+
+    pendingBacktestPayload.value = null
+    await submitBacktest(payload)
+  } catch (requestError) {
+    backtestRunError.value = getApiErrorMessage(requestError, '行情检查失败，请稍后重试')
+  } finally {
+    isBacktestRunning.value = false
+  }
+}
+
+async function submitBacktest(payload: PendingBacktestPayload) {
+  isBacktestRunning.value = true
+  backtestRunError.value = ''
+  backtestRunResult.value = null
+  backtestPersistStatus.value = ''
+
+  try {
+    const response = await apiClient.post<BacktestRunResult>('/backtests/run', payload)
     backtestRunResult.value = response.data
     backtestPersistStatus.value = authStore.isAuthenticated
       ? '回测结果已保存到个人空间，可在我的回测中查看'
@@ -1327,6 +1393,44 @@ async function runBacktest() {
   } finally {
     isBacktestRunning.value = false
   }
+}
+
+async function prepareMarketDataAndRun() {
+  if (!pendingBacktestPayload.value || isMarketDataPreparing.value) {
+    return
+  }
+
+  const payload = pendingBacktestPayload.value
+  isMarketDataPreparing.value = true
+  marketDataStatus.value = '正在下载行情...'
+
+  try {
+    const response = await apiClient.post<MarketDataPrepareResult>(
+      '/market-data/prepare',
+      marketDataRequest.value
+    )
+
+    if (!response.data.ready) {
+      marketDataPrompt.value = response.data
+      marketDataStatus.value = response.data.message
+      return
+    }
+
+    marketDataPrompt.value = null
+    marketDataStatus.value = `已下载 ${response.data.downloadedRows} 条行情，正在运行回测`
+    pendingBacktestPayload.value = null
+    await submitBacktest(payload)
+  } catch (requestError) {
+    marketDataStatus.value = getApiErrorMessage(requestError, '行情下载失败，请稍后重试')
+  } finally {
+    isMarketDataPreparing.value = false
+  }
+}
+
+function cancelMarketDataDownload() {
+  marketDataPrompt.value = null
+  marketDataStatus.value = ''
+  pendingBacktestPayload.value = null
 }
 
 function openPersonalBacktests() {
@@ -2699,6 +2803,33 @@ function clearCanvas() {
               <ul v-else class="backtest-issues">
                 <li v-for="issue in backtestIssues" :key="issue.id">{{ issue.message }}</li>
               </ul>
+            </section>
+
+            <section v-if="marketDataPrompt" class="market-data-download-prompt">
+              <header>
+                <strong>需要下载本地行情</strong>
+                <small>{{ marketDataPrompt.estimatedRows }} 条预估K线</small>
+              </header>
+              <p>{{ marketDataPrompt.message }}</p>
+              <p v-if="marketDataStatus" class="market-data-status">{{ marketDataStatus }}</p>
+              <div class="market-data-actions">
+                <button
+                  type="button"
+                  data-market-data-action="cancel"
+                  :disabled="isMarketDataPreparing"
+                  @click="cancelMarketDataDownload"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  data-market-data-action="prepare"
+                  :disabled="isMarketDataPreparing"
+                  @click="prepareMarketDataAndRun"
+                >
+                  {{ isMarketDataPreparing ? '正在下载' : '下载并继续回测' }}
+                </button>
+              </div>
             </section>
 
             <section v-if="backtestRunResult || backtestRunError" class="backtest-result-card">
