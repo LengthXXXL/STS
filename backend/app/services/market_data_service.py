@@ -265,6 +265,9 @@ class CachedMarketDataProvider:
         self._cache_candles(config, fetched_candles)
         return fetched_candles
 
+    def cache_candles(self, config: BacktestConfig, candles: list[MarketCandle]) -> None:
+        self._cache_candles(config, candles)
+
     def _cached_candles(self, config: BacktestConfig) -> list[MarketCandle]:
         rows = self.db.scalars(
             select(MarketKlineCache)
@@ -333,6 +336,25 @@ class CachedMarketDataProvider:
                 )
             )
         self.db.commit()
+
+
+class LocalOnlyMarketDataProvider:
+    def __init__(self, db: Session):
+        self.cached_provider = CachedMarketDataProvider(
+            db,
+            source_provider=_UnavailableSourceProvider(),
+        )
+
+    def get_intraday_candles(self, config: BacktestConfig) -> list[MarketCandle]:
+        candles = self.cached_provider._cached_candles(config)
+        if not candles:
+            raise MarketDataUnavailableError("Local market data is not prepared")
+        return candles
+
+
+class _UnavailableSourceProvider:
+    def get_intraday_candles(self, config: BacktestConfig) -> list[MarketCandle]:
+        raise MarketDataUnavailableError("Live fetching is disabled for local-only backtests")
 
 
 def _fetch_json(url: str, extra_headers: dict[str, str] | None = None) -> dict[str, Any]:
