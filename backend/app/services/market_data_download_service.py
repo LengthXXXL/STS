@@ -140,23 +140,37 @@ def _missing_ranges(db: Session, request: MarketDataRequest) -> list[MarketDataR
         .order_by(MarketDataDownloadRange.start_date, MarketDataDownloadRange.end_date)
     ).all()
 
-    cursor = request_start
+    completed_ranges = [
+        (
+            max(date.fromisoformat(row.start_date), request_start),
+            min(date.fromisoformat(row.end_date), request_end),
+        )
+        for row in completed_rows
+    ]
     missing_ranges: list[MarketDataRange] = []
-    for row in completed_rows:
-        completed_start = max(date.fromisoformat(row.start_date), request_start)
-        completed_end = min(date.fromisoformat(row.end_date), request_end)
-        if completed_end < cursor:
-            continue
-        if completed_start > cursor:
-            missing_ranges.append(
-                _range_from_dates(cursor, completed_start - timedelta(days=1))
-            )
-        cursor = max(cursor, completed_end + timedelta(days=1))
-        if cursor > request_end:
-            break
+    missing_start: date | None = None
+    missing_end: date | None = None
 
-    if cursor <= request_end:
-        missing_ranges.append(_range_from_dates(cursor, request_end))
+    cursor = request_start
+    while cursor <= request_end:
+        if not _is_required_market_date(cursor):
+            cursor += timedelta(days=1)
+            continue
+
+        is_covered = any(start <= cursor <= end for start, end in completed_ranges)
+        if is_covered:
+            if missing_start is not None and missing_end is not None:
+                missing_ranges.append(_range_from_dates(missing_start, missing_end))
+                missing_start = None
+                missing_end = None
+        else:
+            if missing_start is None:
+                missing_start = cursor
+            missing_end = cursor
+        cursor += timedelta(days=1)
+
+    if missing_start is not None and missing_end is not None:
+        missing_ranges.append(_range_from_dates(missing_start, missing_end))
     return missing_ranges
 
 
@@ -278,7 +292,7 @@ def _backtest_config_for_range(
 
 def _estimate_rows(timeframe: str, ranges: list[MarketDataRange]) -> int:
     bars_per_day = 240 if timeframe == "1m" else 78
-    return sum(_inclusive_days(range_) * bars_per_day for range_ in ranges)
+    return sum(_required_market_days(range_) * bars_per_day for range_ in ranges)
 
 
 def _estimate_seconds(row_count: int) -> int:
@@ -301,8 +315,20 @@ def _coverage_message(
     )
 
 
-def _inclusive_days(range_: MarketDataRange) -> int:
-    return (date.fromisoformat(range_.endDate) - date.fromisoformat(range_.startDate)).days + 1
+def _required_market_days(range_: MarketDataRange) -> int:
+    start = date.fromisoformat(range_.startDate)
+    end = date.fromisoformat(range_.endDate)
+    cursor = start
+    days = 0
+    while cursor <= end:
+        if _is_required_market_date(cursor):
+            days += 1
+        cursor += timedelta(days=1)
+    return days
+
+
+def _is_required_market_date(day: date) -> bool:
+    return day.weekday() < 5
 
 
 def _range_from_dates(start: date, end: date) -> MarketDataRange:

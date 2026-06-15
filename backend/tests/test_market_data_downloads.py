@@ -57,7 +57,7 @@ def test_coverage_reports_missing_range_without_completed_download(db_session):
 
     assert coverage.ready is False
     assert [item.model_dump() for item in coverage.missingRanges] == [
-        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+        {"startDate": "2025-03-03", "endDate": "2025-03-31"}
     ]
     assert coverage.estimatedRows > 0
     assert coverage.estimatedSeconds > 0
@@ -107,7 +107,7 @@ def test_prepare_market_data_downloads_missing_range_and_records_completion(db_s
 
     response = prepare_market_data(
         db_session,
-        _market_data_request(startDate="2025-03-01", endDate="2025-03-01"),
+        _market_data_request(startDate="2025-03-03", endDate="2025-03-03"),
         source_provider=SourceProvider(),
     )
 
@@ -118,9 +118,46 @@ def test_prepare_market_data_downloads_missing_range_and_records_completion(db_s
     saved_range = db_session.scalar(select(MarketDataDownloadRange))
     assert saved_range is not None
     assert saved_range.status == "completed"
-    assert saved_range.start_date == "2025-03-01"
-    assert saved_range.end_date == "2025-03-01"
+    assert saved_range.start_date == "2025-03-03"
+    assert saved_range.end_date == "2025-03-03"
     assert saved_range.row_count == 1
+
+
+def test_prepare_market_data_treats_weekend_boundaries_as_ready_after_weekday_candles(
+    db_session,
+):
+    class WeekdayProvider:
+        def get_intraday_candles(self, config):
+            assert config.startDate == "2025-03-03"
+            assert config.endDate == "2025-03-07"
+            return [
+                MarketCandle(
+                    time="2025-03-03 09:35",
+                    open=10.0,
+                    high=10.3,
+                    low=9.9,
+                    close=10.2,
+                    volume=1200,
+                ),
+                MarketCandle(
+                    time="2025-03-07 09:35",
+                    open=10.2,
+                    high=10.4,
+                    low=10.1,
+                    close=10.3,
+                    volume=1500,
+                ),
+            ]
+
+    request = _market_data_request(startDate="2025-03-01", endDate="2025-03-09")
+    response = prepare_market_data(db_session, request, source_provider=WeekdayProvider())
+    coverage = get_market_data_coverage(db_session, request)
+
+    assert response.ready is True
+    assert response.missingRanges == []
+    assert response.failedRanges == []
+    assert coverage.ready is True
+    assert coverage.missingRanges == []
 
 
 def test_prepare_market_data_records_empty_result_as_failed_range(db_session):
@@ -134,7 +171,7 @@ def test_prepare_market_data_records_empty_result_as_failed_range(db_session):
     assert response.message == "部分行情下载失败，请重试失败区间"
     assert response.downloadedRows == 0
     assert [item.model_dump() for item in response.failedRanges] == [
-        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+        {"startDate": "2025-03-03", "endDate": "2025-03-31"}
     ]
     failed_range = db_session.scalar(select(MarketDataDownloadRange))
     assert failed_range is not None
@@ -167,7 +204,6 @@ def test_prepare_market_data_records_partial_actual_covered_range(db_session):
     assert saved_range.end_date == "2025-03-03"
     assert saved_range.row_count == 1
     assert [item.model_dump() for item in response.missingRanges] == [
-        {"startDate": "2025-03-01", "endDate": "2025-03-02"},
         {"startDate": "2025-03-04", "endDate": "2025-03-31"},
     ]
 
@@ -218,8 +254,7 @@ def test_prepare_market_data_splits_discontinuous_covered_ranges(db_session):
         "2025-03-31 09:35",
     ]
     assert [item.model_dump() for item in response.missingRanges] == [
-        {"startDate": "2025-03-01", "endDate": "2025-03-02"},
-        {"startDate": "2025-03-04", "endDate": "2025-03-30"},
+        {"startDate": "2025-03-04", "endDate": "2025-03-28"},
     ]
 
 
@@ -251,7 +286,7 @@ def test_prepare_market_data_records_mixed_out_of_range_result_as_failed_range(d
     assert response.message == "部分行情下载失败，请重试失败区间"
     assert response.downloadedRows == 0
     assert [item.model_dump() for item in response.failedRanges] == [
-        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+        {"startDate": "2025-03-03", "endDate": "2025-03-31"}
     ]
     failed_range = db_session.scalar(select(MarketDataDownloadRange))
     assert failed_range is not None
@@ -278,7 +313,7 @@ def test_prepare_market_data_records_unparseable_time_result_as_failed_range(db_
     assert response.message == "部分行情下载失败，请重试失败区间"
     assert response.downloadedRows == 0
     assert [item.model_dump() for item in response.failedRanges] == [
-        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+        {"startDate": "2025-03-03", "endDate": "2025-03-31"}
     ]
     failed_range = db_session.scalar(select(MarketDataDownloadRange))
     assert failed_range is not None
@@ -295,7 +330,7 @@ def test_prepare_market_data_records_failed_range_without_claiming_ready(db_sess
     assert response.ready is False
     assert response.downloadedRows == 0
     assert [item.model_dump() for item in response.failedRanges] == [
-        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+        {"startDate": "2025-03-03", "endDate": "2025-03-31"}
     ]
     failed_range = db_session.scalar(select(MarketDataDownloadRange))
     assert failed_range is not None
@@ -314,7 +349,7 @@ def test_prepare_market_data_records_generic_failure_and_returns_partial_failure
     assert response.message == "部分行情下载失败，请重试失败区间"
     assert response.downloadedRows == 0
     assert [item.model_dump() for item in response.failedRanges] == [
-        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+        {"startDate": "2025-03-03", "endDate": "2025-03-31"}
     ]
     failed_range = db_session.scalar(select(MarketDataDownloadRange))
     assert failed_range is not None
@@ -361,7 +396,7 @@ def test_market_data_coverage_endpoint_returns_missing_range(client):
     assert response.status_code == 200
     payload = response.json()
     assert payload["ready"] is False
-    assert payload["missingRanges"] == [{"startDate": "2025-03-01", "endDate": "2025-03-31"}]
+    assert payload["missingRanges"] == [{"startDate": "2025-03-03", "endDate": "2025-03-31"}]
     assert "本地缺少 000001.SZ 的 5分钟K线" in payload["message"]
 
 
