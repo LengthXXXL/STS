@@ -13,6 +13,7 @@ def test_a_share_holidays_are_not_trading_days():
 
 
 def test_us_stock_holidays_are_not_trading_days():
+    assert is_trading_day("US_STOCK", date(2025, 1, 9)) is False
     assert is_trading_day("US_STOCK", date(2026, 4, 3)) is False
     assert is_trading_day("US_STOCK", date(2026, 4, 6)) is True
 

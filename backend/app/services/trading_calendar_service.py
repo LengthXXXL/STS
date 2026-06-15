@@ -35,6 +35,7 @@ A_SHARE_HOLIDAYS: dict[int, set[date]] = {
 US_STOCK_HOLIDAYS: dict[int, set[date]] = {
     2025: {
         date(2025, 1, 1),
+        date(2025, 1, 9),
         date(2025, 1, 20),
         date(2025, 2, 17),
         date(2025, 4, 18),
