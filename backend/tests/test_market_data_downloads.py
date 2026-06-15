@@ -1,6 +1,7 @@
 import pytest
 from sqlalchemy import select
 
+from app.api import market_data as market_data_api
 from app.models import MarketDataDownloadRange, MarketKlineCache
 from app.schemas.market_data import MarketDataRequest
 from app.services.market_data_download_service import (
@@ -292,3 +293,56 @@ def test_market_data_request_rejects_range_longer_than_thirteen_months():
 def test_market_data_request_rejects_inclusive_398_day_range():
     with pytest.raises(ValueError):
         _market_data_request(startDate="2025-01-01", endDate="2026-02-02")
+
+
+def test_market_data_coverage_endpoint_returns_missing_range(client):
+    response = client.post(
+        "/api/market-data/coverage",
+        json={
+            "market": "A_SHARE",
+            "symbol": "000001.SZ",
+            "timeframe": "5m",
+            "startDate": "2025-03-01",
+            "endDate": "2025-03-31",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is False
+    assert payload["missingRanges"] == [{"startDate": "2025-03-01", "endDate": "2025-03-31"}]
+    assert "本地缺少 000001.SZ 的 5分钟K线" in payload["message"]
+
+
+def test_market_data_prepare_endpoint_downloads_and_returns_ready(client, monkeypatch):
+    class SourceProvider:
+        def get_intraday_candles(self, config):
+            return [
+                MarketCandle(
+                    time=f"{config.startDate} 09:35",
+                    open=10,
+                    high=10.2,
+                    low=9.9,
+                    close=10.1,
+                    volume=1000,
+                )
+            ]
+
+    monkeypatch.setattr(market_data_api, "DefaultMarketDataProvider", lambda: SourceProvider())
+
+    response = client.post(
+        "/api/market-data/prepare",
+        json={
+            "market": "A_SHARE",
+            "symbol": "000001.SZ",
+            "timeframe": "5m",
+            "startDate": "2025-03-03",
+            "endDate": "2025-03-03",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is True
+    assert payload["downloadedRows"] > 0
+    assert payload["failedRanges"] == []

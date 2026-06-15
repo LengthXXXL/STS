@@ -13,6 +13,7 @@ from app.api import (
     custom_blocks,
     forum,
     health,
+    market_data,
     market_rules,
     shared_blocks,
     simulation_accounts,
@@ -44,6 +45,7 @@ app.add_middleware(
 )
 
 app.include_router(health.router, prefix="/api")
+app.include_router(market_data.router, prefix="/api")
 app.include_router(market_rules.router, prefix="/api")
 app.include_router(admin_custom_block_reviews.router, prefix="/api")
 app.include_router(admin_forum.router, prefix="/api")
