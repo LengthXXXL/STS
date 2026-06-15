@@ -171,6 +171,68 @@ def test_prepare_market_data_records_partial_actual_covered_range(db_session):
     ]
 
 
+def test_prepare_market_data_records_mixed_out_of_range_result_as_failed_range(db_session):
+    class MixedProvider:
+        def get_intraday_candles(self, config):
+            return [
+                MarketCandle(
+                    time="2025-03-03 09:35",
+                    open=10.0,
+                    high=10.3,
+                    low=9.9,
+                    close=10.2,
+                    volume=1200,
+                ),
+                MarketCandle(
+                    time="2025-04-01 09:35",
+                    open=10.2,
+                    high=10.4,
+                    low=10.1,
+                    close=10.3,
+                    volume=1500,
+                ),
+            ]
+
+    response = prepare_market_data(db_session, _market_data_request(), source_provider=MixedProvider())
+
+    assert response.ready is False
+    assert response.message == "部分行情下载失败，请重试失败区间"
+    assert response.downloadedRows == 0
+    assert [item.model_dump() for item in response.failedRanges] == [
+        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+    ]
+    failed_range = db_session.scalar(select(MarketDataDownloadRange))
+    assert failed_range is not None
+    assert failed_range.status == "failed"
+
+
+def test_prepare_market_data_records_unparseable_time_result_as_failed_range(db_session):
+    class BadTimeProvider:
+        def get_intraday_candles(self, config):
+            return [
+                MarketCandle(
+                    time="not-a-date 09:35",
+                    open=10.0,
+                    high=10.3,
+                    low=9.9,
+                    close=10.2,
+                    volume=1200,
+                )
+            ]
+
+    response = prepare_market_data(db_session, _market_data_request(), source_provider=BadTimeProvider())
+
+    assert response.ready is False
+    assert response.message == "部分行情下载失败，请重试失败区间"
+    assert response.downloadedRows == 0
+    assert [item.model_dump() for item in response.failedRanges] == [
+        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+    ]
+    failed_range = db_session.scalar(select(MarketDataDownloadRange))
+    assert failed_range is not None
+    assert failed_range.status == "failed"
+
+
 def test_prepare_market_data_records_failed_range_without_claiming_ready(db_session):
     class BrokenProvider:
         def get_intraday_candles(self, config):

@@ -223,9 +223,12 @@ def _covered_range_from_candles(
     covered_candles: list[MarketCandle] = []
     for candle in candles:
         candle_date = _candle_date(candle)
-        if request_start <= candle_date <= request_end:
-            covered_dates.append(candle_date)
-            covered_candles.append(candle)
+        if not request_start <= candle_date <= request_end:
+            raise MarketDataUnavailableError(
+                "Market data contains a candle outside requested range"
+            )
+        covered_dates.append(candle_date)
+        covered_candles.append(candle)
 
     if not covered_dates:
         raise MarketDataUnavailableError("No market data returned inside requested range")
