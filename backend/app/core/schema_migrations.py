@@ -51,3 +51,8 @@ def ensure_development_schema(engine: Engine) -> None:
                         f"WHERE {column_name} IS NULL"
                     )
                 )
+
+    if not inspector.has_table("market_data_download_ranges"):
+        from app.models.market_data import MarketDataDownloadRange
+
+        MarketDataDownloadRange.__table__.create(bind=engine, checkfirst=True)

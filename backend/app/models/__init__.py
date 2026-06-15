@@ -7,7 +7,7 @@ from app.models.backtest import (
 )
 from app.models.custom_block import CustomBlock
 from app.models.forum import ForumComment, ForumPost
-from app.models.market_data import MarketKlineCache
+from app.models.market_data import MarketDataDownloadRange, MarketKlineCache
 from app.models.shared_block import (
     RecommendationEvent,
     SharedBlockFavorite,
@@ -27,6 +27,7 @@ __all__ = [
     "CustomBlock",
     "ForumComment",
     "ForumPost",
+    "MarketDataDownloadRange",
     "MarketKlineCache",
     "RecommendationEvent",
     "Role",

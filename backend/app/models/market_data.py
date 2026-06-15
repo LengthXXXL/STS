@@ -30,3 +30,35 @@ class MarketKlineCache(Base):
     close: Mapped[float] = mapped_column(Float, nullable=False)
     volume: Mapped[float] = mapped_column(Float, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class MarketDataDownloadRange(Base):
+    __tablename__ = "market_data_download_ranges"
+    __table_args__ = (
+        UniqueConstraint(
+            "market",
+            "symbol",
+            "timeframe",
+            "start_date",
+            "end_date",
+            name="uq_market_data_download_range_identity",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    market: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    symbol: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    timeframe: Mapped[str] = mapped_column(String(8), nullable=False, index=True)
+    start_date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    end_date: Mapped[str] = mapped_column(String(10), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    row_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="LIVE", index=True)
+    error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
