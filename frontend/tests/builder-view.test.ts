@@ -1202,6 +1202,79 @@ describe('builder view', () => {
     expect(wrapper.find('.backtest-result-card').text()).toContain('1.2%')
   })
 
+  it('prepares and runs the frozen backtest config after visible settings change', async () => {
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({
+        data: {
+          ready: false,
+          missingRanges: [{ startDate: '2026-01-01', endDate: '2026-03-01' }],
+          estimatedRows: 12000,
+          estimatedSeconds: 20,
+          message:
+            '本地缺少 000001.SZ 的 5分钟K线，系统将下载 2026-01-01 至 2026-03-01 数据，预计 20 秒。'
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          ready: true,
+          missingRanges: [],
+          estimatedRows: 0,
+          estimatedSeconds: 0,
+          message: '本地行情已准备完成，可以直接运行回测',
+          downloadedRows: 12000,
+          failedRanges: []
+        }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          runId: 'mock-run-frozen-config',
+          status: 'COMPLETED',
+          summary: {
+            totalReturnPercent: 1.2,
+            maxDrawdownPercent: 0.4,
+            winRatePercent: 50,
+            endingEquity: 101200,
+            tradeCount: 1
+          },
+          config: {
+            market: 'A_SHARE',
+            symbol: '000001.SZ',
+            timeframe: '5m',
+            startDate: '2026-01-01',
+            endDate: '2026-03-01',
+            initialCash: 100000
+          },
+          trades: [],
+          events: [],
+          timeline: [],
+          equityCurve: [{ time: '2026-01-05 10:30', equity: 101200 }]
+        }
+      })
+
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
+
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+    await wrapper.find('[data-backtest-key="symbol"]').setValue('600000.SH')
+    await wrapper.find('[data-market-data-action="prepare"]').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenNthCalledWith(2, '/market-data/prepare', {
+      market: 'A_SHARE',
+      symbol: '000001.SZ',
+      timeframe: '5m',
+      startDate: '2026-01-01',
+      endDate: '2026-03-01'
+    })
+    expect(apiClient.post).toHaveBeenNthCalledWith(3, '/backtests/run', {
+      strategy: expect.objectContaining({ version: 1 }),
+      config: expect.objectContaining({ symbol: '000001.SZ' })
+    })
+  })
+
   it('cancels missing market data download without running backtest', async () => {
     vi.mocked(apiClient.post).mockResolvedValueOnce({
       data: {

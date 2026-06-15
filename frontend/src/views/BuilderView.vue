@@ -870,6 +870,16 @@ const marketDataRequest = computed(() => ({
   endDate: backtestConfig.value.endDate
 }))
 
+function toMarketDataRequest(config: BacktestConfig) {
+  return {
+    market: config.market,
+    symbol: config.symbol,
+    timeframe: config.timeframe,
+    startDate: config.startDate,
+    endDate: config.endDate
+  }
+}
+
 const backtestIssues = computed<ValidationIssue[]>(() => {
   const issues: ValidationIssue[] = []
 
@@ -1407,7 +1417,7 @@ async function prepareMarketDataAndRun() {
   try {
     const response = await apiClient.post<MarketDataPrepareResult>(
       '/market-data/prepare',
-      marketDataRequest.value
+      toMarketDataRequest(payload.config)
     )
 
     if (!response.data.ready) {
@@ -2873,7 +2883,7 @@ function clearCanvas() {
           <button
             class="review-primary-button"
             type="button"
-            :disabled="reviewPrimaryDisabled || isBacktestRunning"
+            :disabled="reviewPrimaryDisabled || isBacktestRunning || isMarketDataPreparing"
             @click="handleReviewPrimaryAction"
           >
             {{ isBacktestRunning ? '回测中' : reviewPrimaryLabel }}
