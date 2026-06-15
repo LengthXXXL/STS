@@ -23,7 +23,6 @@ from app.services.market_data_service import (
 
 COMPLETED_STATUS = "completed"
 FAILED_STATUS = "failed"
-MAX_NON_TRADING_GAP_DAYS = 10
 
 
 def get_market_data_coverage(
@@ -253,7 +252,7 @@ def _covered_ranges_from_candles(
     cluster_candles: list[MarketCandle] = []
 
     for candle_date, candle in dated_candles:
-        if (candle_date - previous_date).days > MAX_NON_TRADING_GAP_DAYS:
+        if _has_missing_required_market_date(previous_date, candle_date):
             clusters.append((cluster_start, previous_date, cluster_candles))
             cluster_start = candle_date
             cluster_candles = []
@@ -329,6 +328,15 @@ def _required_market_days(range_: MarketDataRange) -> int:
 
 def _is_required_market_date(day: date) -> bool:
     return day.weekday() < 5
+
+
+def _has_missing_required_market_date(previous_date: date, next_date: date) -> bool:
+    cursor = previous_date + timedelta(days=1)
+    while cursor < next_date:
+        if _is_required_market_date(cursor):
+            return True
+        cursor += timedelta(days=1)
+    return False
 
 
 def _range_from_dates(start: date, end: date) -> MarketDataRange:

@@ -132,6 +132,34 @@ def test_prepare_market_data_treats_weekend_boundaries_as_ready_after_weekday_ca
             assert config.endDate == "2025-03-07"
             return [
                 MarketCandle(
+                    time=f"2025-03-0{day} 09:35",
+                    open=10.0,
+                    high=10.3,
+                    low=9.9,
+                    close=10.2,
+                    volume=1200,
+                )
+                for day in range(3, 8)
+            ]
+
+    request = _market_data_request(startDate="2025-03-01", endDate="2025-03-09")
+    response = prepare_market_data(db_session, request, source_provider=WeekdayProvider())
+    coverage = get_market_data_coverage(db_session, request)
+
+    assert response.ready is True
+    assert response.missingRanges == []
+    assert response.failedRanges == []
+    assert coverage.ready is True
+    assert coverage.missingRanges == []
+
+
+def test_prepare_market_data_keeps_missing_weekday_gaps(db_session):
+    class WeekdayHoleProvider:
+        def get_intraday_candles(self, config):
+            assert config.startDate == "2025-03-03"
+            assert config.endDate == "2025-03-07"
+            return [
+                MarketCandle(
                     time="2025-03-03 09:35",
                     open=10.0,
                     high=10.3,
@@ -150,14 +178,25 @@ def test_prepare_market_data_treats_weekend_boundaries_as_ready_after_weekday_ca
             ]
 
     request = _market_data_request(startDate="2025-03-01", endDate="2025-03-09")
-    response = prepare_market_data(db_session, request, source_provider=WeekdayProvider())
+    response = prepare_market_data(db_session, request, source_provider=WeekdayHoleProvider())
     coverage = get_market_data_coverage(db_session, request)
 
-    assert response.ready is True
-    assert response.missingRanges == []
+    assert response.ready is False
+    assert [item.model_dump() for item in response.missingRanges] == [
+        {"startDate": "2025-03-04", "endDate": "2025-03-06"}
+    ]
     assert response.failedRanges == []
-    assert coverage.ready is True
-    assert coverage.missingRanges == []
+    assert coverage.ready is False
+    assert [item.model_dump() for item in coverage.missingRanges] == [
+        {"startDate": "2025-03-04", "endDate": "2025-03-06"}
+    ]
+    saved_ranges = db_session.scalars(
+        select(MarketDataDownloadRange).order_by(MarketDataDownloadRange.start_date)
+    ).all()
+    assert [(range_.start_date, range_.end_date, range_.row_count) for range_ in saved_ranges] == [
+        ("2025-03-03", "2025-03-03", 1),
+        ("2025-03-07", "2025-03-07", 1),
+    ]
 
 
 def test_prepare_market_data_records_empty_result_as_failed_range(db_session):
