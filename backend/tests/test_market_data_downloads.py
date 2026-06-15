@@ -199,6 +199,70 @@ def test_prepare_market_data_keeps_missing_weekday_gaps(db_session):
     ]
 
 
+def test_prepare_market_data_ignores_a_share_spring_festival_gap(db_session):
+    class FestivalProvider:
+        def get_intraday_candles(self, config):
+            assert config.startDate == "2026-02-13"
+            assert config.endDate == "2026-02-24"
+            return [
+                MarketCandle(
+                    time="2026-02-13 09:35",
+                    open=10.0,
+                    high=10.2,
+                    low=9.9,
+                    close=10.1,
+                    volume=1000,
+                ),
+                MarketCandle(
+                    time="2026-02-24 09:35",
+                    open=10.1,
+                    high=10.3,
+                    low=10.0,
+                    close=10.2,
+                    volume=1000,
+                ),
+            ]
+
+    request = _market_data_request(startDate="2026-02-13", endDate="2026-02-24")
+    response = prepare_market_data(db_session, request, source_provider=FestivalProvider())
+    coverage = get_market_data_coverage(db_session, request)
+
+    assert response.ready is True
+    assert response.missingRanges == []
+    assert coverage.ready is True
+    assert coverage.missingRanges == []
+
+
+def test_coverage_ignores_us_stock_good_friday(db_session):
+    db_session.add(
+        MarketDataDownloadRange(
+            market="US_STOCK",
+            symbol="AAPL",
+            timeframe="5m",
+            start_date="2026-04-06",
+            end_date="2026-04-06",
+            status="completed",
+            row_count=78,
+            source="LIVE",
+        )
+    )
+    db_session.commit()
+
+    coverage = get_market_data_coverage(
+        db_session,
+        _market_data_request(
+            market="US_STOCK",
+            symbol="AAPL",
+            startDate="2026-04-03",
+            endDate="2026-04-06",
+        ),
+    )
+
+    assert coverage.ready is True
+    assert coverage.missingRanges == []
+    assert coverage.estimatedRows == 0
+
+
 def test_prepare_market_data_records_empty_result_as_failed_range(db_session):
     class EmptyProvider:
         def get_intraday_candles(self, config):

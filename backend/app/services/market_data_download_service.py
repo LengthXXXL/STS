@@ -20,6 +20,11 @@ from app.services.market_data_service import (
     MarketDataProvider,
     MarketDataUnavailableError,
 )
+from app.services.trading_calendar_service import (
+    count_trading_days,
+    has_missing_trading_day,
+    is_trading_day,
+)
 
 COMPLETED_STATUS = "completed"
 FAILED_STATUS = "failed"
@@ -30,7 +35,7 @@ def get_market_data_coverage(
     request: MarketDataRequest,
 ) -> MarketDataCoverageResponse:
     missing_ranges = _missing_ranges(db, request)
-    estimated_rows = _estimate_rows(request.timeframe, missing_ranges)
+    estimated_rows = _estimate_rows(request.market, request.timeframe, missing_ranges)
     estimated_seconds = _estimate_seconds(estimated_rows)
     return MarketDataCoverageResponse(
         ready=not missing_ranges,
@@ -57,7 +62,7 @@ def prepare_market_data(
             config = _backtest_config_for_range(request, chunk)
             try:
                 candles = provider.get_intraday_candles(config)
-                covered_clusters = _covered_ranges_from_candles(candles, chunk)
+                covered_clusters = _covered_ranges_from_candles(candles, chunk, request.market)
                 cache_provider.cache_candles(config, candles)
             except Exception as exc:
                 db.rollback()
@@ -85,7 +90,7 @@ def prepare_market_data(
 
     final_missing_ranges = _missing_ranges(db, request)
     if failed_ranges:
-        failed_rows = _estimate_rows(request.timeframe, failed_ranges)
+        failed_rows = _estimate_rows(request.market, request.timeframe, failed_ranges)
         return MarketDataPrepareResponse(
             ready=False,
             missingRanges=final_missing_ranges,
@@ -96,7 +101,7 @@ def prepare_market_data(
             failedRanges=failed_ranges,
         )
 
-    estimated_rows = _estimate_rows(request.timeframe, final_missing_ranges)
+    estimated_rows = _estimate_rows(request.market, request.timeframe, final_missing_ranges)
     estimated_seconds = _estimate_seconds(estimated_rows)
     return MarketDataPrepareResponse(
         ready=not final_missing_ranges,
@@ -152,7 +157,7 @@ def _missing_ranges(db: Session, request: MarketDataRequest) -> list[MarketDataR
 
     cursor = request_start
     while cursor <= request_end:
-        if not _is_required_market_date(cursor):
+        if not is_trading_day(request.market, cursor):
             cursor += timedelta(days=1)
             continue
 
@@ -227,6 +232,7 @@ def _record_download_range(
 def _covered_ranges_from_candles(
     candles: list[MarketCandle],
     requested_range: MarketDataRange,
+    market: str,
 ) -> list[tuple[MarketDataRange, list[MarketCandle]]]:
     if not candles:
         raise MarketDataUnavailableError("No market data returned")
@@ -252,7 +258,7 @@ def _covered_ranges_from_candles(
     cluster_candles: list[MarketCandle] = []
 
     for candle_date, candle in dated_candles:
-        if _has_missing_required_market_date(previous_date, candle_date):
+        if has_missing_trading_day(market, previous_date, candle_date):
             clusters.append((cluster_start, previous_date, cluster_candles))
             cluster_start = candle_date
             cluster_candles = []
@@ -289,9 +295,9 @@ def _backtest_config_for_range(
     )
 
 
-def _estimate_rows(timeframe: str, ranges: list[MarketDataRange]) -> int:
+def _estimate_rows(market: str, timeframe: str, ranges: list[MarketDataRange]) -> int:
     bars_per_day = 240 if timeframe == "1m" else 78
-    return sum(_required_market_days(range_) * bars_per_day for range_ in ranges)
+    return sum(_required_market_days(market, range_) * bars_per_day for range_ in ranges)
 
 
 def _estimate_seconds(row_count: int) -> int:
@@ -314,29 +320,10 @@ def _coverage_message(
     )
 
 
-def _required_market_days(range_: MarketDataRange) -> int:
+def _required_market_days(market: str, range_: MarketDataRange) -> int:
     start = date.fromisoformat(range_.startDate)
     end = date.fromisoformat(range_.endDate)
-    cursor = start
-    days = 0
-    while cursor <= end:
-        if _is_required_market_date(cursor):
-            days += 1
-        cursor += timedelta(days=1)
-    return days
-
-
-def _is_required_market_date(day: date) -> bool:
-    return day.weekday() < 5
-
-
-def _has_missing_required_market_date(previous_date: date, next_date: date) -> bool:
-    cursor = previous_date + timedelta(days=1)
-    while cursor < next_date:
-        if _is_required_market_date(cursor):
-            return True
-        cursor += timedelta(days=1)
-    return False
+    return count_trading_days(market, start, end)
 
 
 def _range_from_dates(start: date, end: date) -> MarketDataRange:
