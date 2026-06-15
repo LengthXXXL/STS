@@ -172,6 +172,57 @@ def test_prepare_market_data_records_partial_actual_covered_range(db_session):
     ]
 
 
+def test_prepare_market_data_splits_discontinuous_covered_ranges(db_session):
+    class DiscontinuousProvider:
+        def get_intraday_candles(self, config):
+            return [
+                MarketCandle(
+                    time="2025-03-03 09:35",
+                    open=10.0,
+                    high=10.3,
+                    low=9.9,
+                    close=10.2,
+                    volume=1200,
+                ),
+                MarketCandle(
+                    time="2025-03-31 09:35",
+                    open=10.2,
+                    high=10.4,
+                    low=10.1,
+                    close=10.3,
+                    volume=1500,
+                ),
+            ]
+
+    response = prepare_market_data(
+        db_session,
+        _market_data_request(),
+        source_provider=DiscontinuousProvider(),
+    )
+
+    assert response.ready is False
+    assert response.downloadedRows == 2
+    assert response.failedRanges == []
+    saved_ranges = db_session.scalars(
+        select(MarketDataDownloadRange).order_by(MarketDataDownloadRange.start_date)
+    ).all()
+    assert [(range_.start_date, range_.end_date, range_.row_count) for range_ in saved_ranges] == [
+        ("2025-03-03", "2025-03-03", 1),
+        ("2025-03-31", "2025-03-31", 1),
+    ]
+    cached_candles = db_session.scalars(
+        select(MarketKlineCache).order_by(MarketKlineCache.candle_time)
+    ).all()
+    assert [candle.candle_time for candle in cached_candles] == [
+        "2025-03-03 09:35",
+        "2025-03-31 09:35",
+    ]
+    assert [item.model_dump() for item in response.missingRanges] == [
+        {"startDate": "2025-03-01", "endDate": "2025-03-02"},
+        {"startDate": "2025-03-04", "endDate": "2025-03-30"},
+    ]
+
+
 def test_prepare_market_data_records_mixed_out_of_range_result_as_failed_range(db_session):
     class MixedProvider:
         def get_intraday_candles(self, config):
