@@ -1336,6 +1336,7 @@ describe('builder view', () => {
     await flushPromises()
 
     expect(wrapper.find('.market-data-status').text()).toContain('部分行情下载失败')
+    expect(wrapper.find('.market-data-download-prompt').text().match(/部分行情下载失败/g)).toHaveLength(1)
     expect(wrapper.find('.backtest-result-card').exists()).toBe(false)
     expect(apiClient.post).toHaveBeenCalledTimes(2)
   })

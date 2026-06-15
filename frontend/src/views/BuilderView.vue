@@ -1421,7 +1421,6 @@ async function prepareMarketDataAndRun() {
     )
 
     if (!response.data.ready) {
-      marketDataPrompt.value = response.data
       marketDataStatus.value = response.data.message
       return
     }
