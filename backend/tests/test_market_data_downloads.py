@@ -104,7 +104,11 @@ def test_prepare_market_data_downloads_missing_range_and_records_completion(db_s
                 )
             ]
 
-    response = prepare_market_data(db_session, _market_data_request(), source_provider=SourceProvider())
+    response = prepare_market_data(
+        db_session,
+        _market_data_request(startDate="2025-03-01", endDate="2025-03-01"),
+        source_provider=SourceProvider(),
+    )
 
     assert response.ready is True
     assert response.downloadedRows == 1
@@ -113,7 +117,58 @@ def test_prepare_market_data_downloads_missing_range_and_records_completion(db_s
     saved_range = db_session.scalar(select(MarketDataDownloadRange))
     assert saved_range is not None
     assert saved_range.status == "completed"
+    assert saved_range.start_date == "2025-03-01"
+    assert saved_range.end_date == "2025-03-01"
     assert saved_range.row_count == 1
+
+
+def test_prepare_market_data_records_empty_result_as_failed_range(db_session):
+    class EmptyProvider:
+        def get_intraday_candles(self, config):
+            return []
+
+    response = prepare_market_data(db_session, _market_data_request(), source_provider=EmptyProvider())
+
+    assert response.ready is False
+    assert response.message == "部分行情下载失败，请重试失败区间"
+    assert response.downloadedRows == 0
+    assert [item.model_dump() for item in response.failedRanges] == [
+        {"startDate": "2025-03-01", "endDate": "2025-03-31"}
+    ]
+    failed_range = db_session.scalar(select(MarketDataDownloadRange))
+    assert failed_range is not None
+    assert failed_range.status == "failed"
+
+
+def test_prepare_market_data_records_partial_actual_covered_range(db_session):
+    class PartialProvider:
+        def get_intraday_candles(self, config):
+            return [
+                MarketCandle(
+                    time="2025-03-03 09:35",
+                    open=10.0,
+                    high=10.3,
+                    low=9.9,
+                    close=10.2,
+                    volume=1200,
+                )
+            ]
+
+    response = prepare_market_data(db_session, _market_data_request(), source_provider=PartialProvider())
+
+    assert response.ready is False
+    assert response.downloadedRows == 1
+    assert response.failedRanges == []
+    saved_range = db_session.scalar(select(MarketDataDownloadRange))
+    assert saved_range is not None
+    assert saved_range.status == "completed"
+    assert saved_range.start_date == "2025-03-03"
+    assert saved_range.end_date == "2025-03-03"
+    assert saved_range.row_count == 1
+    assert [item.model_dump() for item in response.missingRanges] == [
+        {"startDate": "2025-03-01", "endDate": "2025-03-02"},
+        {"startDate": "2025-03-04", "endDate": "2025-03-31"},
+    ]
 
 
 def test_prepare_market_data_records_failed_range_without_claiming_ready(db_session):
