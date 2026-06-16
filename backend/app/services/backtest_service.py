@@ -16,6 +16,10 @@ from app.services.market_data_service import (
     MarketCandle,
     MarketDataProvider,
 )
+from app.services.market_execution_rule_service import (
+    is_regular_session_candle,
+    validate_market_order,
+)
 from app.services.market_rule_service import get_market_rule
 from app.services.trading_cost_service import affordable_buy_quantity, calculate_trade_fill
 
@@ -96,6 +100,17 @@ def run_backtest_with_candles(
 
     for candle_index, candle in enumerate(candles):
         sold_this_candle = False
+
+        if not is_regular_session_candle(market_rule, candle):
+            equity_curve.append(
+                EquityPoint(
+                    time=candle.time,
+                    equity=round(cash + position.quantity * candle.close, 2),
+                )
+            )
+            if position.quantity > 0:
+                position.holding_bars += 1
+            continue
 
         if pending_exit_rule and position.quantity > 0:
             cash, exit_filled, exit_won = _fill_exit_rule(
@@ -214,47 +229,54 @@ def run_backtest_with_candles(
             position.holding_bars += 1
 
     ending_equity = equity_curve[-1].equity if equity_curve else initial_cash
-    if position.quantity > 0 and _can_sell_position(position, candles[-1], market_rule):
+    if (
+        position.quantity > 0
+        and _can_sell_position(position, candles[-1], market_rule)
+        and not _has_blocked_sell_at_time(timeline, candles[-1].time)
+    ):
         last_candle = candles[-1]
-        cash = _sell_remaining_position(
+        final_node = clear_node or sell_node
+        cash, final_filled = _sell_remaining_position(
             cash=cash,
             position=position,
             candle=last_candle,
             market_rule=market_rule,
             trades=trades,
+            timeline=timeline,
             reason=_final_sell_reason(sell_node=sell_node, clear_node=clear_node),
+            node=final_node,
         )
-        final_reason = trades[-1].reason
-        final_node = clear_node or sell_node
-        timeline.append(
-            _timeline_trade_filled(
-                sequence=len(timeline),
-                time=last_candle.time,
-                side="SELL",
-                price=trades[-1].price,
-                quantity=trades[-1].quantity,
-                reason=final_reason,
-                node=final_node,
+        if final_filled:
+            final_reason = trades[-1].reason
+            timeline.append(
+                _timeline_trade_filled(
+                    sequence=len(timeline),
+                    time=last_candle.time,
+                    side="SELL",
+                    price=trades[-1].price,
+                    quantity=trades[-1].quantity,
+                    reason=final_reason,
+                    node=final_node,
+                )
             )
-        )
-        timeline.append(
-            _timeline_position_closed(
-                sequence=len(timeline),
-                time=last_candle.time,
-                reason=final_reason,
-                node=final_node,
+            timeline.append(
+                _timeline_position_closed(
+                    sequence=len(timeline),
+                    time=last_candle.time,
+                    reason=final_reason,
+                    node=final_node,
+                )
             )
-        )
-        closed_trade_count += 1
-        if trades[-1].net_cash_change / trades[-1].quantity > position.average_price:
-            closed_trade_wins += 1
-        position.quantity = 0
-        position.average_price = 0
-        position.highest_price = 0
-        position.holding_bars = 0
-        position.entry_date = None
-        equity_curve[-1] = EquityPoint(time=last_candle.time, equity=round(cash, 2))
-        ending_equity = round(cash, 2)
+            closed_trade_count += 1
+            if trades[-1].net_cash_change / trades[-1].quantity > position.average_price:
+                closed_trade_wins += 1
+            position.quantity = 0
+            position.average_price = 0
+            position.highest_price = 0
+            position.holding_bars = 0
+            position.entry_date = None
+            equity_curve[-1] = EquityPoint(time=last_candle.time, equity=round(cash, 2))
+            ending_equity = round(cash, 2)
 
     return _build_response(
         request=request,
@@ -312,9 +334,31 @@ def _fill_buy_order(
         )
         return cash
 
+    validation = validate_market_order(
+        market_rule=market_rule,
+        candle=candle,
+        side="BUY",
+        execution_price=execution_price,
+        quantity=buy_quantity,
+    )
+    if not validation.allowed:
+        timeline.append(
+            _timeline_order_blocked(
+                sequence=len(timeline),
+                time=candle.time,
+                side="BUY",
+                price=validation.price,
+                quantity=buy_quantity,
+                reason=validation.reason,
+                rule=validation.rule,
+                node=buy_node,
+            )
+        )
+        return cash
+
     fill = calculate_trade_fill(
         side="BUY",
-        base_price=execution_price,
+        base_price=validation.price,
         quantity=buy_quantity,
         market_rule=market_rule,
     )
@@ -399,9 +443,42 @@ def _fill_exit_rule(
     if sell_quantity <= 0:
         return cash, False, False
 
+    validation = validate_market_order(
+        market_rule=market_rule,
+        candle=candle,
+        side="SELL",
+        execution_price=execution_price,
+        quantity=sell_quantity,
+    )
+    if not validation.allowed:
+        events.append(
+            BacktestEvent(
+                time=candle.time,
+                eventType="BLOCKED_ORDER",
+                side="SELL",
+                price=validation.price,
+                quantity=sell_quantity,
+                reason=validation.reason,
+                rule=validation.rule,
+            )
+        )
+        timeline.append(
+            _timeline_order_blocked(
+                sequence=len(timeline),
+                time=candle.time,
+                side="SELL",
+                price=validation.price,
+                quantity=sell_quantity,
+                reason=validation.reason,
+                rule=validation.rule,
+                node=exit_rule.node,
+            )
+        )
+        return cash, False, False
+
     fill = calculate_trade_fill(
         side="SELL",
-        base_price=execution_price,
+        base_price=validation.price,
         quantity=sell_quantity,
         market_rule=market_rule,
     )
@@ -783,7 +860,7 @@ def _timeline_order_blocked(
     quantity: int,
     reason: str,
     rule: str,
-    node: StrategyNode,
+    node: StrategyNode | None,
 ) -> BacktestTimelineItem:
     return BacktestTimelineItem(
         id=f"order-blocked-{sequence}",
@@ -796,9 +873,9 @@ def _timeline_order_blocked(
         price=price,
         quantity=quantity,
         rule=rule,
-        nodeId=node.id,
-        nodeType=node.type,
-        nodeLabel=node.label,
+        nodeId=node.id if node else None,
+        nodeType=node.type if node else None,
+        nodeLabel=node.label if node else None,
     )
 
 
@@ -851,11 +928,35 @@ def _sell_remaining_position(
     candle: MarketCandle,
     market_rule: MarketRuleResponse,
     trades: list[BacktestTrade],
+    timeline: list[BacktestTimelineItem],
     reason: str,
-) -> float:
+    node: StrategyNode | None,
+) -> tuple[float, bool]:
+    validation = validate_market_order(
+        market_rule=market_rule,
+        candle=candle,
+        side="SELL",
+        execution_price=candle.close,
+        quantity=position.quantity,
+    )
+    if not validation.allowed:
+        timeline.append(
+            _timeline_order_blocked(
+                sequence=len(timeline),
+                time=candle.time,
+                side="SELL",
+                price=validation.price,
+                quantity=position.quantity,
+                reason=validation.reason,
+                rule=validation.rule,
+                node=node,
+            )
+        )
+        return cash, False
+
     fill = calculate_trade_fill(
         side="SELL",
-        base_price=candle.close,
+        base_price=validation.price,
         quantity=position.quantity,
         market_rule=market_rule,
     )
@@ -873,7 +974,7 @@ def _sell_remaining_position(
             costBreakdown=fill.cost_breakdown,
         )
     )
-    return round(cash + fill.net_cash_change, 2)
+    return round(cash + fill.net_cash_change, 2), True
 
 
 def _final_sell_reason(
@@ -917,6 +1018,13 @@ def _sell_block_reason(market_rule: MarketRuleResponse) -> str:
     if market_rule.settlement_cycle == "T+1" and not market_rule.supports_intraday_round_trip:
         return "A股 T+1 规则限制，当日买入持仓不可卖出"
     return "市场规则限制，本次卖出信号未成交"
+
+
+def _has_blocked_sell_at_time(timeline: list[BacktestTimelineItem], time_value: str) -> bool:
+    return any(
+        item.event_type == "ORDER_BLOCKED" and item.side == "SELL" and item.time == time_value
+        for item in timeline
+    )
 
 
 def _trade_date(time_value: str) -> str:

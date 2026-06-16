@@ -143,9 +143,30 @@ def test_engine_applies_a_share_stamp_duty_on_sell_only():
         market="A_SHARE",
     )
     candles = [
-        MarketCandle(time="2026-01-01 09:35", open=10, high=10.1, low=9.9, close=10),
-        MarketCandle(time="2026-01-01 09:40", open=10, high=10.8, low=9.9, close=10.5),
-        MarketCandle(time="2026-01-02 09:35", open=10.6, high=10.8, low=10.1, close=10.7),
+        MarketCandle(
+            time="2026-01-01 09:35",
+            open=10,
+            high=10.1,
+            low=9.9,
+            close=10,
+            previous_close=10,
+        ),
+        MarketCandle(
+            time="2026-01-01 09:40",
+            open=10,
+            high=10.8,
+            low=9.9,
+            close=10.5,
+            previous_close=10,
+        ),
+        MarketCandle(
+            time="2026-01-02 09:35",
+            open=10.6,
+            high=10.8,
+            low=10.1,
+            close=10.7,
+            previous_close=10,
+        ),
     ]
 
     result = run_backtest_with_candles(request, candles)
@@ -171,8 +192,22 @@ def test_engine_skips_buy_when_cost_adjusted_quantity_is_not_affordable():
         market="A_SHARE",
     )
     candles = [
-        MarketCandle(time="2026-01-01 09:35", open=10, high=10.1, low=9.9, close=10),
-        MarketCandle(time="2026-01-02 09:35", open=10, high=10.1, low=9.9, close=10),
+        MarketCandle(
+            time="2026-01-01 09:35",
+            open=10,
+            high=10.1,
+            low=9.9,
+            close=10,
+            previous_close=10,
+        ),
+        MarketCandle(
+            time="2026-01-02 09:35",
+            open=10,
+            high=10.1,
+            low=9.9,
+            close=10,
+            previous_close=10,
+        ),
     ]
 
     result = run_backtest_with_candles(request, candles)
@@ -180,6 +215,137 @@ def test_engine_skips_buy_when_cost_adjusted_quantity_is_not_affordable():
     assert result.trades == []
     assert any(item.event_type == "ORDER_BLOCKED" for item in result.timeline)
     assert "资金不足" in " ".join(item.description for item in result.timeline)
+
+
+def test_engine_blocks_a_share_buy_above_limit_up():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            }
+        ],
+        initial_cash=10000,
+        market="A_SHARE",
+    )
+    candles = [
+        MarketCandle(
+            time="2026-01-02 09:35",
+            open=10.8,
+            high=10.9,
+            low=10.7,
+            close=10.8,
+            previous_close=10.0,
+        ),
+        MarketCandle(
+            time="2026-01-02 09:40",
+            open=11.02,
+            high=11.02,
+            low=11.02,
+            close=11.02,
+            previous_close=10.0,
+        ),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades == []
+    blocked = [item for item in result.timeline if item.event_type == "ORDER_BLOCKED"]
+    assert len(blocked) == 1
+    assert blocked[0].side == "BUY"
+    assert blocked[0].rule == "涨跌停"
+    assert "高于涨停价 11.00" in blocked[0].description
+
+
+def test_engine_blocks_a_share_sell_below_limit_down_after_t_plus_one():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+            {
+                "id": "stop-loss-1",
+                "type": "stop-loss",
+                "label": "止损",
+                "x": 160,
+                "y": 0,
+                "params": {"lossRate": "11", "sellPercent": "100"},
+            },
+        ],
+        initial_cash=10000,
+        market="A_SHARE",
+    )
+    candles = [
+        MarketCandle(
+            time="2026-01-02 09:35",
+            open=10.0,
+            high=10.1,
+            low=9.9,
+            close=10.0,
+            previous_close=10.0,
+        ),
+        MarketCandle(
+            time="2026-01-05 09:35",
+            open=10.0,
+            high=10.1,
+            low=9.9,
+            close=10.0,
+            previous_close=10.0,
+        ),
+        MarketCandle(
+            time="2026-01-06 09:35",
+            open=8.9,
+            high=9.0,
+            low=8.8,
+            close=8.9,
+            previous_close=10.0,
+        ),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades] == ["BUY"]
+    blocked = [item for item in result.timeline if item.event_type == "ORDER_BLOCKED"]
+    assert len(blocked) == 1
+    assert blocked[0].side == "SELL"
+    assert blocked[0].rule == "涨跌停"
+    assert "低于跌停价 9.00" in blocked[0].description
+    assert "T+1" not in blocked[0].description
+
+
+def test_engine_skips_non_session_candles_before_triggering_orders():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            }
+        ],
+        initial_cash=10000,
+        market="US_STOCK",
+    )
+    candles = [
+        MarketCandle(time="2026-01-02 08:00", open=10, high=10.1, low=9.9, close=10),
+        MarketCandle(time="2026-01-02 09:35", open=10.2, high=10.3, low=10.1, close=10.2),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades == []
+    assert result.timeline == []
 
 
 def test_engine_buys_once_and_sells_when_take_profit_is_hit():
@@ -213,11 +379,11 @@ def test_engine_buys_once_and_sells_when_take_profit_is_hit():
     assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
     assert result.trades[0].quantity == 49
     assert result.trades[1].reason == "止盈触发"
-    assert result.summary.endingEquity == 1024.43
+    assert result.summary.endingEquity == 1024.38
     assert result.summary.totalReturnPercent == 2.44
     assert result.summary.maxDrawdownPercent == 0
     assert result.summary.winRatePercent == 100
-    assert result.equityCurve[-1].equity == 1024.43
+    assert result.equityCurve[-1].equity == 1024.38
     assert [item.event_type for item in result.timeline] == ["TRADE_FILLED", "TRADE_FILLED"]
     assert result.timeline[0].title == "买入成交"
     assert result.timeline[0].description == "买入积木触发"
@@ -227,7 +393,7 @@ def test_engine_buys_once_and_sells_when_take_profit_is_hit():
     assert result.timeline[1].title == "卖出成交"
     assert result.timeline[1].description == "止盈触发"
     assert result.timeline[1].node_label == "止盈"
-    assert result.timeline[1].price == 10.4999
+    assert result.timeline[1].price == 10.499
 
 
 def test_engine_fills_ordinary_buy_at_next_candle_open():
@@ -295,8 +461,8 @@ def test_engine_stop_loss_uses_low_touch_price_before_take_profit():
     assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
     assert result.trades[0].price == 10.001
     assert result.trades[1].reason == "止损触发"
-    assert result.trades[1].price == 9.4999
-    assert result.summary.endingEquity == 950.35
+    assert result.trades[1].price == 9.4991
+    assert result.summary.endingEquity == 950.27
 
 
 def test_engine_take_profit_uses_high_touch_price():
@@ -329,8 +495,8 @@ def test_engine_take_profit_uses_high_touch_price():
 
     assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
     assert result.trades[1].reason == "止盈触发"
-    assert result.trades[1].price == 10.4999
-    assert result.summary.endingEquity == 1049.35
+    assert result.trades[1].price == 10.499
+    assert result.summary.endingEquity == 1049.26
 
 
 def test_engine_blocks_a_share_same_day_sell_until_next_trading_day():
@@ -357,9 +523,30 @@ def test_engine_blocks_a_share_same_day_sell_until_next_trading_day():
         market="A_SHARE",
     )
     candles = [
-        MarketCandle(time="2026-01-01 09:35", open=10.0, high=10.1, low=9.9, close=10.0),
-        MarketCandle(time="2026-01-01 09:40", open=10.0, high=11.0, low=9.9, close=11.0),
-        MarketCandle(time="2026-01-02 09:35", open=11.4, high=11.5, low=10.1, close=11.5),
+        MarketCandle(
+            time="2026-01-01 09:35",
+            open=10.0,
+            high=10.1,
+            low=9.9,
+            close=10.0,
+            previous_close=10.0,
+        ),
+        MarketCandle(
+            time="2026-01-01 09:40",
+            open=10.0,
+            high=11.0,
+            low=9.9,
+            close=11.0,
+            previous_close=10.0,
+        ),
+        MarketCandle(
+            time="2026-01-02 09:35",
+            open=11.4,
+            high=11.5,
+            low=10.1,
+            close=11.5,
+            previous_close=11.0,
+        ),
     ]
 
     result = run_backtest_with_candles(request, candles)
@@ -380,9 +567,9 @@ def test_engine_blocks_a_share_same_day_sell_until_next_trading_day():
     assert result.trades[0].quantity == 900
     assert result.trades[1].time == "2026-01-02 09:35"
     assert result.trades[1].reason == "止盈触发"
-    assert result.trades[1].price == 10.1063
-    assert result.summary.endingEquity == 10079.06
-    assert result.summary.totalReturnPercent == 0.79
+    assert result.trades[1].price == 10.099
+    assert result.summary.endingEquity == 10072.5
+    assert result.summary.totalReturnPercent == 0.73
 
 
 def test_engine_keeps_a_share_position_open_when_backtest_ends_on_buy_day():
@@ -409,8 +596,22 @@ def test_engine_keeps_a_share_position_open_when_backtest_ends_on_buy_day():
         market="A_SHARE",
     )
     candles = [
-        MarketCandle(time="2026-01-01 09:35", open=10.0, high=10.1, low=9.9, close=10.0),
-        MarketCandle(time="2026-01-01 09:40", open=10.0, high=11.0, low=9.9, close=11.0),
+        MarketCandle(
+            time="2026-01-01 09:35",
+            open=10.0,
+            high=10.1,
+            low=9.9,
+            close=10.0,
+            previous_close=10.0,
+        ),
+        MarketCandle(
+            time="2026-01-01 09:40",
+            open=10.0,
+            high=11.0,
+            low=9.9,
+            close=11.0,
+            previous_close=10.0,
+        ),
     ]
 
     result = run_backtest_with_candles(request, candles)
@@ -468,7 +669,7 @@ def test_engine_applies_stop_loss_and_cooldown_before_reentering():
     assert buy_trades[1].time == "2026-01-01 10:00"
     assert result.trades[1].side == "SELL"
     assert result.trades[1].reason == "止损触发"
-    assert result.trades[1].price == 9.7
+    assert result.trades[1].price == 9.699
     assert result.summary.maxDrawdownPercent > 0
     cooldown_items = [item for item in result.timeline if item.event_type == "COOLDOWN_STARTED"]
     assert len(cooldown_items) == 1
