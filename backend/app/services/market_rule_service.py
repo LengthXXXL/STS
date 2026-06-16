@@ -1,6 +1,5 @@
 from app.schemas.market_rule import MarketCode, MarketCostProfile, MarketRuleResponse
 
-
 MARKET_RULES: dict[MarketCode, MarketRuleResponse] = {
     "A_SHARE": MarketRuleResponse(
         market="A_SHARE",

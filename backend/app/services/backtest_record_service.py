@@ -4,19 +4,19 @@ from sqlalchemy.orm import Session
 from app.models.backtest import (
     BacktestEquityPointRecord,
     BacktestEventRecord,
-    BacktestTimelineRecord,
     BacktestTask,
+    BacktestTimelineRecord,
     BacktestTradeRecord,
 )
 from app.models.simulation_account import SimulationAccount
 from app.models.user import User
 from app.schemas.backtest import (
+    BacktestEvent,
     BacktestRecordDetailResponse,
     BacktestRecordListItem,
     BacktestRunRequest,
     BacktestRunResponse,
     BacktestSummary,
-    BacktestEvent,
     BacktestTimelineItem,
     BacktestTrade,
     EquityPoint,

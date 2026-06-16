@@ -12,7 +12,9 @@ def ensure_development_schema(engine: Engine) -> None:
             if "review_reason" not in column_names:
                 connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN review_reason TEXT"))
             if table_name == "forum_posts" and "related_type" not in column_names:
-                connection.execute(text("ALTER TABLE forum_posts ADD COLUMN related_type VARCHAR(40)"))
+                connection.execute(
+                    text("ALTER TABLE forum_posts ADD COLUMN related_type VARCHAR(40)")
+                )
             if table_name == "forum_posts" and "related_id" not in column_names:
                 connection.execute(text("ALTER TABLE forum_posts ADD COLUMN related_id INTEGER"))
 

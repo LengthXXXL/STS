@@ -4,11 +4,11 @@ from sqlalchemy import select
 from app.api import backtests as backtests_api
 from app.models import (
     BacktestEquityPointRecord,
-    BacktestTimelineRecord,
     BacktestTask,
+    BacktestTimelineRecord,
     BacktestTradeRecord,
-    MarketKlineCache,
     MarketDataDownloadRange,
+    MarketKlineCache,
 )
 from app.services.market_data_service import MarketDataUnavailableError
 

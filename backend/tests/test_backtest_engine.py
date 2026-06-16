@@ -5,7 +5,7 @@ from app.services.backtest_service import (
     run_backtest_with_candles,
 )
 from app.services.market_rule_service import get_market_rule
-from app.services.trading_cost_service import calculate_trade_fill, affordable_buy_quantity
+from app.services.trading_cost_service import affordable_buy_quantity, calculate_trade_fill
 
 
 def _request(nodes, *, edges=None, initial_cash=1000, market="US_STOCK"):
