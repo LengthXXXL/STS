@@ -327,8 +327,8 @@ class CachedMarketDataProvider:
             .where(MarketKlineCache.timeframe == config.timeframe)
             .where(MarketKlineCache.candle_time.in_(candle_times))
         ).all()
-        existing_live_times = {
-            row.candle_time for row in existing_rows if row.source == LIVE_CACHE_SOURCE
+        existing_live_rows_by_time = {
+            row.candle_time: row for row in existing_rows if row.source == LIVE_CACHE_SOURCE
         }
         has_stale_rows = False
         for row in existing_rows:
@@ -340,9 +340,17 @@ class CachedMarketDataProvider:
         seen_times: set[str] = set()
 
         for candle in candles:
-            if candle.time in existing_live_times or candle.time in seen_times:
+            if candle.time in seen_times:
                 continue
             seen_times.add(candle.time)
+            existing_live_row = existing_live_rows_by_time.get(candle.time)
+            if existing_live_row is not None:
+                if (
+                    existing_live_row.previous_close is None
+                    and candle.previous_close is not None
+                ):
+                    existing_live_row.previous_close = float(candle.previous_close)
+                continue
             self.db.add(
                 MarketKlineCache(
                     market=config.market,

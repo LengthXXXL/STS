@@ -356,6 +356,56 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
     assert cached_again == first_candles
 
 
+def test_cached_provider_repairs_missing_previous_close_for_existing_live_rows(db_session):
+    db_session.add(
+        models.MarketKlineCache(
+            market="A_SHARE",
+            symbol="000001.SZ",
+            timeframe="5m",
+            source="LIVE",
+            candle_time="2026-01-01 09:35",
+            open_price=9.8,
+            high_price=10.0,
+            low_price=9.7,
+            close=9.9,
+            volume=500,
+            previous_close=None,
+        )
+    )
+    db_session.commit()
+
+    provider = market_data_service.CachedMarketDataProvider(db_session)
+    provider.cache_candles(
+        _config(market="A_SHARE", symbol="000001.SZ"),
+        [
+            MarketCandle(
+                time="2026-01-01 09:35",
+                open=10.1,
+                high=10.3,
+                low=10.0,
+                close=10.25,
+                volume=1200,
+                previous_close=10.0,
+            )
+        ],
+    )
+
+    rows = db_session.scalars(select(models.MarketKlineCache)).all()
+    assert [
+        (
+            row.source,
+            row.candle_time,
+            row.open_price,
+            row.high_price,
+            row.low_price,
+            row.close,
+            row.volume,
+            row.previous_close,
+        )
+        for row in rows
+    ] == [("LIVE", "2026-01-01 09:35", 9.8, 10.0, 9.7, 9.9, 500, 10.0)]
+
+
 def test_cached_provider_ignores_unknown_source_rows_and_replaces_them(db_session):
     db_session.add(
         models.MarketKlineCache(
