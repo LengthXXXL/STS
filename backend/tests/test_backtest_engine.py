@@ -446,6 +446,63 @@ def test_engine_skips_non_session_candles_before_triggering_orders():
     assert result.timeline == []
 
 
+def test_off_session_candle_does_not_advance_holding_bars_for_sell_condition():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+            {
+                "id": "holding-bars-1",
+                "type": "position-state",
+                "label": "持仓K线数",
+                "x": 160,
+                "y": 0,
+                "params": {"state": "holding-bars-gte", "threshold": "2"},
+            },
+            {
+                "id": "sell-1",
+                "type": "sell",
+                "label": "卖出",
+                "x": 320,
+                "y": 0,
+                "params": {"sellPercent": "100"},
+            },
+        ],
+        edges=[{"id": "holding-sell", "from": "holding-bars-1", "to": "sell-1"}],
+        initial_cash=10000,
+        market="US_STOCK",
+    )
+    regular_candles = [
+        MarketCandle(time="2026-01-01 15:50", open=10.0, high=10.1, low=9.9, close=10.0),
+        MarketCandle(time="2026-01-01 15:55", open=10.0, high=10.1, low=9.9, close=10.0),
+        MarketCandle(time="2026-01-02 09:35", open=10.0, high=10.1, low=9.9, close=10.0),
+        MarketCandle(time="2026-01-02 09:40", open=10.0, high=10.1, low=9.9, close=10.0),
+        MarketCandle(time="2026-01-02 09:45", open=10.0, high=10.1, low=9.9, close=10.0),
+    ]
+    candles_with_off_session_bar = [
+        regular_candles[0],
+        regular_candles[1],
+        MarketCandle(time="2026-01-01 16:05", open=10.0, high=10.1, low=9.9, close=10.0),
+        *regular_candles[2:],
+    ]
+
+    baseline = run_backtest_with_candles(request, regular_candles)
+    variant = run_backtest_with_candles(request, candles_with_off_session_bar)
+
+    assert [trade.side for trade in baseline.trades] == ["BUY", "SELL"]
+    assert [trade.side for trade in variant.trades] == ["BUY", "SELL"]
+    baseline_sell_time = next(trade.time for trade in baseline.trades if trade.side == "SELL")
+    variant_sell_time = next(trade.time for trade in variant.trades if trade.side == "SELL")
+    assert baseline_sell_time == "2026-01-02 09:45"
+    assert variant_sell_time == baseline_sell_time
+
+
 def test_engine_sizes_buy_with_normalized_execution_price():
     request = _request(
         [

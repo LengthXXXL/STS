@@ -122,8 +122,6 @@ def run_backtest_with_candles(
                     equity=round(cash + position.quantity * candle.close, 2),
                 )
             )
-            if position.quantity > 0:
-                position.holding_bars += 1
             continue
 
         last_regular_session_candle = candle
