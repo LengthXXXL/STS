@@ -17,6 +17,11 @@ interface BacktestTrade {
   price: number
   quantity: number
   reason: string
+  grossAmount?: number
+  costAmount?: number
+  slippageAmount?: number
+  netCashChange?: number
+  costBreakdown?: Record<string, number>
 }
 
 interface BacktestEvent {
@@ -240,6 +245,12 @@ function formatAmount(value: number | undefined) {
   })
 }
 
+function formatSignedAmount(value: number | undefined) {
+  const numericValue = Number(value ?? 0)
+  const sign = numericValue > 0 ? '+' : ''
+  return `${sign}${formatAmount(numericValue)}`
+}
+
 function formatTradeSide(side: TradeSide) {
   return side === 'BUY' ? '买入' : '卖出'
 }
@@ -417,6 +428,8 @@ function timelineMeta(item: BacktestTimelineItem) {
           <th>方向</th>
           <th>价格</th>
           <th>数量</th>
+          <th>成本</th>
+          <th>净现金变化</th>
           <th>原因</th>
         </tr>
       </thead>
@@ -426,6 +439,8 @@ function timelineMeta(item: BacktestTimelineItem) {
           <td>{{ trade.side }}</td>
           <td>{{ formatAmount(trade.price) }}</td>
           <td>{{ trade.quantity }}</td>
+          <td>{{ formatAmount(trade.costAmount) }}</td>
+          <td>{{ formatSignedAmount(trade.netCashChange) }}</td>
           <td>{{ trade.reason }}</td>
         </tr>
       </tbody>

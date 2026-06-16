@@ -1030,7 +1030,18 @@ describe('builder view', () => {
               side: 'BUY',
               price: 10.2,
               quantity: 1900,
-              reason: '买入积木触发'
+              reason: '买入积木触发',
+              grossAmount: 19380,
+              costAmount: 6.24,
+              slippageAmount: 1.94,
+              netCashChange: -19386.24,
+              costBreakdown: {
+                commission: 5,
+                marketFees: 1.24,
+                stampDuty: 0,
+                secFee: 0,
+                finraTaf: 0
+              }
             },
             {
               time: '2026-01-05 10:40',
@@ -1136,6 +1147,11 @@ describe('builder view', () => {
     expect(wrapper.find('.trade-review').text()).toContain('卖出 1900 股')
     expect(wrapper.find('.backtest-trades').text()).toContain('BUY')
     expect(wrapper.find('.backtest-trades').text()).toContain('买入积木触发')
+    expect(wrapper.find('.strategy-review-modal').text()).toContain('成本假设')
+    expect(wrapper.find('.backtest-trades').text()).toContain('成本')
+    expect(wrapper.find('.backtest-trades').text()).toContain('净现金变化')
+    expect(wrapper.find('.backtest-trades').text()).toContain('6.24')
+    expect(wrapper.find('.backtest-trades').text()).toContain('-19,386.24')
     expect(wrapper.find('.backtest-events').text()).toContain('规则提示')
     expect(wrapper.find('.backtest-events').text()).toContain('A股 T+1 规则限制')
     expect(wrapper.find('.backtest-timeline').text()).toContain('策略执行时间线')

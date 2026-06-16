@@ -120,6 +120,11 @@ interface BacktestTradeResult {
   price: number
   quantity: number
   reason: string
+  grossAmount?: number
+  costAmount?: number
+  slippageAmount?: number
+  netCashChange?: number
+  costBreakdown?: Record<string, number>
 }
 
 interface BacktestEventResult {
@@ -937,6 +942,12 @@ const backtestSummary = computed(() =>
   backtestIssues.value.length > 0 ? '需完善' : '回测就绪'
 )
 const canPrepareMarketData = computed(() => marketDataPrompt.value?.hasTradingDays !== false)
+
+const costAssumptionText = computed(() =>
+  backtestSettings.market === 'A_SHARE'
+    ? '成本假设：佣金 2.5bps，卖出印花税 5bps，滑点 1bps'
+    : '成本假设：零佣金，SEC/FINRA 卖出监管费，滑点 1bps'
+)
 
 const backtestJson = computed(() => JSON.stringify(backtestConfig.value, null, 2))
 
@@ -2824,6 +2835,7 @@ function clearCanvas() {
                   />
                 </label>
               </form>
+              <p class="backtest-cost-assumption">{{ costAssumptionText }}</p>
               <p v-if="isLoadingSimulationAccounts" class="backtest-account-status">
                 正在加载模拟账户
               </p>

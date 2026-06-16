@@ -3099,6 +3099,17 @@ button {
   font-size: 13px;
 }
 
+.backtest-cost-assumption {
+  margin: 0;
+  border: 1px solid rgba(124, 77, 255, 0.28);
+  border-radius: 6px;
+  padding: 7px 8px;
+  color: #cfc4ee;
+  background: rgba(16, 12, 26, 0.46);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .validation-empty,
 .validation-issues,
 .backtest-empty,
