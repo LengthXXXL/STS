@@ -12,10 +12,15 @@ import certifi
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.market_data import MarketKlineCache
 from app.schemas.backtest import BacktestConfig
 
 LIVE_CACHE_SOURCE = "LIVE"
+A_SHARE_RECENT_MINUTE_MESSAGE = "A股分钟数据源仅支持近期分钟K线，请选择最近约60天的交易区间"
+US_MARKET_DATA_SOURCE_UNCONFIGURED_MESSAGE = (
+    "美股分钟数据源未配置，请先配置稳定的美股分钟行情 API Key"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,9 +72,9 @@ class LocalMarketDataProvider:
             low = round(min(open_price, close) * 0.996, 4)
             candles.append(
                 MarketCandle(
-                    time=(
-                        session_start + timedelta(minutes=minute_step * (index + 1))
-                    ).strftime("%Y-%m-%d %H:%M"),
+                    time=(session_start + timedelta(minutes=minute_step * (index + 1))).strftime(
+                        "%Y-%m-%d %H:%M"
+                    ),
                     open=open_price,
                     high=high,
                     low=low,
@@ -190,7 +195,7 @@ class EastMoneyMarketDataProvider:
         data = payload.get("data") if isinstance(payload, dict) else None
         klines = data.get("klines") if isinstance(data, dict) else None
         if not klines:
-            raise MarketDataUnavailableError("EastMoney response contains no klines")
+            raise MarketDataUnavailableError(A_SHARE_RECENT_MINUTE_MESSAGE)
 
         candles: list[MarketCandle] = []
         for raw_kline in klines:
@@ -222,8 +227,11 @@ class DefaultMarketDataProvider:
         yahoo_provider: MarketDataProvider | None = None,
         eastmoney_provider: MarketDataProvider | None = None,
         fallback_provider: MarketDataProvider | None = None,
+        us_market_data_provider: str | None = None,
     ):
-        self.yahoo_provider = yahoo_provider or YahooChartMarketDataProvider()
+        self.yahoo_provider = yahoo_provider or _configured_us_market_data_provider(
+            us_market_data_provider
+        )
         self.eastmoney_provider = eastmoney_provider or EastMoneyMarketDataProvider()
         self.fallback_provider = fallback_provider
 
@@ -245,6 +253,18 @@ class DefaultMarketDataProvider:
                 return self.fallback_provider.get_intraday_candles(config)
 
         raise MarketDataUnavailableError(f"Unsupported market: {config.market}")
+
+
+class DisabledUsStockMarketDataProvider:
+    def get_intraday_candles(self, config: BacktestConfig) -> list[MarketCandle]:
+        raise MarketDataUnavailableError(US_MARKET_DATA_SOURCE_UNCONFIGURED_MESSAGE)
+
+
+def _configured_us_market_data_provider(provider_name: str | None) -> MarketDataProvider:
+    configured_provider = (provider_name or get_settings().us_market_data_provider).strip().lower()
+    if configured_provider == "yahoo":
+        return YahooChartMarketDataProvider()
+    return DisabledUsStockMarketDataProvider()
 
 
 class CachedMarketDataProvider:

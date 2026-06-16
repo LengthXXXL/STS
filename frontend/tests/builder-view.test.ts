@@ -93,6 +93,24 @@ describe('builder view', () => {
     window.dispatchEvent(event)
   }
 
+  function formatDateInput(date: Date) {
+    const year = date.getFullYear()
+    const month = `${date.getMonth() + 1}`.padStart(2, '0')
+    const day = `${date.getDate()}`.padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  function expectedDefaultBacktestRange() {
+    const end = new Date()
+    end.setDate(end.getDate() - 1)
+    const start = new Date(end)
+    start.setDate(start.getDate() - 14)
+    return {
+      startDate: formatDateInput(start),
+      endDate: formatDateInput(end)
+    }
+  }
+
   const savedCustomBlockTemplate = {
     id: 21,
     ownerId: 1,
@@ -925,12 +943,13 @@ describe('builder view', () => {
     await openReviewModal()
 
     const initialConfig = JSON.parse(wrapper.find('.backtest-config-preview').text())
+    const defaultRange = expectedDefaultBacktestRange()
     expect(initialConfig).toMatchObject({
       market: 'A_SHARE',
       symbol: '000001.SZ',
       timeframe: '5m',
-      startDate: '2026-01-01',
-      endDate: '2026-03-01',
+      startDate: defaultRange.startDate,
+      endDate: defaultRange.endDate,
       initialCash: 100000
     })
     expect(wrapper.find('.backtest-summary').text()).toContain('回测就绪')
@@ -1081,12 +1100,13 @@ describe('builder view', () => {
     await wrapper.find('.review-primary-button').trigger('click')
     await flushPromises()
 
+    const defaultRange = expectedDefaultBacktestRange()
     expect(apiClient.post).toHaveBeenNthCalledWith(1, '/market-data/coverage', {
       market: 'A_SHARE',
       symbol: '000001.SZ',
       timeframe: '5m',
-      startDate: '2026-01-01',
-      endDate: '2026-03-01'
+      startDate: defaultRange.startDate,
+      endDate: defaultRange.endDate
     })
     expect(apiClient.post).toHaveBeenNthCalledWith(2, '/backtests/run', {
       strategy: expect.objectContaining({
@@ -1218,12 +1238,13 @@ describe('builder view', () => {
     await wrapper.find('[data-market-data-action="prepare"]').trigger('click')
     await flushPromises()
 
+    const defaultRange = expectedDefaultBacktestRange()
     expect(apiClient.post).toHaveBeenNthCalledWith(2, '/market-data/prepare', {
       market: 'A_SHARE',
       symbol: '000001.SZ',
       timeframe: '5m',
-      startDate: '2026-01-01',
-      endDate: '2026-03-01'
+      startDate: defaultRange.startDate,
+      endDate: defaultRange.endDate
     })
     expect(apiClient.post).toHaveBeenNthCalledWith(3, '/backtests/run', {
       strategy: expect.objectContaining({ version: 1 }),
@@ -1292,12 +1313,13 @@ describe('builder view', () => {
     await wrapper.find('[data-market-data-action="prepare"]').trigger('click')
     await flushPromises()
 
+    const defaultRange = expectedDefaultBacktestRange()
     expect(apiClient.post).toHaveBeenNthCalledWith(2, '/market-data/prepare', {
       market: 'A_SHARE',
       symbol: '000001.SZ',
       timeframe: '5m',
-      startDate: '2026-01-01',
-      endDate: '2026-03-01'
+      startDate: defaultRange.startDate,
+      endDate: defaultRange.endDate
     })
     expect(apiClient.post).toHaveBeenNthCalledWith(3, '/backtests/run', {
       strategy: expect.objectContaining({ version: 1 }),
@@ -1589,12 +1611,13 @@ describe('builder view', () => {
     await wrapper.find('.review-primary-button').trigger('click')
     await flushPromises()
 
+    const defaultRange = expectedDefaultBacktestRange()
     expect(apiClient.post).toHaveBeenNthCalledWith(1, '/market-data/coverage', {
       market: 'US_STOCK',
       symbol: 'AAPL',
       timeframe: '5m',
-      startDate: '2026-01-01',
-      endDate: '2026-03-01'
+      startDate: defaultRange.startDate,
+      endDate: defaultRange.endDate
     })
     expect(apiClient.post).toHaveBeenNthCalledWith(2, '/backtests/run', {
       strategy: expect.any(Object),

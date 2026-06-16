@@ -271,6 +271,25 @@ const BLOCK_HEIGHT = 44
 const STRATEGY_DRAFT_STORAGE_KEY = 'sts.builder.strategyDraft.v1'
 const blockCategoryOrder = ['动作', '条件', '逻辑', '行情指标', '持仓', '时间', '风控']
 const DEFAULT_STRATEGY_NAME = '未命名策略'
+const DEFAULT_BACKTEST_LOOKBACK_DAYS = 14
+
+function formatDateInput(date: Date) {
+  const year = date.getFullYear()
+  const month = `${date.getMonth() + 1}`.padStart(2, '0')
+  const day = `${date.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function getDefaultBacktestDateRange(referenceDate = new Date()) {
+  const end = new Date(referenceDate)
+  end.setDate(end.getDate() - 1)
+  const start = new Date(end)
+  start.setDate(start.getDate() - DEFAULT_BACKTEST_LOOKBACK_DAYS)
+  return {
+    startDate: formatDateInput(start),
+    endDate: formatDateInput(end)
+  }
+}
 
 const blockDefinitions: BlockDefinition[] = [
   {
@@ -692,12 +711,13 @@ const customBlockStatus = ref('')
 const customBlockLibrary = ref<CustomBlockTemplate[]>([])
 const customBlockLibraryLoading = ref(false)
 const customBlockLibraryError = ref('')
+const defaultBacktestDateRange = getDefaultBacktestDateRange()
 const backtestSettings = reactive<BacktestSettings>({
   market: 'A_SHARE',
   symbol: '000001.SZ',
   timeframe: '5m',
-  startDate: '2026-01-01',
-  endDate: '2026-03-01',
+  startDate: defaultBacktestDateRange.startDate,
+  endDate: defaultBacktestDateRange.endDate,
   initialCash: '100000'
 })
 

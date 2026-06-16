@@ -194,6 +194,20 @@ def test_eastmoney_provider_wraps_fetch_errors_as_unavailable():
         provider.get_intraday_candles(_config(market="A_SHARE", symbol="000001.SZ"))
 
 
+def test_eastmoney_provider_explains_empty_recent_minute_history():
+    provider = EastMoneyMarketDataProvider(fetch_json=lambda url: {"data": {"klines": []}})
+
+    with pytest.raises(MarketDataUnavailableError, match="A股分钟数据源仅支持近期分钟K线"):
+        provider.get_intraday_candles(_config(market="A_SHARE", symbol="000001.SZ"))
+
+
+def test_default_provider_requires_configured_us_market_data_source():
+    provider = DefaultMarketDataProvider(us_market_data_provider="disabled")
+
+    with pytest.raises(MarketDataUnavailableError, match="美股分钟数据源未配置"):
+        provider.get_intraday_candles(_config(market="US_STOCK", symbol="AAPL"))
+
+
 def test_default_provider_falls_back_when_yahoo_is_unavailable():
     class BrokenProvider:
         def get_intraday_candles(self, config):

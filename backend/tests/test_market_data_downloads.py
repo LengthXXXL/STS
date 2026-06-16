@@ -302,7 +302,9 @@ def test_prepare_market_data_records_empty_result_as_failed_range(db_session):
         def get_intraday_candles(self, config):
             return []
 
-    response = prepare_market_data(db_session, _market_data_request(), source_provider=EmptyProvider())
+    response = prepare_market_data(
+        db_session, _market_data_request(), source_provider=EmptyProvider()
+    )
 
     assert response.ready is False
     assert response.message == "部分行情下载失败，请重试失败区间"
@@ -329,7 +331,9 @@ def test_prepare_market_data_records_partial_actual_covered_range(db_session):
                 )
             ]
 
-    response = prepare_market_data(db_session, _market_data_request(), source_provider=PartialProvider())
+    response = prepare_market_data(
+        db_session, _market_data_request(), source_provider=PartialProvider()
+    )
 
     assert response.ready is False
     assert response.downloadedRows == 1
@@ -417,7 +421,9 @@ def test_prepare_market_data_records_mixed_out_of_range_result_as_failed_range(d
                 ),
             ]
 
-    response = prepare_market_data(db_session, _market_data_request(), source_provider=MixedProvider())
+    response = prepare_market_data(
+        db_session, _market_data_request(), source_provider=MixedProvider()
+    )
 
     assert response.ready is False
     assert response.message == "部分行情下载失败，请重试失败区间"
@@ -444,7 +450,9 @@ def test_prepare_market_data_records_unparseable_time_result_as_failed_range(db_
                 )
             ]
 
-    response = prepare_market_data(db_session, _market_data_request(), source_provider=BadTimeProvider())
+    response = prepare_market_data(
+        db_session, _market_data_request(), source_provider=BadTimeProvider()
+    )
 
     assert response.ready is False
     assert response.message == "部分行情下载失败，请重试失败区间"
@@ -462,7 +470,9 @@ def test_prepare_market_data_records_failed_range_without_claiming_ready(db_sess
         def get_intraday_candles(self, config):
             raise MarketDataUnavailableError("network failed")
 
-    response = prepare_market_data(db_session, _market_data_request(), source_provider=BrokenProvider())
+    response = prepare_market_data(
+        db_session, _market_data_request(), source_provider=BrokenProvider()
+    )
 
     assert response.ready is False
     assert response.downloadedRows == 0
@@ -475,12 +485,16 @@ def test_prepare_market_data_records_failed_range_without_claiming_ready(db_sess
     assert "network failed" in (failed_range.error_message or "")
 
 
-def test_prepare_market_data_records_generic_failure_and_returns_partial_failure_message(db_session):
+def test_prepare_market_data_records_generic_failure_and_returns_partial_failure_message(
+    db_session,
+):
     class BrokenProvider:
         def get_intraday_candles(self, config):
             raise RuntimeError("boom")
 
-    response = prepare_market_data(db_session, _market_data_request(), source_provider=BrokenProvider())
+    response = prepare_market_data(
+        db_session, _market_data_request(), source_provider=BrokenProvider()
+    )
 
     assert response.ready is False
     assert response.message == "部分行情下载失败，请重试失败区间"
@@ -492,6 +506,25 @@ def test_prepare_market_data_records_generic_failure_and_returns_partial_failure
     assert failed_range is not None
     assert failed_range.status == "failed"
     assert "boom" in (failed_range.error_message or "")
+
+
+def test_prepare_market_data_returns_specific_unavailable_reason(db_session):
+    class TooOldProvider:
+        def get_intraday_candles(self, config):
+            raise MarketDataUnavailableError(
+                "A股分钟数据源仅支持近期分钟K线，请选择最近约60天的交易区间"
+            )
+
+    response = prepare_market_data(
+        db_session, _market_data_request(), source_provider=TooOldProvider()
+    )
+
+    assert response.ready is False
+    assert response.message == "A股分钟数据源仅支持近期分钟K线，请选择最近约60天的交易区间"
+    assert response.downloadedRows == 0
+    assert [item.model_dump() for item in response.failedRanges] == [
+        {"startDate": "2025-03-03", "endDate": "2025-03-31"}
+    ]
 
 
 def test_market_data_request_rejects_invalid_market_with_chinese_message():

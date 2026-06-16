@@ -13,7 +13,9 @@ from app.schemas.market_data import (
     MarketDataRequest,
 )
 from app.services.market_data_service import (
+    A_SHARE_RECENT_MINUTE_MESSAGE,
     LIVE_CACHE_SOURCE,
+    US_MARKET_DATA_SOURCE_UNCONFIGURED_MESSAGE,
     CachedMarketDataProvider,
     DefaultMarketDataProvider,
     MarketCandle,
@@ -30,6 +32,10 @@ from app.services.trading_calendar_service import (
 COMPLETED_STATUS = "completed"
 FAILED_STATUS = "failed"
 NO_TRADING_DAYS_MESSAGE = "该时间段没有交易日，请选择包含交易日的回测区间"
+USER_FACING_UNAVAILABLE_MESSAGES = {
+    A_SHARE_RECENT_MINUTE_MESSAGE,
+    US_MARKET_DATA_SOURCE_UNCONFIGURED_MESSAGE,
+}
 
 
 class NoTradingDaysError(MarketDataUnavailableError):
@@ -78,6 +84,7 @@ def prepare_market_data(
     cache_provider = CachedMarketDataProvider(db, source_provider=provider)
     downloaded_rows = 0
     failed_ranges: list[MarketDataRange] = []
+    unavailable_reasons: list[str] = []
 
     for missing_range in missing_ranges:
         for chunk in _chunk_range(missing_range, request.timeframe):
@@ -88,6 +95,8 @@ def prepare_market_data(
                 cache_provider.cache_candles(config, candles)
             except Exception as exc:
                 db.rollback()
+                if isinstance(exc, MarketDataUnavailableError):
+                    unavailable_reasons.append(str(exc))
                 failed_ranges.append(chunk)
                 _record_download_range(
                     db,
@@ -119,7 +128,7 @@ def prepare_market_data(
             missingRanges=final_missing_ranges,
             estimatedRows=failed_rows,
             estimatedSeconds=_estimate_seconds(failed_rows),
-            message="部分行情下载失败，请重试失败区间",
+            message=_prepare_failure_message(unavailable_reasons),
             downloadedRows=downloaded_rows,
             failedRanges=failed_ranges,
         )
@@ -221,6 +230,17 @@ def _no_trading_days_coverage() -> MarketDataCoverageResponse:
         estimatedSeconds=0,
         message=NO_TRADING_DAYS_MESSAGE,
     )
+
+
+def _prepare_failure_message(unavailable_reasons: list[str]) -> str:
+    unique_reasons = list(
+        dict.fromkeys(
+            reason for reason in unavailable_reasons if reason in USER_FACING_UNAVAILABLE_MESSAGES
+        )
+    )
+    if len(unique_reasons) == 1:
+        return unique_reasons[0]
+    return "部分行情下载失败，请重试失败区间"
 
 
 def _chunk_range(missing_range: MarketDataRange, timeframe: str) -> list[MarketDataRange]:

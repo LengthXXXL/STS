@@ -19,6 +19,10 @@ class Settings(BaseSettings):
         default="http://localhost:5173,http://127.0.0.1:5173",
         description="Comma-separated CORS origin list",
     )
+    us_market_data_provider: str = Field(
+        default="disabled",
+        description="US minute data provider. Use 'disabled' or 'yahoo'.",
+    )
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8")
 
