@@ -83,6 +83,15 @@ def count_trading_days(market: MarketCode, start: date, end: date) -> int:
     return count
 
 
+def has_trading_day(market: MarketCode, start: date, end: date) -> bool:
+    cursor = start
+    while cursor <= end:
+        if is_trading_day(market, cursor):
+            return True
+        cursor += timedelta(days=1)
+    return False
+
+
 def has_missing_trading_day(market: MarketCode, previous_date: date, next_date: date) -> bool:
     cursor = previous_date + timedelta(days=1)
     while cursor < next_date:

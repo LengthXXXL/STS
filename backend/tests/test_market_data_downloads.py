@@ -88,6 +88,40 @@ def test_coverage_is_ready_when_completed_range_covers_request(db_session):
     assert coverage.message == "本地行情已准备完成，可以直接运行回测"
 
 
+def test_coverage_reports_no_trading_days_without_download(db_session):
+    coverage = get_market_data_coverage(
+        db_session,
+        _market_data_request(startDate="2026-02-15", endDate="2026-02-23"),
+    )
+
+    assert coverage.ready is False
+    assert coverage.hasTradingDays is False
+    assert coverage.missingRanges == []
+    assert coverage.estimatedRows == 0
+    assert coverage.estimatedSeconds == 0
+    assert coverage.message == "该时间段没有交易日，请选择包含交易日的回测区间"
+
+
+def test_prepare_market_data_reports_no_trading_days_without_provider_call(db_session):
+    class UnexpectedProvider:
+        def get_intraday_candles(self, config):
+            raise AssertionError("provider should not be called for closed ranges")
+
+    response = prepare_market_data(
+        db_session,
+        _market_data_request(startDate="2026-02-15", endDate="2026-02-23"),
+        source_provider=UnexpectedProvider(),
+    )
+
+    assert response.ready is False
+    assert response.hasTradingDays is False
+    assert response.missingRanges == []
+    assert response.downloadedRows == 0
+    assert response.failedRanges == []
+    assert response.message == "该时间段没有交易日，请选择包含交易日的回测区间"
+    assert db_session.scalar(select(MarketDataDownloadRange)) is None
+
+
 def test_prepare_market_data_downloads_missing_range_and_records_completion(db_session):
     class SourceProvider:
         def get_intraday_candles(self, config):

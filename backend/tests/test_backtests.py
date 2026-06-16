@@ -169,6 +169,17 @@ def test_run_backtest_rejects_unprepared_local_market_data(client):
     assert response.json()["detail"] == "本地行情尚未准备完成，请先下载行情后再运行回测"
 
 
+def test_run_backtest_rejects_range_without_trading_days(client):
+    payload = _backtest_payload()
+    payload["config"]["startDate"] = "2026-02-15"
+    payload["config"]["endDate"] = "2026-02-23"
+
+    response = client.post("/api/backtests/run", json=payload)
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "该时间段没有交易日，请选择包含交易日的回测区间"
+
+
 @pytest.mark.parametrize(
     ("start_date", "end_date"),
     [

@@ -51,6 +51,7 @@ class MarketDataRequest(BaseModel):
 
 class MarketDataCoverageResponse(BaseModel):
     ready: bool
+    hasTradingDays: bool = True
     missingRanges: list[MarketDataRange]
     estimatedRows: int = Field(ge=0)
     estimatedSeconds: int = Field(ge=0)

@@ -1124,6 +1124,36 @@ describe('builder view', () => {
     expect(wrapper.find('.backtest-timeline').text()).toContain('止盈')
   })
 
+  it('shows a closed-market range prompt without offering download', async () => {
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        ready: false,
+        hasTradingDays: false,
+        missingRanges: [],
+        estimatedRows: 0,
+        estimatedSeconds: 0,
+        message: '该时间段没有交易日，请选择包含交易日的回测区间'
+      }
+    })
+
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await dropBlock(wrapper, 'buy', 260, 170)
+    await openReviewModal()
+
+    await wrapper.find('[data-backtest-key="startDate"]').setValue('2026-02-15')
+    await wrapper.find('[data-backtest-key="endDate"]').setValue('2026-02-23')
+    await wrapper.find('.review-primary-button').trigger('click')
+    await flushPromises()
+
+    const prompt = wrapper.find('.market-data-download-prompt')
+    expect(prompt.text()).toContain('无法运行回测')
+    expect(prompt.text()).toContain('该时间段没有交易日，请选择包含交易日的回测区间')
+    expect(prompt.text()).not.toContain('预估K线')
+    expect(wrapper.find('[data-market-data-action="prepare"]').exists()).toBe(false)
+    expect(apiClient.post).toHaveBeenCalledTimes(1)
+  })
+
   it('asks before downloading missing market data and continues after prepare', async () => {
     vi.mocked(apiClient.post)
       .mockResolvedValueOnce({

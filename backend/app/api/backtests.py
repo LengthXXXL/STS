@@ -17,7 +17,7 @@ from app.services.backtest_record_service import (
     save_backtest_result,
 )
 from app.services.backtest_service import run_backtest as run_backtest_service
-from app.services.market_data_download_service import ensure_market_data_ready
+from app.services.market_data_download_service import NoTradingDaysError, ensure_market_data_ready
 from app.services.market_data_service import LocalOnlyMarketDataProvider, MarketDataUnavailableError
 from app.services.simulation_account_service import get_simulation_account
 
@@ -73,6 +73,11 @@ def run_backtest(
             effective_request,
             market_data_provider=LocalOnlyMarketDataProvider(db),
         )
+    except NoTradingDaysError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=str(exc),
+        ) from exc
     except MarketDataUnavailableError as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

@@ -23,22 +23,32 @@ from app.services.market_data_service import (
 from app.services.trading_calendar_service import (
     count_trading_days,
     has_missing_trading_day,
+    has_trading_day,
     is_trading_day,
 )
 
 COMPLETED_STATUS = "completed"
 FAILED_STATUS = "failed"
+NO_TRADING_DAYS_MESSAGE = "该时间段没有交易日，请选择包含交易日的回测区间"
+
+
+class NoTradingDaysError(MarketDataUnavailableError):
+    pass
 
 
 def get_market_data_coverage(
     db: Session,
     request: MarketDataRequest,
 ) -> MarketDataCoverageResponse:
+    if not _request_has_trading_days(request):
+        return _no_trading_days_coverage()
+
     missing_ranges = _missing_ranges(db, request)
     estimated_rows = _estimate_rows(request.market, request.timeframe, missing_ranges)
     estimated_seconds = _estimate_seconds(estimated_rows)
     return MarketDataCoverageResponse(
         ready=not missing_ranges,
+        hasTradingDays=True,
         missingRanges=missing_ranges,
         estimatedRows=estimated_rows,
         estimatedSeconds=estimated_seconds,
@@ -51,6 +61,18 @@ def prepare_market_data(
     request: MarketDataRequest,
     source_provider: MarketDataProvider | None = None,
 ) -> MarketDataPrepareResponse:
+    if not _request_has_trading_days(request):
+        return MarketDataPrepareResponse(
+            ready=False,
+            hasTradingDays=False,
+            missingRanges=[],
+            estimatedRows=0,
+            estimatedSeconds=0,
+            message=NO_TRADING_DAYS_MESSAGE,
+            downloadedRows=0,
+            failedRanges=[],
+        )
+
     missing_ranges = _missing_ranges(db, request)
     provider = source_provider or DefaultMarketDataProvider()
     cache_provider = CachedMarketDataProvider(db, source_provider=provider)
@@ -93,6 +115,7 @@ def prepare_market_data(
         failed_rows = _estimate_rows(request.market, request.timeframe, failed_ranges)
         return MarketDataPrepareResponse(
             ready=False,
+            hasTradingDays=True,
             missingRanges=final_missing_ranges,
             estimatedRows=failed_rows,
             estimatedSeconds=_estimate_seconds(failed_rows),
@@ -105,6 +128,7 @@ def prepare_market_data(
     estimated_seconds = _estimate_seconds(estimated_rows)
     return MarketDataPrepareResponse(
         ready=not final_missing_ranges,
+        hasTradingDays=True,
         missingRanges=final_missing_ranges,
         estimatedRows=estimated_rows,
         estimatedSeconds=estimated_seconds,
@@ -125,6 +149,8 @@ def ensure_market_data_ready(db: Session, config: BacktestConfig) -> None:
         }
     )
     coverage = get_market_data_coverage(db, request)
+    if not coverage.hasTradingDays:
+        raise NoTradingDaysError(coverage.message)
     if not coverage.ready:
         raise MarketDataUnavailableError(coverage.message)
 
@@ -176,6 +202,25 @@ def _missing_ranges(db: Session, request: MarketDataRequest) -> list[MarketDataR
     if missing_start is not None and missing_end is not None:
         missing_ranges.append(_range_from_dates(missing_start, missing_end))
     return missing_ranges
+
+
+def _request_has_trading_days(request: MarketDataRequest) -> bool:
+    return has_trading_day(
+        request.market,
+        date.fromisoformat(request.startDate),
+        date.fromisoformat(request.endDate),
+    )
+
+
+def _no_trading_days_coverage() -> MarketDataCoverageResponse:
+    return MarketDataCoverageResponse(
+        ready=False,
+        hasTradingDays=False,
+        missingRanges=[],
+        estimatedRows=0,
+        estimatedSeconds=0,
+        message=NO_TRADING_DAYS_MESSAGE,
+    )
 
 
 def _chunk_range(missing_range: MarketDataRange, timeframe: str) -> list[MarketDataRange]:

@@ -172,6 +172,7 @@ interface MarketDataRange {
 
 interface MarketDataCoverage {
   ready: boolean
+  hasTradingDays?: boolean
   missingRanges: MarketDataRange[]
   estimatedRows: number
   estimatedSeconds: number
@@ -915,6 +916,7 @@ const backtestIssues = computed<ValidationIssue[]>(() => {
 const backtestSummary = computed(() =>
   backtestIssues.value.length > 0 ? '需完善' : '回测就绪'
 )
+const canPrepareMarketData = computed(() => marketDataPrompt.value?.hasTradingDays !== false)
 
 const backtestJson = computed(() => JSON.stringify(backtestConfig.value, null, 2))
 
@@ -1406,7 +1408,7 @@ async function submitBacktest(payload: PendingBacktestPayload) {
 }
 
 async function prepareMarketDataAndRun() {
-  if (!pendingBacktestPayload.value || isMarketDataPreparing.value) {
+  if (!pendingBacktestPayload.value || isMarketDataPreparing.value || !canPrepareMarketData.value) {
     return
   }
 
@@ -2816,8 +2818,8 @@ function clearCanvas() {
 
             <section v-if="marketDataPrompt" class="market-data-download-prompt">
               <header>
-                <strong>需要下载本地行情</strong>
-                <small>{{ marketDataPrompt.estimatedRows }} 条预估K线</small>
+                <strong>{{ canPrepareMarketData ? '需要下载本地行情' : '无法运行回测' }}</strong>
+                <small v-if="canPrepareMarketData">{{ marketDataPrompt.estimatedRows }} 条预估K线</small>
               </header>
               <p>{{ marketDataPrompt.message }}</p>
               <p v-if="marketDataStatus" class="market-data-status">{{ marketDataStatus }}</p>
@@ -2831,6 +2833,7 @@ function clearCanvas() {
                   取消
                 </button>
                 <button
+                  v-if="canPrepareMarketData"
                   type="button"
                   data-market-data-action="prepare"
                   :disabled="isMarketDataPreparing"
