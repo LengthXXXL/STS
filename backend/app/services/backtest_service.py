@@ -17,6 +17,7 @@ from app.services.market_data_service import (
     MarketDataProvider,
 )
 from app.services.market_rule_service import get_market_rule
+from app.services.trading_cost_service import affordable_buy_quantity, calculate_trade_fill
 
 
 @dataclass(slots=True)
@@ -56,6 +57,9 @@ def run_backtest_with_candles(
     candles: list[MarketCandle],
 ) -> BacktestRunResponse:
     market_rule = get_market_rule(request.config.market)
+    if market_rule is None:
+        raise ValueError("Market rule is required for backtests")
+
     initial_cash = round(request.config.initialCash, 2)
     cash = initial_cash
     position = Position()
@@ -210,12 +214,13 @@ def run_backtest_with_candles(
             position.holding_bars += 1
 
     ending_equity = equity_curve[-1].equity if equity_curve else initial_cash
-    if position.quantity > 0 and (not market_rule or _can_sell_position(position, candles[-1], market_rule)):
+    if position.quantity > 0 and _can_sell_position(position, candles[-1], market_rule):
         last_candle = candles[-1]
         cash = _sell_remaining_position(
             cash=cash,
             position=position,
             candle=last_candle,
+            market_rule=market_rule,
             trades=trades,
             reason=_final_sell_reason(sell_node=sell_node, clear_node=clear_node),
         )
@@ -226,7 +231,7 @@ def run_backtest_with_candles(
                 sequence=len(timeline),
                 time=last_candle.time,
                 side="SELL",
-                price=round(last_candle.close, 4),
+                price=trades[-1].price,
                 quantity=trades[-1].quantity,
                 reason=final_reason,
                 node=final_node,
@@ -241,7 +246,7 @@ def run_backtest_with_candles(
             )
         )
         closed_trade_count += 1
-        if last_candle.close > position.average_price:
+        if trades[-1].net_cash_change / trades[-1].quantity > position.average_price:
             closed_trade_wins += 1
         position.quantity = 0
         position.average_price = 0
@@ -282,34 +287,55 @@ def _fill_buy_order(
     execution_price: float,
     buy_node: StrategyNode,
     buy_percent: float,
-    market_rule: MarketRuleResponse | None,
+    market_rule: MarketRuleResponse,
     trades: list[BacktestTrade],
     timeline: list[BacktestTimelineItem],
 ) -> float:
-    buy_quantity = _buy_quantity(
+    buy_quantity = affordable_buy_quantity(
         cash=cash,
-        price=execution_price,
-        buy_percent=buy_percent,
-        buy_lot_size=market_rule.buy_lot_size if market_rule else 1,
-        min_order_shares=market_rule.min_order_shares if market_rule else 1,
+        base_price=execution_price,
+        target_cash=cash * buy_percent / 100,
+        market_rule=market_rule,
     )
     if buy_quantity <= 0:
+        timeline.append(
+            _timeline_order_blocked(
+                sequence=len(timeline),
+                time=candle.time,
+                side="BUY",
+                price=round(execution_price, 4),
+                quantity=market_rule.min_order_shares,
+                reason="资金不足，扣除交易成本后无法买入最小交易单位",
+                rule=f"最小交易单位 {market_rule.min_order_shares} 股",
+                node=buy_node,
+            )
+        )
         return cash
 
-    fill_price = round(execution_price, 4)
-    cash = round(cash - buy_quantity * fill_price, 2)
+    fill = calculate_trade_fill(
+        side="BUY",
+        base_price=execution_price,
+        quantity=buy_quantity,
+        market_rule=market_rule,
+    )
+    cash = round(cash + fill.net_cash_change, 2)
     position.quantity = buy_quantity
-    position.average_price = fill_price
-    position.highest_price = fill_price
+    position.average_price = round((fill.gross_amount + fill.cost_amount) / buy_quantity, 4)
+    position.highest_price = fill.price
     position.holding_bars = 0
     position.entry_date = _trade_date(candle.time)
     trades.append(
         BacktestTrade(
             time=candle.time,
             side="BUY",
-            price=fill_price,
+            price=fill.price,
             quantity=buy_quantity,
             reason="买入积木触发",
+            grossAmount=fill.gross_amount,
+            costAmount=fill.cost_amount,
+            slippageAmount=fill.slippage_amount,
+            netCashChange=fill.net_cash_change,
+            costBreakdown=fill.cost_breakdown,
         )
     )
     timeline.append(
@@ -317,7 +343,7 @@ def _fill_buy_order(
             sequence=len(timeline),
             time=candle.time,
             side="BUY",
-            price=fill_price,
+            price=fill.price,
             quantity=buy_quantity,
             reason="买入积木触发",
             node=buy_node,
@@ -333,7 +359,7 @@ def _fill_exit_rule(
     candle: MarketCandle,
     execution_price: float,
     exit_rule: ExitRule,
-    market_rule: MarketRuleResponse | None,
+    market_rule: MarketRuleResponse,
     trades: list[BacktestTrade],
     events: list[BacktestEvent],
     timeline: list[BacktestTimelineItem],
@@ -373,15 +399,26 @@ def _fill_exit_rule(
     if sell_quantity <= 0:
         return cash, False, False
 
-    trade_won = fill_price > position.average_price
-    cash = round(cash + sell_quantity * fill_price, 2)
+    fill = calculate_trade_fill(
+        side="SELL",
+        base_price=execution_price,
+        quantity=sell_quantity,
+        market_rule=market_rule,
+    )
+    trade_won = fill.net_cash_change / sell_quantity > position.average_price
+    cash = round(cash + fill.net_cash_change, 2)
     trades.append(
         BacktestTrade(
             time=candle.time,
             side="SELL",
-            price=fill_price,
+            price=fill.price,
             quantity=sell_quantity,
             reason=exit_rule.reason,
+            grossAmount=fill.gross_amount,
+            costAmount=fill.cost_amount,
+            slippageAmount=fill.slippage_amount,
+            netCashChange=fill.net_cash_change,
+            costBreakdown=fill.cost_breakdown,
         )
     )
     timeline.append(
@@ -389,7 +426,7 @@ def _fill_exit_rule(
             sequence=len(timeline),
             time=candle.time,
             side="SELL",
-            price=fill_price,
+            price=fill.price,
             quantity=sell_quantity,
             reason=exit_rule.reason,
             node=exit_rule.node,
@@ -812,19 +849,31 @@ def _sell_remaining_position(
     cash: float,
     position: Position,
     candle: MarketCandle,
+    market_rule: MarketRuleResponse,
     trades: list[BacktestTrade],
     reason: str,
 ) -> float:
+    fill = calculate_trade_fill(
+        side="SELL",
+        base_price=candle.close,
+        quantity=position.quantity,
+        market_rule=market_rule,
+    )
     trades.append(
         BacktestTrade(
             time=candle.time,
             side="SELL",
-            price=round(candle.close, 4),
+            price=fill.price,
             quantity=position.quantity,
             reason=reason,
+            grossAmount=fill.gross_amount,
+            costAmount=fill.cost_amount,
+            slippageAmount=fill.slippage_amount,
+            netCashChange=fill.net_cash_change,
+            costBreakdown=fill.cost_breakdown,
         )
     )
-    return round(cash + position.quantity * candle.close, 2)
+    return round(cash + fill.net_cash_change, 2)
 
 
 def _final_sell_reason(

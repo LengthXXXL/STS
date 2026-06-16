@@ -79,6 +79,109 @@ def test_affordable_buy_quantity_steps_down_for_a_share_costs():
     assert quantity == 900
 
 
+def test_engine_includes_us_cost_fields_and_costs_lower_return():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+            {
+                "id": "take-profit-1",
+                "type": "take-profit",
+                "label": "止盈",
+                "x": 160,
+                "y": 0,
+                "params": {"profitRate": "5", "sellPercent": "100"},
+            },
+        ],
+        initial_cash=10000,
+        market="US_STOCK",
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", open=10, high=10.1, low=9.9, close=10),
+        MarketCandle(time="2026-01-01 09:40", open=10, high=10.8, low=9.9, close=10.5),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
+    assert result.trades[0].price == 10.001
+    assert result.trades[0].slippage_amount > 0
+    assert result.trades[0].net_cash_change < 0
+    assert result.trades[1].price < 10.501
+    assert result.trades[1].cost_breakdown["secFee"] > 0
+    assert result.trades[1].cost_breakdown["finraTaf"] > 0
+    assert result.summary.endingEquity < 10500
+
+
+def test_engine_applies_a_share_stamp_duty_on_sell_only():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+            {
+                "id": "take-profit-1",
+                "type": "take-profit",
+                "label": "止盈",
+                "x": 160,
+                "y": 0,
+                "params": {"profitRate": "5", "sellPercent": "100"},
+            },
+        ],
+        initial_cash=10000,
+        market="A_SHARE",
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", open=10, high=10.1, low=9.9, close=10),
+        MarketCandle(time="2026-01-01 09:40", open=10, high=10.8, low=9.9, close=10.5),
+        MarketCandle(time="2026-01-02 09:35", open=10.6, high=10.8, low=10.1, close=10.7),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
+    assert result.trades[0].cost_breakdown["stampDuty"] == 0
+    assert result.trades[1].cost_breakdown["stampDuty"] > 0
+
+
+def test_engine_skips_buy_when_cost_adjusted_quantity_is_not_affordable():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            }
+        ],
+        initial_cash=50,
+        market="A_SHARE",
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", open=10, high=10.1, low=9.9, close=10),
+        MarketCandle(time="2026-01-02 09:35", open=10, high=10.1, low=9.9, close=10),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades == []
+    assert any(item.event_type == "ORDER_BLOCKED" for item in result.timeline)
+    assert "资金不足" in " ".join(item.description for item in result.timeline)
+
+
 def test_engine_buys_once_and_sells_when_take_profit_is_hit():
     request = _request(
         [
@@ -108,23 +211,23 @@ def test_engine_buys_once_and_sells_when_take_profit_is_hit():
     result = run_backtest_with_candles(request, candles)
 
     assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
-    assert result.trades[0].quantity == 50
+    assert result.trades[0].quantity == 49
     assert result.trades[1].reason == "止盈触发"
-    assert result.summary.endingEquity == 1025
-    assert result.summary.totalReturnPercent == 2.5
+    assert result.summary.endingEquity == 1024.43
+    assert result.summary.totalReturnPercent == 2.44
     assert result.summary.maxDrawdownPercent == 0
     assert result.summary.winRatePercent == 100
-    assert result.equityCurve[-1].equity == 1025
+    assert result.equityCurve[-1].equity == 1024.43
     assert [item.event_type for item in result.timeline] == ["TRADE_FILLED", "TRADE_FILLED"]
     assert result.timeline[0].title == "买入成交"
     assert result.timeline[0].description == "买入积木触发"
     assert result.timeline[0].node_label == "买入"
-    assert result.timeline[0].price == 10
-    assert result.timeline[0].quantity == 50
+    assert result.timeline[0].price == 10.001
+    assert result.timeline[0].quantity == 49
     assert result.timeline[1].title == "卖出成交"
     assert result.timeline[1].description == "止盈触发"
     assert result.timeline[1].node_label == "止盈"
-    assert result.timeline[1].price == 10.5
+    assert result.timeline[1].price == 10.4999
 
 
 def test_engine_fills_ordinary_buy_at_next_candle_open():
@@ -149,7 +252,7 @@ def test_engine_fills_ordinary_buy_at_next_candle_open():
 
     assert result.trades[0].side == "BUY"
     assert result.trades[0].time == "2026-01-01 09:40"
-    assert result.trades[0].price == 11.0
+    assert result.trades[0].price == 11.0011
     assert result.trades[0].quantity == 90
 
 
@@ -190,10 +293,10 @@ def test_engine_stop_loss_uses_low_touch_price_before_take_profit():
     result = run_backtest_with_candles(request, candles)
 
     assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
-    assert result.trades[0].price == 10.0
+    assert result.trades[0].price == 10.001
     assert result.trades[1].reason == "止损触发"
-    assert result.trades[1].price == 9.5
-    assert result.summary.endingEquity == 950
+    assert result.trades[1].price == 9.4999
+    assert result.summary.endingEquity == 950.35
 
 
 def test_engine_take_profit_uses_high_touch_price():
@@ -226,8 +329,8 @@ def test_engine_take_profit_uses_high_touch_price():
 
     assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
     assert result.trades[1].reason == "止盈触发"
-    assert result.trades[1].price == 10.5
-    assert result.summary.endingEquity == 1050
+    assert result.trades[1].price == 10.4999
+    assert result.summary.endingEquity == 1049.35
 
 
 def test_engine_blocks_a_share_same_day_sell_until_next_trading_day():
@@ -274,12 +377,12 @@ def test_engine_blocks_a_share_same_day_sell_until_next_trading_day():
     assert blocked_items[0].rule == "T+1"
     assert blocked_items[0].node_label == "止盈"
     assert result.trades[0].time == "2026-01-01 09:40"
-    assert result.trades[0].quantity == 1000
+    assert result.trades[0].quantity == 900
     assert result.trades[1].time == "2026-01-02 09:35"
     assert result.trades[1].reason == "止盈触发"
-    assert result.trades[1].price == 10.1
-    assert result.summary.endingEquity == 10100
-    assert result.summary.totalReturnPercent == 1
+    assert result.trades[1].price == 10.1063
+    assert result.summary.endingEquity == 10079.06
+    assert result.summary.totalReturnPercent == 0.79
 
 
 def test_engine_keeps_a_share_position_open_when_backtest_ends_on_buy_day():
@@ -315,9 +418,9 @@ def test_engine_keeps_a_share_position_open_when_backtest_ends_on_buy_day():
     assert [trade.side for trade in result.trades] == ["BUY"]
     assert [event.event_type for event in result.events] == ["BLOCKED_ORDER"]
     assert result.events[0].reason == "A股 T+1 规则限制，当日买入持仓不可卖出"
-    assert result.summary.endingEquity == 11000
+    assert result.summary.endingEquity == 10893.52
     assert result.summary.tradeCount == 1
-    assert result.equityCurve[-1].equity == 11000
+    assert result.equityCurve[-1].equity == 10893.52
 
 
 def test_engine_applies_stop_loss_and_cooldown_before_reentering():
@@ -428,7 +531,7 @@ def test_engine_uses_and_logic_before_buying():
 
     assert result.trades[0].side == "BUY"
     assert result.trades[0].time == "2026-01-01 09:50"
-    assert result.trades[0].price == 10.9
+    assert result.trades[0].price == 10.9011
 
 
 def test_engine_uses_or_logic_before_buying():
@@ -484,7 +587,7 @@ def test_engine_uses_or_logic_before_buying():
 
     assert result.trades[0].side == "BUY"
     assert result.trades[0].time == "2026-01-01 09:50"
-    assert result.trades[0].price == 10.9
+    assert result.trades[0].price == 10.9011
 
 
 def test_engine_uses_not_logic_before_buying():
@@ -530,7 +633,7 @@ def test_engine_uses_not_logic_before_buying():
 
     assert result.trades[0].side == "BUY"
     assert result.trades[0].time == "2026-01-01 09:45"
-    assert result.trades[0].price == 10.3
+    assert result.trades[0].price == 10.301
 
 
 def test_engine_applies_moving_stop_after_profit_retraces():
@@ -569,7 +672,7 @@ def test_engine_applies_moving_stop_after_profit_retraces():
     assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
     assert result.trades[1].time == "2026-01-01 09:45"
     assert result.trades[1].reason == "移动止损触发"
-    assert result.trades[1].price == 11.4
+    assert result.trades[1].price == 11.3989
 
 
 class StaticMarketDataProvider:
@@ -605,8 +708,8 @@ def test_run_backtest_uses_injected_market_data_provider():
     result = run_backtest(request, market_data_provider=provider)
 
     assert provider.received_config == request.config
-    assert result.trades[0].price == 11
-    assert result.trades[-1].price == 11
+    assert result.trades[0].price == 11.0011
+    assert result.trades[-1].price == 10.9989
     assert result.timeline[-1].event_type == "POSITION_CLOSED"
     assert result.timeline[-1].title == "持仓已关闭"
     assert result.timeline[-1].description == "回测结束清仓"

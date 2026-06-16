@@ -79,6 +79,13 @@ class BacktestTrade(BaseModel):
     price: float
     quantity: int
     reason: str
+    gross_amount: float = Field(default=0, alias="grossAmount")
+    cost_amount: float = Field(default=0, alias="costAmount")
+    slippage_amount: float = Field(default=0, alias="slippageAmount")
+    net_cash_change: float = Field(default=0, alias="netCashChange")
+    cost_breakdown: dict[str, float] = Field(default_factory=dict, alias="costBreakdown")
+
+    model_config = ConfigDict(populate_by_name=True)
 
 
 class BacktestEvent(BaseModel):
