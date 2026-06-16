@@ -4,7 +4,7 @@ from math import ceil
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import MarketDataDownloadRange
+from app.models import MarketDataDownloadRange, MarketKlineCache
 from app.schemas.backtest import BacktestConfig
 from app.schemas.market_data import (
     MarketDataCoverageResponse,
@@ -13,6 +13,7 @@ from app.schemas.market_data import (
     MarketDataRequest,
 )
 from app.services.market_data_service import (
+    A_SHARE_MISSING_PREVIOUS_CLOSE_MESSAGE,
     A_SHARE_RECENT_MINUTE_MESSAGE,
     LIVE_CACHE_SOURCE,
     US_MARKET_DATA_SOURCE_UNCONFIGURED_MESSAGE,
@@ -33,6 +34,7 @@ COMPLETED_STATUS = "completed"
 FAILED_STATUS = "failed"
 NO_TRADING_DAYS_MESSAGE = "该时间段没有交易日，请选择包含交易日的回测区间"
 USER_FACING_UNAVAILABLE_MESSAGES = {
+    A_SHARE_MISSING_PREVIOUS_CLOSE_MESSAGE,
     A_SHARE_RECENT_MINUTE_MESSAGE,
     US_MARKET_DATA_SOURCE_UNCONFIGURED_MESSAGE,
 }
@@ -196,7 +198,10 @@ def _missing_ranges(db: Session, request: MarketDataRequest) -> list[MarketDataR
             cursor += timedelta(days=1)
             continue
 
-        is_covered = any(start <= cursor <= end for start, end in completed_ranges)
+        is_covered = any(
+            start <= cursor <= end and _completed_day_has_required_metadata(db, request, cursor)
+            for start, end in completed_ranges
+        )
         if is_covered:
             if missing_start is not None and missing_end is not None:
                 missing_ranges.append(_range_from_dates(missing_start, missing_end))
@@ -211,6 +216,26 @@ def _missing_ranges(db: Session, request: MarketDataRequest) -> list[MarketDataR
     if missing_start is not None and missing_end is not None:
         missing_ranges.append(_range_from_dates(missing_start, missing_end))
     return missing_ranges
+
+
+def _completed_day_has_required_metadata(
+    db: Session,
+    request: MarketDataRequest,
+    day: date,
+) -> bool:
+    if request.market != "A_SHARE":
+        return True
+
+    cached_rows = db.scalars(
+        select(MarketKlineCache)
+        .where(MarketKlineCache.market == request.market)
+        .where(MarketKlineCache.symbol == request.symbol)
+        .where(MarketKlineCache.timeframe == request.timeframe)
+        .where(MarketKlineCache.source == LIVE_CACHE_SOURCE)
+        .where(MarketKlineCache.candle_time >= _day_start_key(day.isoformat()))
+        .where(MarketKlineCache.candle_time <= _day_end_key(day.isoformat()))
+    ).all()
+    return bool(cached_rows) and all(row.previous_close is not None for row in cached_rows)
 
 
 def _request_has_trading_days(request: MarketDataRequest) -> bool:
@@ -393,3 +418,11 @@ def _required_market_days(market: str, range_: MarketDataRange) -> int:
 
 def _range_from_dates(start: date, end: date) -> MarketDataRange:
     return MarketDataRange(startDate=start.isoformat(), endDate=end.isoformat())
+
+
+def _day_start_key(date_value: str) -> str:
+    return f"{date_value} 00:00"
+
+
+def _day_end_key(date_value: str) -> str:
+    return f"{date_value} 23:59"

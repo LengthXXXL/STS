@@ -59,8 +59,8 @@ def _backtest_payload():
             "market": "A_SHARE",
             "symbol": "000001.SZ",
             "timeframe": "5m",
-            "startDate": "2026-01-01",
-            "endDate": "2026-03-01",
+            "startDate": "2026-01-05",
+            "endDate": "2026-01-05",
             "initialCash": 100000,
         },
     }
@@ -75,12 +75,12 @@ def _seed_market_cache(
 ) -> None:
     base_price = 10.2 if market == "A_SHARE" else 186.4
     candle_times = [
-        "2026-01-01 09:35",
-        "2026-01-01 09:40",
-        "2026-01-01 09:45",
-        "2026-01-01 09:50",
-        "2026-01-01 09:55",
-        "2026-01-01 10:00",
+        "2026-01-05 09:35",
+        "2026-01-05 09:40",
+        "2026-01-05 09:45",
+        "2026-01-05 09:50",
+        "2026-01-05 09:55",
+        "2026-01-05 10:00",
     ]
     open_factors = [1, 1, 1.025, 0.992, 1.055, 1.038]
     for index, factor in enumerate([1, 1.025, 0.992, 1.055, 1.038, 1.073]):
@@ -97,6 +97,7 @@ def _seed_market_cache(
                 low_price=round(close * 0.996, 4),
                 close=close,
                 volume=1000 + index * 120,
+                previous_close=base_price,
             )
         )
     db_session.add(
@@ -104,8 +105,8 @@ def _seed_market_cache(
             market=market,
             symbol=symbol,
             timeframe=timeframe,
-            start_date="2026-01-01",
-            end_date="2026-03-01",
+            start_date="2026-01-05",
+            end_date="2026-01-05",
             status="completed",
             row_count=len(candle_times),
             source="LIVE",
