@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from decimal import ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP, Decimal
+from math import isfinite
 from typing import Literal
 
 from app.schemas.market_rule import MarketRuleResponse
@@ -24,6 +25,14 @@ def validate_market_order(
     execution_price: float,
     quantity: int,
 ) -> MarketOrderValidation:
+    if not isfinite(execution_price) or execution_price <= 0:
+        return MarketOrderValidation(
+            allowed=False,
+            price=0,
+            reason="委托价格必须为正数",
+            rule="价格",
+        )
+
     normalized_price = normalize_order_price(side, execution_price)
     if quantity <= 0:
         return MarketOrderValidation(

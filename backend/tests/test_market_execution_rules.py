@@ -1,3 +1,5 @@
+import pytest
+
 from app.services.market_data_service import MarketCandle
 from app.services.market_execution_rule_service import (
     is_regular_session_candle,
@@ -68,6 +70,30 @@ def test_a_share_missing_previous_close_is_blocked():
     assert result.allowed is False
     assert result.rule == "前收盘价"
     assert result.reason == "行情缺少前收盘价，无法执行 A 股涨跌停规则"
+
+
+@pytest.mark.parametrize("market", ["A_SHARE", "US_STOCK"])
+@pytest.mark.parametrize("execution_price", [0, -1, float("nan"), float("inf"), float("-inf")])
+def test_invalid_execution_prices_are_blocked_before_market_rules(
+    market,
+    execution_price,
+):
+    result = validate_market_order(
+        market_rule=get_market_rule(market),
+        candle=MarketCandle(
+            time="2026-01-02 09:35",
+            close=10.0,
+            previous_close=10.0,
+        ),
+        side="BUY",
+        execution_price=execution_price,
+        quantity=100,
+    )
+
+    assert result.allowed is False
+    assert result.price == 0
+    assert result.rule == "价格"
+    assert result.reason == "委托价格必须为正数"
 
 
 def test_regular_session_checks_a_share_lunch_break_and_us_regular_hours():
