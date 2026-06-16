@@ -1,7 +1,7 @@
 import json
 import ssl
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 from urllib.parse import urlencode
@@ -18,6 +18,7 @@ from app.schemas.backtest import BacktestConfig
 
 LIVE_CACHE_SOURCE = "LIVE"
 A_SHARE_RECENT_MINUTE_MESSAGE = "A股分钟数据源仅支持近期分钟K线，请选择最近约60天的交易区间"
+A_SHARE_MISSING_PREVIOUS_CLOSE_MESSAGE = "A股行情缺少前收盘价，无法执行涨跌停规则"
 US_MARKET_DATA_SOURCE_UNCONFIGURED_MESSAGE = (
     "美股分钟数据源未配置，请先配置稳定的美股分钟行情 API Key"
 )
@@ -176,7 +177,14 @@ class EastMoneyMarketDataProvider:
             payload = self.fetch_json(self._build_url(config))
         except Exception as exc:
             raise MarketDataUnavailableError("EastMoney request failed") from exc
-        return self._parse_response(payload)
+
+        candles = self._parse_response(payload)
+        try:
+            daily_payload = self.fetch_json(self._build_daily_url(config))
+        except Exception as exc:
+            raise MarketDataUnavailableError("EastMoney request failed") from exc
+        previous_closes = self._parse_daily_previous_closes(daily_payload)
+        return self._attach_previous_close(candles, previous_closes)
 
     def _build_url(self, config: BacktestConfig) -> str:
         query = urlencode(
@@ -187,6 +195,21 @@ class EastMoneyMarketDataProvider:
                 "klt": _eastmoney_timeframe(config.timeframe),
                 "fqt": "1",
                 "beg": _compact_date(config.startDate),
+                "end": _compact_date(config.endDate),
+            }
+        )
+        return f"{self.base_url}?{query}"
+
+    def _build_daily_url(self, config: BacktestConfig) -> str:
+        daily_start = datetime.fromisoformat(config.startDate).date() - timedelta(days=20)
+        query = urlencode(
+            {
+                "secid": _eastmoney_secid(config.symbol),
+                "fields1": "f1,f2,f3,f4,f5,f6",
+                "fields2": "f51,f52,f53,f54,f55,f56",
+                "klt": "101",
+                "fqt": "1",
+                "beg": _compact_date(daily_start.isoformat()),
                 "end": _compact_date(config.endDate),
             }
         )
@@ -220,6 +243,43 @@ class EastMoneyMarketDataProvider:
         if not candles:
             raise MarketDataUnavailableError("EastMoney response contains no usable candles")
         return candles
+
+    def _parse_daily_previous_closes(self, payload: dict[str, Any]) -> dict[str, float]:
+        data = payload.get("data") if isinstance(payload, dict) else None
+        klines = data.get("klines") if isinstance(data, dict) else None
+        if not klines:
+            return {}
+
+        previous_closes: dict[str, float] = {}
+        previous_close: float | None = None
+        for raw_kline in klines:
+            parts = raw_kline.split(",")
+            if len(parts) < 3:
+                continue
+            try:
+                close = round(float(parts[2]), 4)
+            except ValueError:
+                continue
+            trading_day = parts[0][:10]
+            if previous_close is not None:
+                previous_closes[trading_day] = previous_close
+            previous_close = close
+        return previous_closes
+
+    def _attach_previous_close(
+        self,
+        candles: list[MarketCandle],
+        previous_closes: dict[str, float],
+    ) -> list[MarketCandle]:
+        enriched_candles: list[MarketCandle] = []
+        for candle in candles:
+            trading_day = candle.time[:10]
+            if trading_day not in previous_closes:
+                raise MarketDataUnavailableError(A_SHARE_MISSING_PREVIOUS_CLOSE_MESSAGE)
+            enriched_candles.append(
+                replace(candle, previous_close=previous_closes[trading_day])
+            )
+        return enriched_candles
 
 
 class DefaultMarketDataProvider:

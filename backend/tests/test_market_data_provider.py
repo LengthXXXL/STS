@@ -129,6 +129,15 @@ def test_eastmoney_provider_maps_a_share_symbol_and_parses_klines():
 
     def fetch_json(url):
         requested_urls.append(url)
+        if "klt=101" in url:
+            return {
+                "data": {
+                    "klines": [
+                        "2025-12-31,10.00,10.10,10.20,9.90,200000",
+                        "2026-01-01,10.10,10.25,10.30,10.00,220000",
+                    ]
+                }
+            }
         return {
             "data": {
                 "klines": [
@@ -157,6 +166,7 @@ def test_eastmoney_provider_maps_a_share_symbol_and_parses_klines():
             low=10.00,
             close=10.25,
             volume=1200,
+            previous_close=10.10,
         ),
         MarketCandle(
             time="2026-01-01 09:40",
@@ -165,6 +175,7 @@ def test_eastmoney_provider_maps_a_share_symbol_and_parses_klines():
             low=10.20,
             close=10.4568,
             volume=1500,
+            previous_close=10.10,
         ),
     ]
 
@@ -174,6 +185,15 @@ def test_eastmoney_provider_maps_shanghai_symbols():
 
     def fetch_json(url):
         requested_urls.append(url)
+        if "klt=101" in url:
+            return {
+                "data": {
+                    "klines": [
+                        "2025-12-31,8.00,8.05,8.10,7.95,200000",
+                        "2026-01-01,8.05,8.20,8.30,8.00,220000",
+                    ]
+                }
+            }
         return {"data": {"klines": ["2026-01-01 09:31,8.10,8.20,8.30,8.00,1200"]}}
 
     provider = EastMoneyMarketDataProvider(fetch_json=fetch_json)
@@ -182,6 +202,61 @@ def test_eastmoney_provider_maps_shanghai_symbols():
 
     assert "secid=1.600000" in requested_urls[0]
     assert "klt=1" in requested_urls[0]
+
+
+def test_eastmoney_provider_attaches_previous_close_from_daily_klines():
+    requested_urls = []
+
+    def fetch_json(url):
+        requested_urls.append(url)
+        if "klt=101" in url:
+            return {
+                "data": {
+                    "klines": [
+                        "2026-01-01,10.00,10.10,10.20,9.90,200000",
+                        "2026-01-02,10.10,10.25,10.35,10.00,220000",
+                    ]
+                }
+            }
+        return {
+            "data": {
+                "klines": [
+                    "2026-01-02 09:35,10.20,10.30,10.35,10.15,1200",
+                    "2026-01-02 09:40,10.30,10.32,10.40,10.25,1500",
+                ]
+            }
+        }
+
+    provider = EastMoneyMarketDataProvider(fetch_json=fetch_json)
+
+    candles = provider.get_intraday_candles(
+        _config(market="A_SHARE", symbol="000001.SZ", startDate="2026-01-02")
+    )
+
+    assert len(requested_urls) == 2
+    assert any("klt=5" in url for url in requested_urls)
+    assert any("klt=101" in url for url in requested_urls)
+    assert [candle.previous_close for candle in candles] == [10.10, 10.10]
+
+
+def test_eastmoney_provider_requires_previous_close_for_a_share():
+    def fetch_json(url):
+        if "klt=101" in url:
+            return {"data": {"klines": ["2026-01-02,10.10,10.25,10.35,10.00,220000"]}}
+        return {
+            "data": {
+                "klines": [
+                    "2026-01-02 09:35,10.20,10.30,10.35,10.15,1200",
+                ]
+            }
+        }
+
+    provider = EastMoneyMarketDataProvider(fetch_json=fetch_json)
+
+    with pytest.raises(MarketDataUnavailableError, match="A股行情缺少前收盘价"):
+        provider.get_intraday_candles(
+            _config(market="A_SHARE", symbol="000001.SZ", startDate="2026-01-02")
+        )
 
 
 def test_eastmoney_provider_wraps_fetch_errors_as_unavailable():
