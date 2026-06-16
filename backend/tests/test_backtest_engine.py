@@ -4,6 +4,8 @@ from app.services.backtest_service import (
     run_backtest,
     run_backtest_with_candles,
 )
+from app.services.market_rule_service import get_market_rule
+from app.services.trading_cost_service import calculate_trade_fill, affordable_buy_quantity
 
 
 def _request(nodes, *, edges=None, initial_cash=1000, market="US_STOCK"):
@@ -25,6 +27,56 @@ def _request(nodes, *, edges=None, initial_cash=1000, market="US_STOCK"):
             },
         }
     )
+
+
+def test_cost_helper_applies_a_share_buy_slippage_and_fees():
+    rule = get_market_rule("A_SHARE")
+
+    fill = calculate_trade_fill(
+        side="BUY",
+        base_price=10,
+        quantity=900,
+        market_rule=rule,
+    )
+
+    assert fill.price == 10.001
+    assert fill.gross_amount == 9000.9
+    assert fill.cost_breakdown["commission"] == 5
+    assert fill.cost_breakdown["marketFees"] == 0.58
+    assert fill.cost_breakdown["stampDuty"] == 0
+    assert fill.cost_amount == 5.58
+    assert fill.net_cash_change == -9006.48
+
+
+def test_cost_helper_applies_us_sell_regulatory_fees():
+    rule = get_market_rule("US_STOCK")
+
+    fill = calculate_trade_fill(
+        side="SELL",
+        base_price=11,
+        quantity=99,
+        market_rule=rule,
+    )
+
+    assert fill.price == 10.9989
+    assert fill.gross_amount == 1088.89
+    assert fill.cost_breakdown["secFee"] == 0.02
+    assert fill.cost_breakdown["finraTaf"] == 0.02
+    assert fill.cost_amount == 0.04
+    assert fill.net_cash_change == 1088.85
+
+
+def test_affordable_buy_quantity_steps_down_for_a_share_costs():
+    rule = get_market_rule("A_SHARE")
+
+    quantity = affordable_buy_quantity(
+        cash=10000,
+        base_price=10,
+        target_cash=10000,
+        market_rule=rule,
+    )
+
+    assert quantity == 900
 
 
 def test_engine_buys_once_and_sells_when_take_profit_is_hit():
