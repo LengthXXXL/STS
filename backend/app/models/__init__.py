@@ -1,8 +1,8 @@
 from app.models.backtest import (
     BacktestEquityPointRecord,
     BacktestEventRecord,
-    BacktestTimelineRecord,
     BacktestTask,
+    BacktestTimelineRecord,
     BacktestTradeRecord,
 )
 from app.models.custom_block import CustomBlock

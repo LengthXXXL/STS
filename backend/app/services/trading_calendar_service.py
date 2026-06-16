@@ -1,6 +1,5 @@
 from datetime import date, timedelta
 
-
 MarketCode = str
 
 A_SHARE_HOLIDAYS: dict[int, set[date]] = {

@@ -7,7 +7,10 @@ from app.models.user import Role, User
 from tests.test_strategies import auth_headers, register_and_token, strategy_payload
 
 
-def post_payload(title: str = "止盈积木复盘", content: str = "这个帖子记录一次止盈积木的使用经验。") -> dict:
+def post_payload(
+    title: str = "止盈积木复盘",
+    content: str = "这个帖子记录一次止盈积木的使用经验。",
+) -> dict:
     return {
         "title": title,
         "content": content,
@@ -253,8 +256,12 @@ def test_public_forum_posts_support_reply_publish_and_comment_sorting(client, db
     db_session.get(ForumPost, older_post_id).updated_at = base_time
     db_session.get(ForumPost, newer_post_id).created_at = base_time + timedelta(hours=1)
     db_session.get(ForumPost, newer_post_id).updated_at = base_time + timedelta(hours=1)
-    db_session.get(ForumComment, first_comment.json()["id"]).updated_at = base_time + timedelta(hours=2)
-    db_session.get(ForumComment, second_comment.json()["id"]).updated_at = base_time + timedelta(hours=3)
+    db_session.get(ForumComment, first_comment.json()["id"]).updated_at = (
+        base_time + timedelta(hours=2)
+    )
+    db_session.get(ForumComment, second_comment.json()["id"]).updated_at = (
+        base_time + timedelta(hours=3)
+    )
     db_session.commit()
 
     latest_reply = client.get("/api/forum/posts?sort=latest_reply&page=1&pageSize=10")

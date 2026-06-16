@@ -364,7 +364,10 @@ def _related_content_summary(db: Session, post: ForumPost) -> tuple[str | None, 
 
     if post.related_type == "strategy":
         strategy = db.scalar(
-            select(Strategy).where(Strategy.id == post.related_id, Strategy.owner_id == post.author_id)
+            select(Strategy).where(
+                Strategy.id == post.related_id,
+                Strategy.owner_id == post.author_id,
+            )
         )
         if strategy is None:
             return "关联策略不可用", "原策略已删除或不可访问"

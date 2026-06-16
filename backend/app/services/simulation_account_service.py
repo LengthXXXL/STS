@@ -75,7 +75,9 @@ def get_simulation_account(
     owner: User,
     account_id: int,
 ) -> SimulationAccountResponse | None:
-    account = db.scalar(_owned_simulation_account_statement(owner).where(SimulationAccount.id == account_id))
+    account = db.scalar(
+        _owned_simulation_account_statement(owner).where(SimulationAccount.id == account_id)
+    )
     if account is None:
         return None
     return simulation_account_to_response(account)
@@ -87,7 +89,9 @@ def update_simulation_account(
     account_id: int,
     request: SimulationAccountUpdate,
 ) -> SimulationAccountResponse | None:
-    account = db.scalar(_owned_simulation_account_statement(owner).where(SimulationAccount.id == account_id))
+    account = db.scalar(
+        _owned_simulation_account_statement(owner).where(SimulationAccount.id == account_id)
+    )
     if account is None:
         return None
 
@@ -101,7 +105,9 @@ def update_simulation_account(
 
 
 def delete_simulation_account(db: Session, owner: User, account_id: int) -> bool:
-    account = db.scalar(_owned_simulation_account_statement(owner).where(SimulationAccount.id == account_id))
+    account = db.scalar(
+        _owned_simulation_account_statement(owner).where(SimulationAccount.id == account_id)
+    )
     if account is None:
         return False
 
