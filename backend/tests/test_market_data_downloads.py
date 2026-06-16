@@ -1,5 +1,7 @@
+from datetime import date, timedelta
+
 import pytest
-from sqlalchemy import select
+from sqlalchemy import event, select
 
 from app.api import market_data as market_data_api
 from app.models import MarketDataDownloadRange, MarketKlineCache
@@ -9,6 +11,7 @@ from app.services.market_data_download_service import (
     prepare_market_data,
 )
 from app.services.market_data_service import MarketCandle, MarketDataUnavailableError
+from app.services.trading_calendar_service import is_trading_day
 
 
 def _market_data_request(**overrides):
@@ -181,6 +184,59 @@ def test_coverage_allows_us_stock_completed_ranges_without_previous_close(db_ses
 
     assert coverage.ready is True
     assert coverage.missingRanges == []
+
+
+def test_coverage_batches_a_share_completed_range_metadata_lookup(db_session):
+    start = date(2025, 1, 1)
+    end = date(2026, 2, 1)
+    cursor = start
+    while cursor <= end:
+        if is_trading_day("A_SHARE", cursor):
+            _add_cached_candle(
+                db_session,
+                candle_time=f"{cursor.isoformat()} 09:35",
+            )
+        cursor += timedelta(days=1)
+    db_session.add(
+        MarketDataDownloadRange(
+            market="A_SHARE",
+            symbol="000001.SZ",
+            timeframe="5m",
+            start_date=start.isoformat(),
+            end_date=end.isoformat(),
+            status="completed",
+            row_count=24000,
+            source="LIVE",
+        )
+    )
+    db_session.commit()
+
+    cache_select_count = 0
+
+    def count_cache_selects(conn, cursor, statement, parameters, context, executemany):
+        nonlocal cache_select_count
+        normalized_statement = statement.strip().lower()
+        if (
+            normalized_statement.startswith("select")
+            and "from market_kline_cache" in normalized_statement
+        ):
+            cache_select_count += 1
+
+    event.listen(db_session.bind, "before_cursor_execute", count_cache_selects)
+    try:
+        coverage = get_market_data_coverage(
+            db_session,
+            _market_data_request(
+                startDate=start.isoformat(),
+                endDate=end.isoformat(),
+            ),
+        )
+    finally:
+        event.remove(db_session.bind, "before_cursor_execute", count_cache_selects)
+
+    assert coverage.ready is True
+    assert coverage.missingRanges == []
+    assert cache_select_count <= 2
 
 
 def test_coverage_reports_no_trading_days_without_download(db_session):

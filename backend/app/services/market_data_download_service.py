@@ -188,6 +188,8 @@ def _missing_ranges(db: Session, request: MarketDataRequest) -> list[MarketDataR
         )
         for row in completed_rows
     ]
+    completed_day_keys = _completed_trading_day_keys(request.market, completed_ranges)
+    metadata_ready_day_keys = _metadata_ready_day_keys(db, request)
     missing_ranges: list[MarketDataRange] = []
     missing_start: date | None = None
     missing_end: date | None = None
@@ -198,9 +200,9 @@ def _missing_ranges(db: Session, request: MarketDataRequest) -> list[MarketDataR
             cursor += timedelta(days=1)
             continue
 
-        is_covered = any(
-            start <= cursor <= end and _completed_day_has_required_metadata(db, request, cursor)
-            for start, end in completed_ranges
+        cursor_key = cursor.isoformat()
+        is_covered = cursor_key in completed_day_keys and (
+            metadata_ready_day_keys is None or cursor_key in metadata_ready_day_keys
         )
         if is_covered:
             if missing_start is not None and missing_end is not None:
@@ -218,24 +220,44 @@ def _missing_ranges(db: Session, request: MarketDataRequest) -> list[MarketDataR
     return missing_ranges
 
 
-def _completed_day_has_required_metadata(
+def _completed_trading_day_keys(
+    market: str,
+    completed_ranges: list[tuple[date, date]],
+) -> set[str]:
+    completed_day_keys: set[str] = set()
+    for start, end in completed_ranges:
+        cursor = start
+        while cursor <= end:
+            if is_trading_day(market, cursor):
+                completed_day_keys.add(cursor.isoformat())
+            cursor += timedelta(days=1)
+    return completed_day_keys
+
+
+def _metadata_ready_day_keys(
     db: Session,
     request: MarketDataRequest,
-    day: date,
-) -> bool:
+) -> set[str] | None:
     if request.market != "A_SHARE":
-        return True
+        return None
 
-    cached_rows = db.scalars(
-        select(MarketKlineCache)
+    cached_rows = db.execute(
+        select(MarketKlineCache.candle_time, MarketKlineCache.previous_close)
         .where(MarketKlineCache.market == request.market)
         .where(MarketKlineCache.symbol == request.symbol)
         .where(MarketKlineCache.timeframe == request.timeframe)
         .where(MarketKlineCache.source == LIVE_CACHE_SOURCE)
-        .where(MarketKlineCache.candle_time >= _day_start_key(day.isoformat()))
-        .where(MarketKlineCache.candle_time <= _day_end_key(day.isoformat()))
+        .where(MarketKlineCache.candle_time >= _day_start_key(request.startDate))
+        .where(MarketKlineCache.candle_time <= _day_end_key(request.endDate))
     ).all()
-    return bool(cached_rows) and all(row.previous_close is not None for row in cached_rows)
+    days_with_rows: set[str] = set()
+    days_missing_previous_close: set[str] = set()
+    for candle_time, previous_close in cached_rows:
+        day_key = candle_time[:10]
+        days_with_rows.add(day_key)
+        if previous_close is None:
+            days_missing_previous_close.add(day_key)
+    return days_with_rows - days_missing_previous_close
 
 
 def _request_has_trading_days(request: MarketDataRequest) -> bool:
