@@ -1,4 +1,6 @@
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Literal
 
 from app.schemas.backtest import (
     BacktestEvent,
@@ -23,6 +25,9 @@ from app.services.market_execution_rule_service import (
 from app.services.market_rule_service import get_market_rule
 from app.services.trading_cost_service import affordable_buy_quantity, calculate_trade_fill
 
+TradeSide = Literal["BUY", "SELL"]
+PRICE_TICK = Decimal("0.01")
+
 
 @dataclass(slots=True)
 class Position:
@@ -31,6 +36,14 @@ class Position:
     highest_price: float = 0
     holding_bars: int = 0
     entry_date: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PreparedOrder:
+    allowed: bool
+    base_price: float
+    reason: str = ""
+    rule: str = ""
 
 
 CONDITION_NODE_TYPES = {
@@ -76,6 +89,7 @@ def run_backtest_with_candles(
     cooldown_remaining = 0
     pending_buy_node: StrategyNode | None = None
     pending_exit_rule: ExitRule | None = None
+    last_regular_session_candle: MarketCandle | None = None
 
     buy_node = _first_node(request, "buy")
     sell_node = _first_node(request, "sell")
@@ -111,6 +125,8 @@ def run_backtest_with_candles(
             if position.quantity > 0:
                 position.holding_bars += 1
             continue
+
+        last_regular_session_candle = candle
 
         if pending_exit_rule and position.quantity > 0:
             cash, exit_filled, exit_won = _fill_exit_rule(
@@ -231,10 +247,11 @@ def run_backtest_with_candles(
     ending_equity = equity_curve[-1].equity if equity_curve else initial_cash
     if (
         position.quantity > 0
-        and _can_sell_position(position, candles[-1], market_rule)
-        and not _has_blocked_sell_at_time(timeline, candles[-1].time)
+        and last_regular_session_candle is not None
+        and _can_sell_position(position, last_regular_session_candle, market_rule)
+        and not _has_blocked_sell_at_time(timeline, last_regular_session_candle.time)
     ):
-        last_candle = candles[-1]
+        last_candle = last_regular_session_candle
         final_node = clear_node or sell_node
         cash, final_filled = _sell_remaining_position(
             cash=cash,
@@ -275,7 +292,7 @@ def run_backtest_with_candles(
             position.highest_price = 0
             position.holding_bars = 0
             position.entry_date = None
-            equity_curve[-1] = EquityPoint(time=last_candle.time, equity=round(cash, 2))
+            _replace_final_equity_point(equity_curve, last_candle.time, round(cash, 2))
             ending_equity = round(cash, 2)
 
     return _build_response(
@@ -313,9 +330,31 @@ def _fill_buy_order(
     trades: list[BacktestTrade],
     timeline: list[BacktestTimelineItem],
 ) -> float:
+    prepared_order = _prepare_order(
+        market_rule=market_rule,
+        candle=candle,
+        side="BUY",
+        execution_price=execution_price,
+        quantity=market_rule.min_order_shares,
+    )
+    if not prepared_order.allowed:
+        timeline.append(
+            _timeline_order_blocked(
+                sequence=len(timeline),
+                time=candle.time,
+                side="BUY",
+                price=prepared_order.base_price,
+                quantity=market_rule.min_order_shares,
+                reason=prepared_order.reason,
+                rule=prepared_order.rule,
+                node=buy_node,
+            )
+        )
+        return cash
+
     buy_quantity = affordable_buy_quantity(
         cash=cash,
-        base_price=execution_price,
+        base_price=prepared_order.base_price,
         target_cash=cash * buy_percent / 100,
         market_rule=market_rule,
     )
@@ -334,23 +373,23 @@ def _fill_buy_order(
         )
         return cash
 
-    validation = validate_market_order(
+    prepared_order = _prepare_order(
         market_rule=market_rule,
         candle=candle,
         side="BUY",
         execution_price=execution_price,
         quantity=buy_quantity,
     )
-    if not validation.allowed:
+    if not prepared_order.allowed:
         timeline.append(
             _timeline_order_blocked(
                 sequence=len(timeline),
                 time=candle.time,
                 side="BUY",
-                price=validation.price,
+                price=prepared_order.base_price,
                 quantity=buy_quantity,
-                reason=validation.reason,
-                rule=validation.rule,
+                reason=prepared_order.reason,
+                rule=prepared_order.rule,
                 node=buy_node,
             )
         )
@@ -358,7 +397,7 @@ def _fill_buy_order(
 
     fill = calculate_trade_fill(
         side="BUY",
-        base_price=validation.price,
+        base_price=prepared_order.base_price,
         quantity=buy_quantity,
         market_rule=market_rule,
     )
@@ -443,23 +482,23 @@ def _fill_exit_rule(
     if sell_quantity <= 0:
         return cash, False, False
 
-    validation = validate_market_order(
+    prepared_order = _prepare_order(
         market_rule=market_rule,
         candle=candle,
         side="SELL",
         execution_price=execution_price,
         quantity=sell_quantity,
     )
-    if not validation.allowed:
+    if not prepared_order.allowed:
         events.append(
             BacktestEvent(
                 time=candle.time,
                 eventType="BLOCKED_ORDER",
                 side="SELL",
-                price=validation.price,
+                price=prepared_order.base_price,
                 quantity=sell_quantity,
-                reason=validation.reason,
-                rule=validation.rule,
+                reason=prepared_order.reason,
+                rule=prepared_order.rule,
             )
         )
         timeline.append(
@@ -467,10 +506,10 @@ def _fill_exit_rule(
                 sequence=len(timeline),
                 time=candle.time,
                 side="SELL",
-                price=validation.price,
+                price=prepared_order.base_price,
                 quantity=sell_quantity,
-                reason=validation.reason,
-                rule=validation.rule,
+                reason=prepared_order.reason,
+                rule=prepared_order.rule,
                 node=exit_rule.node,
             )
         )
@@ -478,7 +517,7 @@ def _fill_exit_rule(
 
     fill = calculate_trade_fill(
         side="SELL",
-        base_price=validation.price,
+        base_price=prepared_order.base_price,
         quantity=sell_quantity,
         market_rule=market_rule,
     )
@@ -921,6 +960,114 @@ def _timeline_position_closed(
     )
 
 
+def _prepare_order(
+    *,
+    market_rule: MarketRuleResponse,
+    candle: MarketCandle,
+    side: TradeSide,
+    execution_price: float,
+    quantity: int,
+) -> PreparedOrder:
+    validation = validate_market_order(
+        market_rule=market_rule,
+        candle=candle,
+        side=side,
+        execution_price=execution_price,
+        quantity=quantity,
+    )
+    if not validation.allowed:
+        return PreparedOrder(
+            allowed=False,
+            base_price=validation.price,
+            reason=validation.reason,
+            rule=validation.rule,
+        )
+
+    base_price = _cap_slippage_base_price(
+        market_rule=market_rule,
+        candle=candle,
+        side=side,
+        base_price=validation.price,
+    )
+    fill_price = _project_fill_price(
+        market_rule=market_rule,
+        side=side,
+        base_price=base_price,
+    )
+    fill_validation = validate_market_order(
+        market_rule=market_rule,
+        candle=candle,
+        side=side,
+        execution_price=fill_price,
+        quantity=quantity,
+    )
+    if not fill_validation.allowed:
+        return PreparedOrder(
+            allowed=False,
+            base_price=fill_validation.price,
+            reason=fill_validation.reason,
+            rule=fill_validation.rule,
+        )
+
+    return PreparedOrder(allowed=True, base_price=base_price)
+
+
+def _cap_slippage_base_price(
+    *,
+    market_rule: MarketRuleResponse,
+    candle: MarketCandle,
+    side: TradeSide,
+    base_price: float,
+) -> float:
+    price_limits = _a_share_price_limits(market_rule, candle)
+    if price_limits is None:
+        return base_price
+
+    limit_down, limit_up = price_limits
+    multiplier = _slippage_multiplier(market_rule, side)
+    if multiplier <= 0:
+        return base_price
+    if side == "BUY":
+        return min(base_price, limit_up / multiplier)
+    return max(base_price, limit_down / multiplier)
+
+
+def _a_share_price_limits(
+    market_rule: MarketRuleResponse,
+    candle: MarketCandle,
+) -> tuple[float, float] | None:
+    if market_rule.market != "A_SHARE" or candle.previous_close is None:
+        return None
+
+    previous_close = Decimal(str(candle.previous_close))
+    limit_percent = Decimal(str(market_rule.price_limit_percent or 0))
+    limit_up = (previous_close * (Decimal("1") + limit_percent / Decimal("100"))).quantize(
+        PRICE_TICK,
+        rounding=ROUND_HALF_UP,
+    )
+    limit_down = (previous_close * (Decimal("1") - limit_percent / Decimal("100"))).quantize(
+        PRICE_TICK,
+        rounding=ROUND_HALF_UP,
+    )
+    return float(limit_down), float(limit_up)
+
+
+def _project_fill_price(
+    *,
+    market_rule: MarketRuleResponse,
+    side: TradeSide,
+    base_price: float,
+) -> float:
+    return round(base_price * _slippage_multiplier(market_rule, side), 4)
+
+
+def _slippage_multiplier(market_rule: MarketRuleResponse, side: TradeSide) -> float:
+    slippage_bps = market_rule.cost_profile.slippage_bps
+    if side == "BUY":
+        return 1 + slippage_bps / 10000
+    return 1 - slippage_bps / 10000
+
+
 def _sell_remaining_position(
     *,
     cash: float,
@@ -932,23 +1079,23 @@ def _sell_remaining_position(
     reason: str,
     node: StrategyNode | None,
 ) -> tuple[float, bool]:
-    validation = validate_market_order(
+    prepared_order = _prepare_order(
         market_rule=market_rule,
         candle=candle,
         side="SELL",
         execution_price=candle.close,
         quantity=position.quantity,
     )
-    if not validation.allowed:
+    if not prepared_order.allowed:
         timeline.append(
             _timeline_order_blocked(
                 sequence=len(timeline),
                 time=candle.time,
                 side="SELL",
-                price=validation.price,
+                price=prepared_order.base_price,
                 quantity=position.quantity,
-                reason=validation.reason,
-                rule=validation.rule,
+                reason=prepared_order.reason,
+                rule=prepared_order.rule,
                 node=node,
             )
         )
@@ -956,7 +1103,7 @@ def _sell_remaining_position(
 
     fill = calculate_trade_fill(
         side="SELL",
-        base_price=validation.price,
+        base_price=prepared_order.base_price,
         quantity=position.quantity,
         market_rule=market_rule,
     )
@@ -1025,6 +1172,19 @@ def _has_blocked_sell_at_time(timeline: list[BacktestTimelineItem], time_value: 
         item.event_type == "ORDER_BLOCKED" and item.side == "SELL" and item.time == time_value
         for item in timeline
     )
+
+
+def _replace_final_equity_point(
+    equity_curve: list[EquityPoint],
+    time_value: str,
+    equity: float,
+) -> None:
+    for index in range(len(equity_curve) - 1, -1, -1):
+        if equity_curve[index].time == time_value:
+            equity_curve[index] = EquityPoint(time=time_value, equity=equity)
+            del equity_curve[index + 1 :]
+            return
+    equity_curve.append(EquityPoint(time=time_value, equity=equity))
 
 
 def _trade_date(time_value: str) -> str:

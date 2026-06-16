@@ -261,6 +261,47 @@ def test_engine_blocks_a_share_buy_above_limit_up():
     assert "高于涨停价 11.00" in blocked[0].description
 
 
+def test_engine_caps_a_share_buy_at_limit_up_after_slippage():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            }
+        ],
+        initial_cash=10000,
+        market="A_SHARE",
+    )
+    candles = [
+        MarketCandle(
+            time="2026-01-02 09:35",
+            open=10.8,
+            high=10.9,
+            low=10.7,
+            close=10.8,
+            previous_close=10.0,
+        ),
+        MarketCandle(
+            time="2026-01-02 09:40",
+            open=11.0,
+            high=11.0,
+            low=11.0,
+            close=11.0,
+            previous_close=10.0,
+        ),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades] == ["BUY"]
+    assert result.trades[0].price == 11.0
+    assert [item.event_type for item in result.timeline] == ["TRADE_FILLED"]
+
+
 def test_engine_blocks_a_share_sell_below_limit_down_after_t_plus_one():
     request = _request(
         [
@@ -322,6 +363,63 @@ def test_engine_blocks_a_share_sell_below_limit_down_after_t_plus_one():
     assert "T+1" not in blocked[0].description
 
 
+def test_engine_caps_a_share_sell_at_limit_down_after_slippage():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+            {
+                "id": "sell-1",
+                "type": "sell",
+                "label": "卖出",
+                "x": 160,
+                "y": 0,
+                "params": {"sellPercent": "100"},
+            },
+        ],
+        initial_cash=10000,
+        market="A_SHARE",
+    )
+    candles = [
+        MarketCandle(
+            time="2026-01-02 09:35",
+            open=10.0,
+            high=10.1,
+            low=9.9,
+            close=10.0,
+            previous_close=10.0,
+        ),
+        MarketCandle(
+            time="2026-01-05 09:35",
+            open=10.0,
+            high=10.1,
+            low=9.9,
+            close=10.0,
+            previous_close=10.0,
+        ),
+        MarketCandle(
+            time="2026-01-06 09:35",
+            open=9.0,
+            high=9.1,
+            low=9.0,
+            close=9.05,
+            previous_close=10.0,
+        ),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
+    assert result.trades[1].price == 9.0
+    assert not any(item.event_type == "ORDER_BLOCKED" for item in result.timeline)
+
+
 def test_engine_skips_non_session_candles_before_triggering_orders():
     request = _request(
         [
@@ -346,6 +444,69 @@ def test_engine_skips_non_session_candles_before_triggering_orders():
 
     assert result.trades == []
     assert result.timeline == []
+
+
+def test_engine_sizes_buy_with_normalized_execution_price():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            }
+        ],
+        initial_cash=1000.01,
+        market="US_STOCK",
+    )
+    candles = [
+        MarketCandle(time="2026-01-02 09:35", open=333.0, high=333.2, low=332.9, close=333.0),
+        MarketCandle(
+            time="2026-01-02 09:40",
+            open=333.301,
+            high=333.4,
+            low=333.2,
+            close=333.301,
+        ),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    buy_trade = result.trades[0]
+    assert buy_trade.side == "BUY"
+    assert buy_trade.quantity == 2
+    assert abs(buy_trade.net_cash_change) <= request.config.initialCash
+
+
+def test_engine_final_close_uses_last_regular_session_candle():
+    request = _request(
+        [
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 0,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            }
+        ],
+        initial_cash=10000,
+        market="US_STOCK",
+    )
+    candles = [
+        MarketCandle(time="2026-01-02 09:35", open=10.0, high=10.1, low=9.9, close=10.0),
+        MarketCandle(time="2026-01-02 09:40", open=10.2, high=10.3, low=10.1, close=10.2),
+        MarketCandle(time="2026-01-02 16:05", open=10.5, high=10.6, low=10.4, close=10.5),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades] == ["BUY", "SELL"]
+    assert result.trades[-1].time == "2026-01-02 09:40"
+    assert result.timeline[-1].event_type == "POSITION_CLOSED"
+    assert not any(item.event_type == "ORDER_BLOCKED" for item in result.timeline)
 
 
 def test_engine_buys_once_and_sells_when_take_profit_is_hit():
