@@ -29,6 +29,37 @@ def ensure_development_schema(engine: Engine) -> None:
                     )
                 )
 
+    if inspector.has_table("backtest_trades"):
+        column_names = {column["name"] for column in inspector.get_columns("backtest_trades")}
+        with engine.begin() as connection:
+            for column_name in (
+                "gross_amount",
+                "cost_amount",
+                "slippage_amount",
+                "net_cash_change",
+            ):
+                if column_name not in column_names:
+                    connection.execute(
+                        text(
+                            f"ALTER TABLE backtest_trades "
+                            f"ADD COLUMN {column_name} FLOAT NOT NULL DEFAULT 0"
+                        )
+                    )
+            if "cost_breakdown" not in column_names:
+                connection.execute(
+                    text("ALTER TABLE backtest_trades ADD COLUMN cost_breakdown JSON")
+                )
+            connection.execute(
+                text(
+                    "UPDATE backtest_trades SET "
+                    "gross_amount = price * quantity, "
+                    "net_cash_change = CASE "
+                    "WHEN side = 'BUY' THEN -(price * quantity) "
+                    "ELSE price * quantity END "
+                    "WHERE gross_amount = 0"
+                )
+            )
+
     if inspector.has_table("market_kline_cache"):
         column_names = {column["name"] for column in inspector.get_columns("market_kline_cache")}
         with engine.begin() as connection:

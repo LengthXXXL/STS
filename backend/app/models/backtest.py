@@ -71,6 +71,11 @@ class BacktestTradeRecord(Base):
     price: Mapped[float] = mapped_column(Float, nullable=False)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
+    gross_amount: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    cost_amount: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    slippage_amount: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    net_cash_change: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    cost_breakdown: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
 
     task = relationship("BacktestTask", back_populates="trades")
 

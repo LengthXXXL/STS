@@ -60,6 +60,11 @@ def save_backtest_result(
                 price=trade.price,
                 quantity=trade.quantity,
                 reason=trade.reason,
+                gross_amount=trade.gross_amount,
+                cost_amount=trade.cost_amount,
+                slippage_amount=trade.slippage_amount,
+                net_cash_change=trade.net_cash_change,
+                cost_breakdown=trade.cost_breakdown,
             )
         )
 
@@ -172,6 +177,11 @@ def get_backtest_record(
                 price=trade.price,
                 quantity=trade.quantity,
                 reason=trade.reason,
+                grossAmount=trade.gross_amount,
+                costAmount=trade.cost_amount,
+                slippageAmount=trade.slippage_amount,
+                netCashChange=trade.net_cash_change,
+                costBreakdown=trade.cost_breakdown or {},
             )
             for trade in task.trades
         ],

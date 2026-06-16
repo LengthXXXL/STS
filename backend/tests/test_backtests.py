@@ -281,6 +281,11 @@ def test_run_backtest_persists_owned_task_trades_and_equity_curve(client, db_ses
     assert len(trades) == len(payload["trades"])
     assert trades[0].side == payload["trades"][0]["side"]
     assert trades[0].price == payload["trades"][0]["price"]
+    assert trades[0].gross_amount == payload["trades"][0]["grossAmount"]
+    assert trades[0].cost_amount == payload["trades"][0]["costAmount"]
+    assert trades[0].slippage_amount == payload["trades"][0]["slippageAmount"]
+    assert trades[0].net_cash_change == payload["trades"][0]["netCashChange"]
+    assert trades[0].cost_breakdown == payload["trades"][0]["costBreakdown"]
     assert len(equity_points) == len(payload["equityCurve"])
     assert equity_points[-1].equity == payload["equityCurve"][-1]["equity"]
     assert len(timeline_items) == len(payload["timeline"])
@@ -292,6 +297,11 @@ def test_run_backtest_persists_owned_task_trades_and_equity_curve(client, db_ses
     detail_payload = detail.json()
     assert detail_payload["events"] == payload["events"]
     assert detail_payload["timeline"] == payload["timeline"]
+    assert detail_payload["trades"][0]["grossAmount"] == payload["trades"][0]["grossAmount"]
+    assert detail_payload["trades"][0]["costAmount"] == payload["trades"][0]["costAmount"]
+    assert detail_payload["trades"][0]["slippageAmount"] == payload["trades"][0]["slippageAmount"]
+    assert detail_payload["trades"][0]["netCashChange"] == payload["trades"][0]["netCashChange"]
+    assert detail_payload["trades"][0]["costBreakdown"] == payload["trades"][0]["costBreakdown"]
 
 
 def test_list_backtests_only_returns_current_user_records(client, db_session):
