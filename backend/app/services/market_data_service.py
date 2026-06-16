@@ -31,6 +31,7 @@ class MarketCandle:
     open: float | None = None
     high: float | None = None
     low: float | None = None
+    previous_close: float | None = None
 
     @property
     def open_price(self) -> float:
@@ -308,6 +309,7 @@ class CachedMarketDataProvider:
                 low=row.low_price if row.low_price is not None else row.close,
                 close=row.close,
                 volume=row.volume,
+                previous_close=row.previous_close,
             )
             for row in rows
         ]
@@ -353,6 +355,11 @@ class CachedMarketDataProvider:
                     low_price=float(candle.low_price),
                     close=float(candle.close),
                     volume=float(candle.volume),
+                    previous_close=(
+                        float(candle.previous_close)
+                        if candle.previous_close is not None
+                        else None
+                    ),
                 )
             )
         self.db.commit()

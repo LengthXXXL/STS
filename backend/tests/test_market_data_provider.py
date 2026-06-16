@@ -285,6 +285,7 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
                     low=10.0,
                     close=10.25,
                     volume=1200,
+                    previous_close=10.0,
                 ),
                 MarketCandle(
                     time="2026-01-01 09:40",
@@ -293,6 +294,7 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
                     low=10.2,
                     close=10.45,
                     volume=1500,
+                    previous_close=10.0,
                 ),
             ]
 
@@ -315,6 +317,7 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
             low=10.0,
             close=10.25,
             volume=1200,
+            previous_close=10.0,
         ),
         MarketCandle(
             time="2026-01-01 09:40",
@@ -323,8 +326,10 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
             low=10.2,
             close=10.45,
             volume=1500,
+            previous_close=10.0,
         ),
     ]
+    assert first_candles[0].previous_close == 10.0
     cached_rows = db_session.scalars(select(MarketKlineCache)).all()
     assert [
         (
@@ -335,11 +340,12 @@ def test_cached_provider_persists_and_reuses_intraday_candles(db_session):
             row.low_price,
             row.close,
             row.volume,
+            row.previous_close,
         )
         for row in cached_rows
     ] == [
-        ("2026-01-01 09:35", "LIVE", 10.1, 10.3, 10.0, 10.25, 1200),
-        ("2026-01-01 09:40", "LIVE", 10.25, 10.5, 10.2, 10.45, 1500),
+        ("2026-01-01 09:35", "LIVE", 10.1, 10.3, 10.0, 10.25, 1200, 10.0),
+        ("2026-01-01 09:40", "LIVE", 10.25, 10.5, 10.2, 10.45, 1500, 10.0),
     ]
 
     cached_again = CachedMarketDataProvider(
@@ -377,6 +383,7 @@ def test_cached_provider_ignores_unknown_source_rows_and_replaces_them(db_sessio
                     low=10.0,
                     close=10.25,
                     volume=1200,
+                    previous_close=10.0,
                 )
             ]
 
@@ -395,10 +402,13 @@ def test_cached_provider_ignores_unknown_source_rows_and_replaces_them(db_sessio
             low=10.0,
             close=10.25,
             volume=1200,
+            previous_close=10.0,
         )
     ]
     rows = db_session.scalars(select(models.MarketKlineCache)).all()
-    assert [(row.source, row.close) for row in rows] == [("LIVE", 10.25)]
+    assert [(row.source, row.close, row.previous_close) for row in rows] == [
+        ("LIVE", 10.25, 10.0)
+    ]
 
 
 def test_fetch_json_uses_explicit_ssl_context(monkeypatch):

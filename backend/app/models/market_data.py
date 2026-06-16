@@ -29,6 +29,7 @@ class MarketKlineCache(Base):
     low_price: Mapped[float | None] = mapped_column(Float, nullable=True)
     close: Mapped[float] = mapped_column(Float, nullable=False)
     volume: Mapped[float] = mapped_column(Float, default=0, nullable=False)
+    previous_close: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
