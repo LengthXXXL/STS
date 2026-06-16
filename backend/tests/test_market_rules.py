@@ -38,6 +38,37 @@ def test_market_rule_detail_returns_single_market_rule(client):
     assert any("买入委托数量按 100 股整数倍处理" in note for note in payload["notes"])
 
 
+def test_market_rules_include_a_share_cost_profile(client):
+    response = client.get("/api/market-rules/A_SHARE")
+
+    assert response.status_code == 200
+    profile = response.json()["costProfile"]
+    assert profile["commissionBps"] == 2.5
+    assert profile["minCommission"] == 5
+    assert profile["slippageBps"] == 1
+    assert profile["buyFeeBps"] == 0.641
+    assert profile["sellFeeBps"] == 0.641
+    assert profile["sellTaxBps"] == 5
+    assert profile["secFeePerMillion"] is None
+    assert profile["perShareSellFee"] is None
+
+
+def test_market_rules_include_us_stock_cost_profile(client):
+    response = client.get("/api/market-rules/US_STOCK")
+
+    assert response.status_code == 200
+    profile = response.json()["costProfile"]
+    assert profile["commissionBps"] == 0
+    assert profile["minCommission"] == 0
+    assert profile["slippageBps"] == 1
+    assert profile["buyFeeBps"] == 0
+    assert profile["sellFeeBps"] == 0
+    assert profile["sellTaxBps"] == 0
+    assert profile["secFeePerMillion"] == 20.6
+    assert profile["perShareSellFee"] == 0.000166
+    assert profile["maxPerShareSellFee"] == 8.3
+
+
 def test_market_rule_detail_rejects_unknown_market(client):
     response = client.get("/api/market-rules/CRYPTO")
 

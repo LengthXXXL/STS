@@ -1,4 +1,4 @@
-from app.schemas.market_rule import MarketCode, MarketRuleResponse
+from app.schemas.market_rule import MarketCode, MarketCostProfile, MarketRuleResponse
 
 
 MARKET_RULES: dict[MarketCode, MarketRuleResponse] = {
@@ -13,6 +13,17 @@ MARKET_RULES: dict[MarketCode, MarketRuleResponse] = {
         minOrderShares=100,
         supportsIntradayRoundTrip=False,
         priceLimitPercent=10,
+        costProfile=MarketCostProfile(
+            commissionBps=2.5,
+            minCommission=5,
+            slippageBps=1,
+            buyFeeBps=0.641,
+            sellFeeBps=0.641,
+            sellTaxBps=5,
+            secFeePerMillion=None,
+            perShareSellFee=None,
+            maxPerShareSellFee=None,
+        ),
         sessions=[
             {"label": "上午连续竞价", "start": "09:30", "end": "11:30"},
             {"label": "下午连续竞价", "start": "13:00", "end": "15:00"},
@@ -35,6 +46,17 @@ MARKET_RULES: dict[MarketCode, MarketRuleResponse] = {
         minOrderShares=1,
         supportsIntradayRoundTrip=True,
         priceLimitPercent=None,
+        costProfile=MarketCostProfile(
+            commissionBps=0,
+            minCommission=0,
+            slippageBps=1,
+            buyFeeBps=0,
+            sellFeeBps=0,
+            sellTaxBps=0,
+            secFeePerMillion=20.6,
+            perShareSellFee=0.000166,
+            maxPerShareSellFee=8.3,
+        ),
         sessions=[
             {"label": "常规交易时段", "start": "09:30", "end": "16:00"},
         ],
