@@ -98,3 +98,8 @@ def ensure_development_schema(engine: Engine) -> None:
         from app.models.uploaded_file import UploadedFile
 
         UploadedFile.__table__.create(bind=engine, checkfirst=True)
+
+    if not inspect(engine).has_table("forum_post_attachments"):
+        from app.models.forum import ForumPostAttachment
+
+        ForumPostAttachment.__table__.create(bind=engine, checkfirst=True)

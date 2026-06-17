@@ -43,13 +43,31 @@ const forumPost = {
   relatedTitle: null,
   relatedSummary: null,
   reviewStatus: 'approved',
+  attachments: [],
   commentCount: 1,
   createdAt: '2026-06-07T10:00:00',
   updatedAt: '2026-06-07T10:00:00'
 }
 
+const forumAttachment = {
+  id: 61,
+  fileId: 51,
+  originalName: '策略说明.json',
+  contentType: 'application/json',
+  size: 2048,
+  downloadUrl: '/api/forum/posts/12/attachments/51/download'
+}
+
+const savedFile = {
+  id: 51,
+  originalName: '策略说明.json',
+  contentType: 'application/json',
+  size: 2048
+}
+
 const forumDetail = {
   ...forumPost,
+  attachments: [],
   comments: [
     {
       id: 21,
@@ -135,6 +153,9 @@ function mockForum() {
     }
     if (url === '/shared-blocks') {
       return Promise.resolve({ data: { items: [], total: 0, page: 1, pageSize: 10 } })
+    }
+    if (url === '/files') {
+      return Promise.resolve({ data: { items: [savedFile], total: 1, page: 1, pageSize: 10 } })
     }
     return Promise.reject(new Error(`Unhandled GET ${url}`))
   })
@@ -232,9 +253,49 @@ describe('forum view', () => {
       title: '移动止损经验',
       topic: '策略复盘',
       content: '移动止损适合高波动盘中策略。',
-      sharedBlockId: null
+      sharedBlockId: null,
+      attachmentFileIds: []
     })
     expect(wrapper.text()).toContain('帖子已提交审核，可在个人空间-我的论坛查看进度')
+  })
+
+  it('submits a post with a selected file attachment when logged in', async () => {
+    mockForum()
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        ...forumPost,
+        id: 15,
+        title: '附件复盘',
+        reviewStatus: 'pending_review',
+        attachments: [forumAttachment]
+      }
+    })
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 2, username: 'bob', email: 'bob@example.com', roles: ['user'] }
+    })
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenCalledWith('/files', {
+      params: { page: 1, pageSize: 50 }
+    })
+    expect(wrapper.text()).toContain('策略说明.json')
+
+    await wrapper.find('.forum-post-title-input').setValue('附件复盘')
+    await wrapper.find('.forum-post-content-input').setValue('我想附上一份策略说明。')
+    await wrapper.find('.forum-attachment-option input').setValue(true)
+    await wrapper.find('.forum-post-submit-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/forum/posts', {
+      title: '附件复盘',
+      topic: '交流',
+      content: '我想附上一份策略说明。',
+      sharedBlockId: null,
+      attachmentFileIds: [51]
+    })
   })
 
   it('submits a post with a selected strategy relation when logged in', async () => {
@@ -272,9 +333,44 @@ describe('forum view', () => {
       topic: '交流',
       content: '我想分享这个策略的使用经验。',
       sharedBlockId: null,
+      attachmentFileIds: [],
       relatedType: 'strategy',
       relatedId: 31
     })
+  })
+
+  it('renders attachment chips and attachment cards in a forum detail thread', async () => {
+    const detailWithAttachment = {
+      ...forumDetail,
+      attachments: [forumAttachment]
+    }
+    vi.mocked(apiClient.get).mockImplementation((url: string) => {
+      if (url === '/forum/posts') {
+        return Promise.resolve({
+          data: {
+            items: [{ ...forumPost, attachments: [forumAttachment] }],
+            total: 1,
+            page: 1,
+            pageSize: 10
+          }
+        })
+      }
+      if (url === '/forum/posts/12') {
+        return Promise.resolve({ data: detailWithAttachment })
+      }
+      return Promise.reject(new Error(`Unhandled GET ${url}`))
+    })
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('附件 1')
+
+    await wrapper.find('.forum-post-detail-button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.forum-attachment-card').exists()).toBe(true)
+    expect(wrapper.text()).toContain('策略说明.json')
+    expect(wrapper.text()).toContain('2 KB')
   })
 
   it('renders a related content card in a forum detail thread', async () => {

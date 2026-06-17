@@ -1,6 +1,7 @@
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user
@@ -15,11 +16,14 @@ from app.schemas.forum import (
     ForumPostItemResponse,
     ForumPostListResponse,
 )
+from app.services.file_service import resolve_download_path
 from app.services.forum_service import (
+    ForumAttachmentNotFound,
     ForumRelatedContentNotFound,
     create_forum_comment,
     create_forum_post,
     get_forum_post_detail,
+    get_public_forum_attachment,
     list_forum_posts,
     list_my_forum_comments,
     list_my_forum_posts,
@@ -54,6 +58,8 @@ def create_post(
 ) -> ForumPostItemResponse:
     try:
         return create_forum_post(db, current_user, request)
+    except ForumAttachmentNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ForumRelatedContentNotFound as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
@@ -91,6 +97,29 @@ def detail(
     if post is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Forum post not found")
     return post
+
+
+@router.get("/posts/{post_id}/attachments/{file_id}/download")
+def download_attachment(
+    post_id: int,
+    file_id: int,
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    file_record = get_public_forum_attachment(db, post_id, file_id)
+    if file_record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Attachment not found")
+    try:
+        path = resolve_download_path(file_record)
+    except FileNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Attachment content not found",
+        ) from exc
+    return FileResponse(
+        path,
+        filename=file_record.original_name,
+        media_type=file_record.content_type,
+    )
 
 
 @router.post(

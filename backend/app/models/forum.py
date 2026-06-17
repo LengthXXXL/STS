@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
 
 if TYPE_CHECKING:
+    from app.models.uploaded_file import UploadedFile
     from app.models.user import User
 
 
@@ -45,6 +46,10 @@ class ForumPost(Base):
         back_populates="post",
         cascade="all, delete-orphan",
     )
+    attachments: Mapped[list["ForumPostAttachment"]] = relationship(
+        back_populates="post",
+        cascade="all, delete-orphan",
+    )
 
 
 class ForumComment(Base):
@@ -71,3 +76,19 @@ class ForumComment(Base):
 
     post: Mapped[ForumPost] = relationship(back_populates="comments")
     author: Mapped["User"] = relationship(back_populates="forum_comments")
+
+
+class ForumPostAttachment(Base):
+    __tablename__ = "forum_post_attachments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    post_id: Mapped[int] = mapped_column(ForeignKey("forum_posts.id"), nullable=False, index=True)
+    file_id: Mapped[int] = mapped_column(
+        ForeignKey("uploaded_files.id"),
+        nullable=False,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    post: Mapped[ForumPost] = relationship(back_populates="attachments")
+    file: Mapped["UploadedFile"] = relationship()

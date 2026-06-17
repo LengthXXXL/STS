@@ -5,10 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.models.backtest import BacktestTask
 from app.models.custom_block import CustomBlock
-from app.models.forum import ForumComment, ForumPost
+from app.models.forum import ForumComment, ForumPost, ForumPostAttachment
 from app.models.strategy import Strategy
+from app.models.uploaded_file import UploadedFile
 from app.models.user import User
 from app.schemas.forum import (
+    ForumAttachmentResponse,
     ForumCommentCreate,
     ForumCommentResponse,
     ForumCommentReviewResponse,
@@ -24,6 +26,10 @@ ForumPostSort = Literal["latest_reply", "newest", "most_commented"]
 
 
 class ForumRelatedContentNotFound(ValueError):
+    pass
+
+
+class ForumAttachmentNotFound(ValueError):
     pass
 
 
@@ -43,6 +49,7 @@ def forum_post_to_response(db: Session, post: ForumPost) -> ForumPostItemRespons
         relatedSummary=related_summary,
         reviewStatus=post.review_status,
         reviewReason=post.review_reason,
+        attachments=[forum_attachment_to_response(attachment) for attachment in post.attachments],
         commentCount=_approved_comment_count(db, post.id),
         createdAt=post.created_at,
         updatedAt=post.updated_at,
@@ -71,6 +78,17 @@ def forum_comment_to_review_response(comment: ForumComment) -> ForumCommentRevie
     )
 
 
+def forum_attachment_to_response(attachment: ForumPostAttachment) -> ForumAttachmentResponse:
+    return ForumAttachmentResponse(
+        id=attachment.id,
+        fileId=attachment.file_id,
+        originalName=attachment.file.original_name,
+        contentType=attachment.file.content_type,
+        size=attachment.file.size,
+        downloadUrl=f"/api/forum/posts/{attachment.post_id}/attachments/{attachment.file_id}/download",
+    )
+
+
 def create_forum_post(
     db: Session,
     author: User,
@@ -83,6 +101,7 @@ def create_forum_post(
     if related_type is not None and related_id is not None:
         _ensure_related_content_access(db, author, related_type, related_id)
 
+    attachment_files = _owned_attachment_files(db, author, request.attachment_file_ids)
     post = ForumPost(
         author_id=author.id,
         title=request.title.strip(),
@@ -94,6 +113,12 @@ def create_forum_post(
         review_status=PENDING_REVIEW,
     )
     db.add(post)
+    db.flush()
+    for file in attachment_files:
+        file.business_type = "forum"
+        file.business_id = post.id
+        file.visibility = "public"
+        db.add(ForumPostAttachment(post_id=post.id, file_id=file.id))
     db.commit()
     db.refresh(post)
     return forum_post_to_response(db, post)
@@ -237,6 +262,25 @@ def get_forum_post_detail(db: Session, post_id: int) -> ForumPostDetailResponse 
     )
 
 
+def get_public_forum_attachment(
+    db: Session,
+    post_id: int,
+    file_id: int,
+) -> UploadedFile | None:
+    attachment = db.scalar(
+        select(ForumPostAttachment)
+        .join(ForumPost)
+        .where(
+            ForumPostAttachment.post_id == post_id,
+            ForumPostAttachment.file_id == file_id,
+            ForumPost.review_status == APPROVED,
+        )
+    )
+    if attachment is None:
+        return None
+    return attachment.file
+
+
 def create_forum_comment(
     db: Session,
     author: User,
@@ -356,6 +400,27 @@ def _ensure_related_content_access(
 
     if not exists:
         raise ForumRelatedContentNotFound("Related content not found")
+
+
+def _owned_attachment_files(
+    db: Session,
+    author: User,
+    attachment_file_ids: list[int],
+) -> list[UploadedFile]:
+    unique_ids = list(dict.fromkeys(attachment_file_ids))
+    if not unique_ids:
+        return []
+
+    files = db.scalars(
+        select(UploadedFile).where(
+            UploadedFile.id.in_(unique_ids),
+            UploadedFile.owner_id == author.id,
+        )
+    ).all()
+    files_by_id = {file.id: file for file in files}
+    if any(file_id not in files_by_id for file_id in unique_ids):
+        raise ForumAttachmentNotFound("Attachment file not found")
+    return [files_by_id[file_id] for file_id in unique_ids]
 
 
 def _related_content_summary(db: Session, post: ForumPost) -> tuple[str | None, str | None]:

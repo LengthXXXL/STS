@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiClient } from '../api/http'
 import { useAuthStore } from '../stores/auth'
@@ -18,6 +18,7 @@ interface ForumPostItem {
   relatedTitle: string | null
   relatedSummary: string | null
   reviewStatus: 'approved' | 'pending_review' | 'rejected'
+  attachments?: ForumAttachment[]
   commentCount: number
   createdAt: string
   updatedAt: string
@@ -35,6 +36,7 @@ interface ForumComment {
 }
 
 interface ForumPostDetail extends ForumPostItem {
+  attachments: ForumAttachment[]
   comments: ForumComment[]
 }
 
@@ -123,6 +125,22 @@ interface SharedBlockOptionResponse {
   nodeCount: number
 }
 
+interface ForumAttachment {
+  id: number
+  fileId: number
+  originalName: string
+  contentType: string
+  size: number
+  downloadUrl: string
+}
+
+interface UploadedFileOptionResponse {
+  id: number
+  originalName: string
+  contentType: string
+  size: number
+}
+
 const authStore = useAuthStore()
 const workspaceStore = useStrategyWorkspaceStore()
 const route = useRoute()
@@ -143,6 +161,8 @@ const postTitle = ref('')
 const postTopic = ref('')
 const postContent = ref('')
 const commentContent = ref('')
+const postAttachmentIds = ref<number[]>([])
+const attachmentOptions = ref<UploadedFileOptionResponse[]>([])
 const relatedType = ref<ForumRelatedTypeSelection>('')
 const relatedId = ref('')
 const relatedOptions = ref<Record<ForumRelatedType, ForumRelatedOption[]>>({
@@ -153,6 +173,7 @@ const relatedOptions = ref<Record<ForumRelatedType, ForumRelatedOption[]>>({
 })
 const relatedOptionsLoading = ref(false)
 const relatedOptionsError = ref('')
+const attachmentOptionsError = ref('')
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const selectedRelatedOptions = computed(() =>
@@ -191,7 +212,7 @@ async function loadRelatedOptions() {
   relatedOptionsLoading.value = true
   relatedOptionsError.value = ''
   try {
-    const [strategies, backtests, customBlocks, sharedBlocks] = await Promise.all([
+    const [strategies, backtests, customBlocks, sharedBlocks, files] = await Promise.all([
       apiClient.get<{ items: StrategyOptionResponse[] }>('/strategies', {
         params: { page: 1, pageSize: 50 }
       }),
@@ -203,8 +224,12 @@ async function loadRelatedOptions() {
       }),
       apiClient.get<{ items: SharedBlockOptionResponse[] }>('/shared-blocks', {
         params: { page: 1, pageSize: 50 }
+      }),
+      apiClient.get<{ items: UploadedFileOptionResponse[] }>('/files', {
+        params: { page: 1, pageSize: 50 }
       })
     ])
+    attachmentOptions.value = files.data.items
     relatedOptions.value = {
       strategy: strategies.data.items.map((item) => ({
         type: 'strategy',
@@ -235,6 +260,7 @@ async function loadRelatedOptions() {
     }
   } catch {
     relatedOptionsError.value = '关联内容加载失败'
+    attachmentOptionsError.value = '附件列表加载失败'
   } finally {
     relatedOptionsLoading.value = false
   }
@@ -318,6 +344,7 @@ async function submitPost() {
     topic,
     content,
     sharedBlockId: null,
+    attachmentFileIds: postAttachmentIds.value,
     ...relatedPostPayload()
   })
   postTitle.value = ''
@@ -325,6 +352,7 @@ async function submitPost() {
   postTopic.value = ''
   relatedType.value = ''
   relatedId.value = ''
+  postAttachmentIds.value = []
   status.value = '帖子已提交审核，可在个人空间-我的论坛查看进度'
 }
 
@@ -392,6 +420,31 @@ async function openRelatedContent() {
   }
 }
 
+async function downloadAttachment(attachment: ForumAttachment) {
+  error.value = ''
+  try {
+    const endpoint = attachment.downloadUrl.startsWith('/api')
+      ? attachment.downloadUrl.slice('/api'.length)
+      : attachment.downloadUrl
+    const response = await apiClient.get<Blob>(endpoint, {
+      responseType: 'blob'
+    })
+    const blob = response.data instanceof Blob
+      ? response.data
+      : new Blob([response.data], { type: attachment.contentType })
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = attachment.originalName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(objectUrl)
+  } catch {
+    error.value = '附件下载失败，请稍后重试'
+  }
+}
+
 async function changePage(nextPage: number) {
   if (nextPage < 1 || nextPage > totalPages.value || nextPage === page.value) {
     return
@@ -402,6 +455,16 @@ async function changePage(nextPage: number) {
 
 function formatDate(value: string) {
   return value.slice(0, 10)
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024) {
+    return `${size} B`
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1).replace(/\.0$/, '')} KB`
+  }
+  return `${(size / 1024 / 1024).toFixed(1).replace(/\.0$/, '')} MB`
 }
 
 function formatTimeframe(value: string | undefined) {
@@ -446,6 +509,15 @@ onMounted(() => {
     await openPostFromRouteQuery()
   })()
 })
+
+watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated, wasAuthenticated) => {
+    if (isAuthenticated && !wasAuthenticated) {
+      void loadRelatedOptions()
+    }
+  }
+)
 </script>
 
 <template>
@@ -507,6 +579,22 @@ onMounted(() => {
         </select>
         <small v-if="relatedOptionsError">{{ relatedOptionsError }}</small>
       </div>
+      <div v-if="authStore.isAuthenticated" class="forum-attachment-picker">
+        <strong>附件</strong>
+        <div v-if="attachmentOptions.length > 0" class="forum-attachment-options">
+          <label
+            v-for="file in attachmentOptions"
+            :key="file.id"
+            class="forum-attachment-option"
+          >
+            <input v-model="postAttachmentIds" type="checkbox" :value="file.id" />
+            <span>{{ file.originalName }}</span>
+            <small>{{ formatFileSize(file.size) }}</small>
+          </label>
+        </div>
+        <small v-else-if="attachmentOptionsError">{{ attachmentOptionsError }}</small>
+        <small v-else>暂无可选附件</small>
+      </div>
       <textarea
         v-model="postContent"
         class="forum-post-content-input"
@@ -534,6 +622,9 @@ onMounted(() => {
           <p>{{ post.content }}</p>
           <div v-if="post.relatedTitle" class="forum-related-chip">
             {{ formatRelatedType(post.relatedType) }} · {{ post.relatedTitle }}
+          </div>
+          <div v-if="post.attachments?.length" class="forum-related-chip">
+            附件 {{ post.attachments.length }}
           </div>
           <small>
             作者 {{ post.authorName }} · 评论 {{ post.commentCount }} ·
@@ -564,6 +655,19 @@ onMounted(() => {
               <p>{{ selectedPost.relatedSummary }}</p>
               <button class="forum-related-open-button" type="button" @click="openRelatedContent">
                 打开关联内容
+              </button>
+            </section>
+            <section v-if="selectedPost.attachments.length" class="forum-attachment-card">
+              <strong>附件</strong>
+              <button
+                v-for="attachment in selectedPost.attachments"
+                :key="attachment.id"
+                class="forum-attachment-download-button"
+                type="button"
+                @click="downloadAttachment(attachment)"
+              >
+                <span>{{ attachment.originalName }}</span>
+                <small>{{ formatFileSize(attachment.size) }}</small>
               </button>
             </section>
             <small>

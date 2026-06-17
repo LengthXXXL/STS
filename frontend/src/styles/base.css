@@ -1369,6 +1369,12 @@ button {
   outline: none;
 }
 
+.forum-composer .forum-attachment-option input {
+  width: auto;
+  min-width: 0;
+  accent-color: #6d3df2;
+}
+
 .forum-composer .forum-post-title-input,
 .forum-composer .forum-post-topic-input {
   min-height: 86px;
@@ -1424,6 +1430,47 @@ button {
 .forum-related-picker {
   display: grid;
   gap: 8px;
+}
+
+.forum-attachment-picker {
+  display: grid;
+  gap: 8px;
+  grid-column: 4;
+  border: 1px solid rgba(58, 49, 80, 0.74);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(6, 5, 10, 0.42);
+}
+
+.forum-attachment-picker strong {
+  font-size: 13px;
+}
+
+.forum-attachment-options {
+  display: grid;
+  gap: 7px;
+  max-height: 132px;
+  overflow: auto;
+}
+
+.forum-attachment-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: #e8e0f5;
+  font-size: 12px;
+}
+
+.forum-attachment-option span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forum-attachment-picker small,
+.forum-attachment-option small {
+  color: #9487ad;
 }
 
 .forum-related-picker select:disabled {
@@ -1526,7 +1573,8 @@ button {
   gap: 10px;
 }
 
-.forum-related-card {
+.forum-related-card,
+.forum-attachment-card {
   display: grid;
   gap: 6px;
   border: 1px solid rgba(94, 230, 200, 0.3);
@@ -1537,12 +1585,45 @@ button {
     rgba(6, 5, 10, 0.54);
 }
 
-.forum-related-card strong {
+.forum-related-card strong,
+.forum-attachment-card strong {
   color: #f8f4ff;
 }
 
 .forum-related-card p {
   margin: 0;
+}
+
+.forum-attachment-card {
+  border-color: rgba(124, 77, 255, 0.32);
+  background:
+    linear-gradient(135deg, rgba(48, 33, 87, 0.52), rgba(14, 12, 20, 0.62)),
+    rgba(6, 5, 10, 0.54);
+}
+
+.forum-attachment-download-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(124, 77, 255, 0.42);
+  border-radius: 8px;
+  padding: 9px 10px;
+  color: #f7f2ff;
+  background: rgba(25, 21, 34, 0.82);
+  cursor: pointer;
+}
+
+.forum-attachment-download-button span {
+  min-width: 0;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.forum-attachment-download-button small {
+  flex: 0 0 auto;
 }
 
 .forum-related-open-button {
@@ -3758,7 +3839,8 @@ button {
     grid-template-columns: 1fr;
   }
 
-  .forum-composer textarea {
+  .forum-composer textarea,
+  .forum-attachment-picker {
     grid-column: auto;
   }
 

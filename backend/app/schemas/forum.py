@@ -13,6 +13,11 @@ class ForumPostCreate(BaseModel):
     shared_block_id: int | None = Field(default=None, alias="sharedBlockId")
     related_type: ForumRelatedType | None = Field(default=None, alias="relatedType")
     related_id: int | None = Field(default=None, alias="relatedId", ge=1)
+    attachment_file_ids: list[int] = Field(
+        default_factory=list,
+        alias="attachmentFileIds",
+        max_length=5,
+    )
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -43,6 +48,17 @@ class ForumCommentReviewResponse(ForumCommentResponse):
     post_title: str = Field(alias="postTitle")
 
 
+class ForumAttachmentResponse(BaseModel):
+    id: int
+    file_id: int = Field(alias="fileId")
+    original_name: str = Field(alias="originalName")
+    content_type: str = Field(alias="contentType")
+    size: int
+    download_url: str = Field(alias="downloadUrl")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class ForumPostItemResponse(BaseModel):
     id: int
     author_id: int = Field(alias="authorId")
@@ -57,6 +73,7 @@ class ForumPostItemResponse(BaseModel):
     related_summary: str | None = Field(default=None, alias="relatedSummary")
     review_status: str = Field(alias="reviewStatus")
     review_reason: str | None = Field(default=None, alias="reviewReason")
+    attachments: list[ForumAttachmentResponse] = Field(default_factory=list)
     comment_count: int = Field(alias="commentCount")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")

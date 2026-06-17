@@ -23,6 +23,15 @@ def comment_payload(content: str = "这个案例很适合新手复盘。") -> di
     return {"content": content}
 
 
+def upload_attachment_file(client, token: str, name: str = "forum-note.json"):
+    return client.post(
+        "/api/files/upload",
+        headers=auth_headers(token),
+        data={"businessType": "general", "visibility": "private"},
+        files={"file": (name, b'{"note":"forum"}', "application/json")},
+    )
+
+
 def grant_admin_role(db_session, email: str) -> None:
     user = db_session.scalar(select(User).where(User.email == email))
     assert user is not None
@@ -193,6 +202,73 @@ def test_forum_post_cannot_attach_another_users_private_strategy(client):
 
     assert post_response.status_code == 404
     assert post_response.json()["detail"] == "Related content not found"
+
+
+def test_forum_post_can_attach_owned_file_after_review(client, db_session):
+    user_token = register_and_token(client, "file-author", "file-author@example.com")
+    admin_token = register_and_token(client, "file-admin", "file-admin@example.com")
+    grant_admin_role(db_session, "file-admin@example.com")
+
+    upload_response = upload_attachment_file(client, user_token)
+    assert upload_response.status_code == 201
+    file_id = upload_response.json()["id"]
+
+    post_response = client.post(
+        "/api/forum/posts",
+        json={
+            **post_payload("附件复盘帖", "这条帖子附带一份策略说明。"),
+            "attachmentFileIds": [file_id],
+        },
+        headers=auth_headers(user_token),
+    )
+    assert post_response.status_code == 201
+    created = post_response.json()
+    assert created["attachments"][0]["fileId"] == file_id
+    assert created["attachments"][0]["originalName"] == "forum-note.json"
+
+    download_before_review = client.get(
+        f"/api/forum/posts/{created['id']}/attachments/{file_id}/download"
+    )
+    assert download_before_review.status_code == 404
+
+    approve_response = client.post(
+        f"/api/admin/forum-posts/{created['id']}/approve",
+        headers=auth_headers(admin_token),
+    )
+    assert approve_response.status_code == 200
+    assert approve_response.json()["attachments"][0]["fileId"] == file_id
+
+    detail_response = client.get(f"/api/forum/posts/{created['id']}")
+    assert detail_response.status_code == 200
+    detail = detail_response.json()
+    assert detail["attachments"][0]["downloadUrl"] == (
+        f"/api/forum/posts/{created['id']}/attachments/{file_id}/download"
+    )
+
+    download_response = client.get(detail["attachments"][0]["downloadUrl"])
+    assert download_response.status_code == 200
+    assert download_response.content == b'{"note":"forum"}'
+    assert "forum-note.json" in download_response.headers["content-disposition"]
+
+
+def test_forum_post_cannot_attach_another_users_file(client):
+    alice_token = register_and_token(client, "attachment-alice", "attachment-alice@example.com")
+    bob_token = register_and_token(client, "attachment-bob", "attachment-bob@example.com")
+
+    bob_file = upload_attachment_file(client, bob_token, name="bob-note.json")
+    assert bob_file.status_code == 201
+
+    post_response = client.post(
+        "/api/forum/posts",
+        json={
+            **post_payload("越权附件帖", "这条帖子不应该能关联别人的文件。"),
+            "attachmentFileIds": [bob_file.json()["id"]],
+        },
+        headers=auth_headers(alice_token),
+    )
+
+    assert post_response.status_code == 404
+    assert post_response.json()["detail"] == "Attachment file not found"
 
 
 def test_public_forum_posts_support_reply_publish_and_comment_sorting(client, db_session):
