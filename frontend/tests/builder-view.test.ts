@@ -357,6 +357,53 @@ describe('builder view', () => {
     expect(wrapper.find('.custom-library-block').text()).toContain('突破止盈模板')
   })
 
+  it('shows an empty custom block library state without treating it as a load failure', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    mockCustomBlockLibrary([])
+
+    const wrapper = mount(BuilderView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('暂无积木')
+    expect(wrapper.text()).not.toContain('我的积木加载失败')
+
+    await wrapper.find('.block-library-search').setValue('不存在的积木')
+
+    expect(wrapper.text()).toContain('暂无匹配的自定义积木')
+  })
+
+  it('treats an unavailable authenticated custom block library as empty instead of failed', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'stale-token',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    vi.mocked(apiClient.get).mockImplementation((url) => {
+      if (url === '/custom-blocks') {
+        return Promise.reject({ response: { status: 401 } })
+      }
+
+      return Promise.resolve({
+        data: {
+          items: [],
+          total: 0,
+          page: 1,
+          pageSize: 50
+        }
+      })
+    })
+
+    const wrapper = mount(BuilderView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('暂无积木')
+    expect(wrapper.text()).not.toContain('我的积木加载失败')
+  })
+
   it('disambiguates historical duplicate custom block names in the library', async () => {
     const authStore = useAuthStore()
     authStore.setSession({

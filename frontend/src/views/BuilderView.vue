@@ -1409,9 +1409,13 @@ async function loadCustomBlockLibrary() {
       params: { page: 1, pageSize: 50 }
     })
     customBlockLibrary.value = response.data.items
-  } catch {
+  } catch (requestError) {
     customBlockLibrary.value = []
-    customBlockLibraryError.value = '我的积木加载失败'
+    if ([401, 403].includes(responseStatusFromError(requestError) ?? 0)) {
+      customBlockLibraryError.value = ''
+    } else {
+      customBlockLibraryError.value = '我的积木加载失败'
+    }
   } finally {
     customBlockLibraryLoading.value = false
   }
@@ -2603,7 +2607,7 @@ function clearCanvas() {
             {{ customBlockLibraryError }}
           </p>
           <p v-else-if="filteredCustomBlocks.length === 0" class="custom-block-library-hint">
-            暂无匹配的自定义积木
+            {{ blockSearchQuery.trim() ? '暂无匹配的自定义积木' : '暂无积木' }}
           </p>
           <div v-else class="block-library-group-items">
             <button
