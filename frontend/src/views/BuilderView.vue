@@ -354,6 +354,34 @@ const blockDefinitions: BlockDefinition[] = [
     ]
   },
   {
+    id: 'rebalance',
+    label: '调仓',
+    category: '动作',
+    tone: 'action',
+    fields: [
+      {
+        key: 'targetPositionPercent',
+        label: '目标仓位',
+        type: 'number',
+        defaultValue: '50',
+        min: '0',
+        max: '100',
+        step: '1',
+        suffix: '%'
+      },
+      {
+        key: 'orderType',
+        label: '委托方式',
+        type: 'select',
+        defaultValue: 'market',
+        options: [
+          { label: '市价', value: 'market' },
+          { label: '限价', value: 'limit' }
+        ]
+      }
+    ]
+  },
+  {
     id: 'clear',
     label: '清仓',
     category: '动作',
@@ -482,6 +510,154 @@ const blockDefinitions: BlockDefinition[] = [
         options: [
           { label: '价格在均线上方', value: 'above' },
           { label: '价格在均线下方', value: 'below' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'rsi',
+    label: 'RSI',
+    category: '行情指标',
+    tone: 'indicator',
+    fields: [
+      {
+        key: 'period',
+        label: 'RSI周期',
+        type: 'number',
+        defaultValue: '14',
+        min: '2',
+        step: '1'
+      },
+      {
+        key: 'comparator',
+        label: '比较方式',
+        type: 'select',
+        defaultValue: '<=',
+        options: [
+          { label: '小于等于', value: '<=' },
+          { label: '大于等于', value: '>=' }
+        ]
+      },
+      {
+        key: 'value',
+        label: '阈值',
+        type: 'number',
+        defaultValue: '30',
+        min: '0',
+        max: '100',
+        step: '1'
+      }
+    ]
+  },
+  {
+    id: 'macd',
+    label: 'MACD',
+    category: '行情指标',
+    tone: 'indicator',
+    fields: [
+      {
+        key: 'fastPeriod',
+        label: '快线周期',
+        type: 'number',
+        defaultValue: '12',
+        min: '2',
+        step: '1'
+      },
+      {
+        key: 'slowPeriod',
+        label: '慢线周期',
+        type: 'number',
+        defaultValue: '26',
+        min: '3',
+        step: '1'
+      },
+      {
+        key: 'signalPeriod',
+        label: '信号周期',
+        type: 'number',
+        defaultValue: '9',
+        min: '2',
+        step: '1'
+      },
+      {
+        key: 'signal',
+        label: '触发信号',
+        type: 'select',
+        defaultValue: 'bullish-cross',
+        options: [
+          { label: '金叉', value: 'bullish-cross' },
+          { label: '死叉', value: 'bearish-cross' },
+          { label: '柱值 >=', value: 'histogram-gte' },
+          { label: '柱值 <=', value: 'histogram-lte' }
+        ]
+      },
+      {
+        key: 'histogramValue',
+        label: '柱值阈值',
+        type: 'number',
+        defaultValue: '0',
+        step: '0.01'
+      }
+    ]
+  },
+  {
+    id: 'bollinger-band',
+    label: '布林带',
+    category: '行情指标',
+    tone: 'indicator',
+    fields: [
+      {
+        key: 'period',
+        label: '周期',
+        type: 'number',
+        defaultValue: '20',
+        min: '2',
+        step: '1'
+      },
+      {
+        key: 'stddev',
+        label: '标准差倍数',
+        type: 'number',
+        defaultValue: '2',
+        min: '0.5',
+        step: '0.1'
+      },
+      {
+        key: 'relation',
+        label: '价格位置',
+        type: 'select',
+        defaultValue: 'below-lower',
+        options: [
+          { label: '跌破下轨', value: 'below-lower' },
+          { label: '突破上轨', value: 'above-upper' },
+          { label: '位于轨道内', value: 'inside' },
+          { label: '站上中轨', value: 'above-middle' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'vwap',
+    label: 'VWAP',
+    category: '行情指标',
+    tone: 'indicator',
+    fields: [
+      {
+        key: 'period',
+        label: '回看K线数',
+        type: 'number',
+        defaultValue: '20',
+        min: '1',
+        step: '1'
+      },
+      {
+        key: 'relation',
+        label: '价格位置',
+        type: 'select',
+        defaultValue: 'above',
+        options: [
+          { label: '价格在VWAP上方', value: 'above' },
+          { label: '价格在VWAP下方', value: 'below' }
         ]
       }
     ]

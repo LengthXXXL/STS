@@ -1055,6 +1055,189 @@ def test_engine_uses_not_logic_before_buying():
     assert result.trades[0].price == 10.301
 
 
+def test_engine_uses_rsi_condition_before_buying():
+    request = _request(
+        [
+            {
+                "id": "rsi-1",
+                "type": "rsi",
+                "label": "RSI",
+                "x": 0,
+                "y": 0,
+                "params": {"period": "3", "comparator": "<=", "value": "30"},
+            },
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 160,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+        ],
+        edges=[{"id": "rsi-buy", "from": "rsi-1", "to": "buy-1"}],
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", close=9.5),
+        MarketCandle(time="2026-01-01 09:45", close=9.0),
+        MarketCandle(time="2026-01-01 09:50", close=8.5),
+        MarketCandle(time="2026-01-01 09:55", open=8.6, close=8.7),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades[0].side == "BUY"
+    assert result.trades[0].time == "2026-01-01 09:55"
+    assert result.trades[0].price == 8.6009
+
+
+def test_engine_uses_macd_histogram_condition_before_buying():
+    request = _request(
+        [
+            {
+                "id": "macd-1",
+                "type": "macd",
+                "label": "MACD",
+                "x": 0,
+                "y": 0,
+                "params": {
+                    "fastPeriod": "2",
+                    "slowPeriod": "3",
+                    "signalPeriod": "2",
+                    "signal": "histogram-gte",
+                    "histogramValue": "0",
+                },
+            },
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 160,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+        ],
+        edges=[{"id": "macd-buy", "from": "macd-1", "to": "buy-1"}],
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", close=10.0),
+        MarketCandle(time="2026-01-01 09:45", close=10.0),
+        MarketCandle(time="2026-01-01 09:50", close=12.0),
+        MarketCandle(time="2026-01-01 09:55", close=14.0),
+        MarketCandle(time="2026-01-01 10:00", open=15.0, close=15.0),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades[0].side == "BUY"
+    assert result.trades[0].time == "2026-01-01 10:00"
+    assert result.trades[0].price == 15.0015
+
+
+def test_engine_uses_bollinger_band_condition_before_buying():
+    request = _request(
+        [
+            {
+                "id": "bollinger-1",
+                "type": "bollinger-band",
+                "label": "布林带",
+                "x": 0,
+                "y": 0,
+                "params": {"period": "3", "stddev": "1", "relation": "below-lower"},
+            },
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 160,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+        ],
+        edges=[{"id": "bollinger-buy", "from": "bollinger-1", "to": "buy-1"}],
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", close=10.0),
+        MarketCandle(time="2026-01-01 09:45", close=10.0),
+        MarketCandle(time="2026-01-01 09:50", close=8.0),
+        MarketCandle(time="2026-01-01 09:55", open=8.1, close=8.2),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades[0].side == "BUY"
+    assert result.trades[0].time == "2026-01-01 09:55"
+    assert result.trades[0].price == 8.1008
+
+
+def test_engine_uses_vwap_condition_before_buying():
+    request = _request(
+        [
+            {
+                "id": "vwap-1",
+                "type": "vwap",
+                "label": "VWAP",
+                "x": 0,
+                "y": 0,
+                "params": {"period": "2", "relation": "above"},
+            },
+            {
+                "id": "buy-1",
+                "type": "buy",
+                "label": "买入",
+                "x": 160,
+                "y": 0,
+                "params": {"sizePercent": "100", "orderType": "market"},
+            },
+        ],
+        edges=[{"id": "vwap-buy", "from": "vwap-1", "to": "buy-1"}],
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", high=10.1, low=9.9, close=10.0, volume=100),
+        MarketCandle(time="2026-01-01 09:40", high=11.1, low=10.9, close=11.0, volume=100),
+        MarketCandle(time="2026-01-01 09:45", open=11.2, close=11.3, volume=100),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert result.trades[0].side == "BUY"
+    assert result.trades[0].time == "2026-01-01 09:45"
+    assert result.trades[0].price == 11.2011
+
+
+def test_engine_rebalances_to_target_position_after_price_move():
+    request = _request(
+        [
+            {
+                "id": "rebalance-1",
+                "type": "rebalance",
+                "label": "调仓",
+                "x": 0,
+                "y": 0,
+                "params": {"targetPositionPercent": "80", "orderType": "market"},
+            },
+        ],
+        initial_cash=1000,
+    )
+    candles = [
+        MarketCandle(time="2026-01-01 09:35", close=10.0),
+        MarketCandle(time="2026-01-01 09:40", open=10.0, close=20.0),
+        MarketCandle(time="2026-01-01 09:45", open=20.0, close=20.0),
+    ]
+
+    result = run_backtest_with_candles(request, candles)
+
+    assert [trade.side for trade in result.trades[:2]] == ["BUY", "SELL"]
+    assert result.trades[0].reason == "调仓至 80% 仓位"
+    assert result.trades[0].quantity == 79
+    assert result.trades[1].reason == "调仓至 80% 仓位"
+    assert result.trades[1].quantity > 0
+    assert result.timeline[0].node_label == "调仓"
+
+
 def test_engine_applies_moving_stop_after_profit_retraces():
     request = _request(
         [

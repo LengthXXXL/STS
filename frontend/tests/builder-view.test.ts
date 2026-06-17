@@ -184,11 +184,16 @@ describe('builder view', () => {
     expect(wrapper.find('.strategy-review-modal').exists()).toBe(false)
     expect(wrapper.text()).toContain('积木库')
     expect(wrapper.text()).toContain('买入')
+    expect(wrapper.text()).toContain('调仓')
     expect(wrapper.text()).toContain('如果')
     expect(wrapper.text()).toContain('与')
     expect(wrapper.text()).toContain('或')
     expect(wrapper.text()).toContain('非')
     expect(wrapper.text()).toContain('N根收益率')
+    expect(wrapper.text()).toContain('RSI')
+    expect(wrapper.text()).toContain('MACD')
+    expect(wrapper.text()).toContain('布林带')
+    expect(wrapper.text()).toContain('VWAP')
     expect(wrapper.text()).toContain('移动止损')
     expect(wrapper.text()).toContain('止损')
     expect(wrapper.text()).toContain('风控')
@@ -310,7 +315,7 @@ describe('builder view', () => {
   it('filters the block library by the search keyword', async () => {
     const wrapper = mount(BuilderView)
 
-    expect(wrapper.findAll('.library-block')).toHaveLength(17)
+    expect(wrapper.findAll('.library-block')).toHaveLength(22)
 
     await wrapper.find('.block-library-search').setValue('移动')
 
@@ -320,7 +325,12 @@ describe('builder view', () => {
 
     await wrapper.find('.block-library-search').setValue('动作')
 
-    expect(wrapper.findAll('.library-block')).toHaveLength(3)
+    expect(wrapper.findAll('.library-block')).toHaveLength(4)
+
+    await wrapper.find('.block-library-search').setValue('MACD')
+
+    expect(wrapper.findAll('.library-block')).toHaveLength(1)
+    expect(wrapper.find('.library-block').text()).toContain('MACD')
   })
 
   it('loads authenticated custom block templates into the block library', async () => {

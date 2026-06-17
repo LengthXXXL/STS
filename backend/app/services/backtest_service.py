@@ -32,6 +32,7 @@ PRICE_TICK = Decimal("0.01")
 @dataclass(slots=True)
 class Position:
     quantity: int = 0
+    sellable_quantity: int = 0
     average_price: float = 0
     highest_price: float = 0
     holding_bars: int = 0
@@ -54,6 +55,10 @@ CONDITION_NODE_TYPES = {
     "current-price",
     "price-change",
     "moving-average",
+    "rsi",
+    "macd",
+    "bollinger-band",
+    "vwap",
     "volume-change",
     "position-state",
     "time-window",
@@ -88,10 +93,12 @@ def run_backtest_with_candles(
     closed_trade_wins = 0
     cooldown_remaining = 0
     pending_buy_node: StrategyNode | None = None
+    pending_rebalance_node: StrategyNode | None = None
     pending_exit_rule: ExitRule | None = None
     last_regular_session_candle: MarketCandle | None = None
 
     buy_node = _first_node(request, "buy")
+    rebalance_node = _first_node(request, "rebalance")
     sell_node = _first_node(request, "sell")
     clear_node = _first_node(request, "clear")
     take_profit_node = _first_node(request, "take-profit")
@@ -125,6 +132,7 @@ def run_backtest_with_candles(
             continue
 
         last_regular_session_candle = candle
+        _refresh_sellable_position(position, candle, market_rule)
 
         if pending_exit_rule and position.quantity > 0:
             cash, exit_filled, exit_won = _fill_exit_rule(
@@ -144,6 +152,24 @@ def run_backtest_with_candles(
                     closed_trade_wins += 1
                 sold_this_candle = True
             pending_exit_rule = None
+
+        if pending_rebalance_node and not sold_this_candle:
+            cash, rebalance_sold, rebalance_won = _fill_rebalance_order(
+                cash=cash,
+                position=position,
+                candle=candle,
+                rebalance_node=pending_rebalance_node,
+                market_rule=market_rule,
+                trades=trades,
+                events=events,
+                timeline=timeline,
+            )
+            if rebalance_sold:
+                closed_trade_count += 1
+                if rebalance_won:
+                    closed_trade_wins += 1
+                sold_this_candle = True
+            pending_rebalance_node = None
 
         if pending_buy_node and position.quantity == 0 and not sold_this_candle:
             if cooldown_remaining > 0:
@@ -219,8 +245,24 @@ def run_backtest_with_candles(
                 pending_exit_rule = ordinary_exit_rule
 
         if (
+            not pending_exit_rule
+            and rebalance_node
+            and not sold_this_candle
+            and candle_index + 1 < len(candles)
+            and _action_conditions_pass(
+                request=request,
+                target_node=rebalance_node,
+                candles=candles,
+                candle_index=candle_index,
+                position=position,
+            )
+        ):
+            pending_rebalance_node = rebalance_node
+
+        if (
             position.quantity == 0
             and buy_node
+            and pending_rebalance_node is None
             and not sold_this_candle
             and candle_index + 1 < len(candles)
             and _action_conditions_pass(
@@ -251,6 +293,7 @@ def run_backtest_with_candles(
     ):
         last_candle = last_regular_session_candle
         final_node = clear_node or sell_node
+        final_average_price = position.average_price
         cash, final_filled = _sell_remaining_position(
             cash=cash,
             position=position,
@@ -263,6 +306,9 @@ def run_backtest_with_candles(
         )
         if final_filled:
             final_reason = trades[-1].reason
+            final_sell_won = (
+                trades[-1].net_cash_change / trades[-1].quantity > final_average_price
+            )
             timeline.append(
                 _timeline_trade_filled(
                     sequence=len(timeline),
@@ -274,24 +320,20 @@ def run_backtest_with_candles(
                     node=final_node,
                 )
             )
-            timeline.append(
-                _timeline_position_closed(
-                    sequence=len(timeline),
-                    time=last_candle.time,
-                    reason=final_reason,
-                    node=final_node,
-                )
-            )
             closed_trade_count += 1
-            if trades[-1].net_cash_change / trades[-1].quantity > position.average_price:
+            if final_sell_won:
                 closed_trade_wins += 1
-            position.quantity = 0
-            position.average_price = 0
-            position.highest_price = 0
-            position.holding_bars = 0
-            position.entry_date = None
-            _replace_final_equity_point(equity_curve, last_candle.time, round(cash, 2))
-            ending_equity = round(cash, 2)
+            if position.quantity <= 0:
+                timeline.append(
+                    _timeline_position_closed(
+                        sequence=len(timeline),
+                        time=last_candle.time,
+                        reason=final_reason,
+                        node=final_node,
+                    )
+                )
+            ending_equity = round(cash + position.quantity * last_candle.close, 2)
+            _replace_final_equity_point(equity_curve, last_candle.time, ending_equity)
 
     return _build_response(
         request=request,
@@ -327,6 +369,8 @@ def _fill_buy_order(
     market_rule: MarketRuleResponse,
     trades: list[BacktestTrade],
     timeline: list[BacktestTimelineItem],
+    target_cash: float | None = None,
+    reason: str = "买入积木触发",
 ) -> float:
     prepared_order = _prepare_order(
         market_rule=market_rule,
@@ -353,7 +397,7 @@ def _fill_buy_order(
     buy_quantity = affordable_buy_quantity(
         cash=cash,
         base_price=prepared_order.base_price,
-        target_cash=cash * buy_percent / 100,
+        target_cash=target_cash if target_cash is not None else cash * buy_percent / 100,
         market_rule=market_rule,
     )
     if buy_quantity <= 0:
@@ -400,18 +444,26 @@ def _fill_buy_order(
         market_rule=market_rule,
     )
     cash = round(cash + fill.net_cash_change, 2)
-    position.quantity = buy_quantity
-    position.average_price = round((fill.gross_amount + fill.cost_amount) / buy_quantity, 4)
-    position.highest_price = fill.price
-    position.holding_bars = 0
-    position.entry_date = _trade_date(candle.time)
+    previous_quantity = position.quantity
+    previous_cost_basis = position.average_price * previous_quantity
+    position.quantity += buy_quantity
+    position.average_price = round(
+        (previous_cost_basis + fill.gross_amount + fill.cost_amount) / position.quantity,
+        4,
+    )
+    position.highest_price = max(position.highest_price, fill.price)
+    if previous_quantity == 0:
+        position.holding_bars = 0
+        position.entry_date = _trade_date(candle.time)
+    if market_rule.supports_intraday_round_trip:
+        position.sellable_quantity = position.quantity
     trades.append(
         BacktestTrade(
             time=candle.time,
             side="BUY",
             price=fill.price,
             quantity=buy_quantity,
-            reason="买入积木触发",
+            reason=reason,
             grossAmount=fill.gross_amount,
             costAmount=fill.cost_amount,
             slippageAmount=fill.slippage_amount,
@@ -426,11 +478,82 @@ def _fill_buy_order(
             side="BUY",
             price=fill.price,
             quantity=buy_quantity,
-            reason="买入积木触发",
+            reason=reason,
             node=buy_node,
         )
     )
     return cash
+
+
+def _fill_rebalance_order(
+    *,
+    cash: float,
+    position: Position,
+    candle: MarketCandle,
+    rebalance_node: StrategyNode,
+    market_rule: MarketRuleResponse,
+    trades: list[BacktestTrade],
+    events: list[BacktestEvent],
+    timeline: list[BacktestTimelineItem],
+) -> tuple[float, bool, bool]:
+    target_percent = _node_percent(rebalance_node, "targetPositionPercent", 50)
+    execution_price = candle.open_price
+    if execution_price <= 0:
+        return cash, False, False
+
+    equity = cash + position.quantity * execution_price
+    target_value = equity * target_percent / 100
+    current_value = position.quantity * execution_price
+    diff_value = target_value - current_value
+    min_trade_value = execution_price * market_rule.min_order_shares
+    reason = f"调仓至 {target_percent:g}% 仓位"
+
+    if diff_value >= min_trade_value:
+        next_cash = _fill_buy_order(
+            cash=cash,
+            position=position,
+            candle=candle,
+            execution_price=execution_price,
+            buy_node=rebalance_node,
+            buy_percent=target_percent,
+            market_rule=market_rule,
+            trades=trades,
+            timeline=timeline,
+            target_cash=diff_value,
+            reason=reason,
+        )
+        return next_cash, False, False
+
+    if position.quantity <= 0 or diff_value > -execution_price:
+        return cash, False, False
+
+    if target_percent <= 0:
+        sell_quantity = position.quantity
+    else:
+        target_quantity = max(0, int(target_value / execution_price))
+        sell_quantity = position.quantity - target_quantity
+
+    if sell_quantity <= 0:
+        return cash, False, False
+
+    return _fill_exit_rule(
+        cash=cash,
+        position=position,
+        candle=candle,
+        execution_price=execution_price,
+        exit_rule=ExitRule(
+            node=rebalance_node,
+            kind="rebalance",
+            param_key="targetPositionPercent",
+            default_percent=target_percent,
+            reason=reason,
+        ),
+        market_rule=market_rule,
+        trades=trades,
+        events=events,
+        timeline=timeline,
+        sell_quantity_override=sell_quantity,
+    )
 
 
 def _fill_exit_rule(
@@ -444,13 +567,15 @@ def _fill_exit_rule(
     trades: list[BacktestTrade],
     events: list[BacktestEvent],
     timeline: list[BacktestTimelineItem],
+    sell_quantity_override: int | None = None,
 ) -> tuple[float, bool, bool]:
     fill_price = round(execution_price, 4)
-    sell_quantity = _quantity_from_percent(
+    requested_sell_quantity = sell_quantity_override or _quantity_from_percent(
         position.quantity,
         _node_percent(exit_rule.node, exit_rule.param_key, exit_rule.default_percent),
     )
-    if market_rule and not _can_sell_position(position, candle, market_rule):
+    sell_quantity = min(requested_sell_quantity, _sellable_quantity(position, market_rule))
+    if market_rule and sell_quantity <= 0 and requested_sell_quantity > 0:
         block_reason = _sell_block_reason(market_rule)
         events.append(
             BacktestEvent(
@@ -458,7 +583,7 @@ def _fill_exit_rule(
                 eventType="BLOCKED_ORDER",
                 side="SELL",
                 price=fill_price,
-                quantity=sell_quantity,
+                quantity=requested_sell_quantity,
                 reason=block_reason,
                 rule=market_rule.settlement_cycle,
             )
@@ -469,7 +594,7 @@ def _fill_exit_rule(
                 time=candle.time,
                 side="SELL",
                 price=fill_price,
-                quantity=sell_quantity,
+                quantity=requested_sell_quantity,
                 reason=block_reason,
                 rule=market_rule.settlement_cycle,
                 node=exit_rule.node,
@@ -548,9 +673,14 @@ def _fill_exit_rule(
     )
 
     position.quantity -= sell_quantity
-    closed_by_clear = exit_rule.kind == "clear" and position.quantity <= 0
+    if market_rule.supports_intraday_round_trip:
+        position.sellable_quantity = position.quantity
+    else:
+        position.sellable_quantity = max(0, position.sellable_quantity - sell_quantity)
+    closed_by_clear = exit_rule.kind in {"clear", "rebalance"} and position.quantity <= 0
     if position.quantity <= 0:
         position.quantity = 0
+        position.sellable_quantity = 0
         position.average_price = 0
         position.highest_price = 0
         position.holding_bars = 0
@@ -759,6 +889,64 @@ def _condition_node_passes(
         if node.params.get("relation") == "below":
             return candle.close <= average_close
         return candle.close >= average_close
+
+    if node.type == "rsi":
+        rsi_value = _rsi_value(candles, candle_index, _node_int(node, "period", 14))
+        if rsi_value is None:
+            return False
+        return _compare(
+            rsi_value,
+            node.params.get("comparator", "<="),
+            _node_float(node, "value", 30),
+        )
+
+    if node.type == "macd":
+        macd_values = _macd_values(
+            candles,
+            candle_index,
+            fast_period=_node_int(node, "fastPeriod", 12),
+            slow_period=_node_int(node, "slowPeriod", 26),
+            signal_period=_node_int(node, "signalPeriod", 9),
+        )
+        if macd_values is None:
+            return False
+        mode = node.params.get("signal", "bullish-cross")
+        current_macd, current_signal, previous_macd, previous_signal = macd_values
+        histogram = current_macd - current_signal
+        if mode == "bearish-cross":
+            return previous_macd >= previous_signal and current_macd < current_signal
+        if mode == "histogram-gte":
+            return histogram >= _node_float(node, "histogramValue", 0)
+        if mode == "histogram-lte":
+            return histogram <= _node_float(node, "histogramValue", 0)
+        return previous_macd <= previous_signal and current_macd > current_signal
+
+    if node.type == "bollinger-band":
+        bands = _bollinger_bands(
+            candles,
+            candle_index,
+            period=_node_int(node, "period", 20),
+            stddev_multiplier=_node_float(node, "stddev", 2),
+        )
+        if bands is None:
+            return False
+        lower_band, middle_band, upper_band = bands
+        relation = node.params.get("relation", "below-lower")
+        if relation == "above-upper":
+            return candle.close > upper_band
+        if relation == "inside":
+            return lower_band <= candle.close <= upper_band
+        if relation == "above-middle":
+            return candle.close >= middle_band
+        return candle.close < lower_band
+
+    if node.type == "vwap":
+        vwap_value = _vwap_value(candles, candle_index, _node_int(node, "period", 20))
+        if vwap_value is None:
+            return False
+        if node.params.get("relation") == "below":
+            return candle.close <= vwap_value
+        return candle.close >= vwap_value
 
     if node.type == "volume-change":
         lookback = _node_int(node, "lookbackBars", 1)
@@ -1077,12 +1265,16 @@ def _sell_remaining_position(
     reason: str,
     node: StrategyNode | None,
 ) -> tuple[float, bool]:
+    sell_quantity = _sellable_quantity(position, market_rule)
+    if sell_quantity <= 0:
+        return cash, False
+
     prepared_order = _prepare_order(
         market_rule=market_rule,
         candle=candle,
         side="SELL",
         execution_price=candle.close,
-        quantity=position.quantity,
+        quantity=sell_quantity,
     )
     if not prepared_order.allowed:
         timeline.append(
@@ -1091,7 +1283,7 @@ def _sell_remaining_position(
                 time=candle.time,
                 side="SELL",
                 price=prepared_order.base_price,
-                quantity=position.quantity,
+                quantity=sell_quantity,
                 reason=prepared_order.reason,
                 rule=prepared_order.rule,
                 node=node,
@@ -1102,7 +1294,7 @@ def _sell_remaining_position(
     fill = calculate_trade_fill(
         side="SELL",
         base_price=prepared_order.base_price,
-        quantity=position.quantity,
+        quantity=sell_quantity,
         market_rule=market_rule,
     )
     trades.append(
@@ -1110,7 +1302,7 @@ def _sell_remaining_position(
             time=candle.time,
             side="SELL",
             price=fill.price,
-            quantity=position.quantity,
+            quantity=sell_quantity,
             reason=reason,
             grossAmount=fill.gross_amount,
             costAmount=fill.cost_amount,
@@ -1119,6 +1311,18 @@ def _sell_remaining_position(
             costBreakdown=fill.cost_breakdown,
         )
     )
+    position.quantity -= sell_quantity
+    if market_rule.supports_intraday_round_trip:
+        position.sellable_quantity = position.quantity
+    else:
+        position.sellable_quantity = max(0, position.sellable_quantity - sell_quantity)
+    if position.quantity <= 0:
+        position.quantity = 0
+        position.sellable_quantity = 0
+        position.average_price = 0
+        position.highest_price = 0
+        position.holding_bars = 0
+        position.entry_date = None
     return round(cash + fill.net_cash_change, 2), True
 
 
@@ -1154,9 +1358,30 @@ def _can_sell_position(
     candle: MarketCandle,
     market_rule: MarketRuleResponse,
 ) -> bool:
+    return _sellable_quantity(position, market_rule) > 0
+
+
+def _refresh_sellable_position(
+    position: Position,
+    candle: MarketCandle,
+    market_rule: MarketRuleResponse,
+) -> None:
+    if position.quantity <= 0:
+        position.sellable_quantity = 0
+        return
     if market_rule.supports_intraday_round_trip:
-        return True
-    return position.entry_date is not None and _trade_date(candle.time) > position.entry_date
+        position.sellable_quantity = position.quantity
+        return
+    if position.entry_date is not None and _trade_date(candle.time) > position.entry_date:
+        position.sellable_quantity = position.quantity
+
+
+def _sellable_quantity(position: Position, market_rule: MarketRuleResponse) -> int:
+    if position.quantity <= 0:
+        return 0
+    if market_rule.supports_intraday_round_trip:
+        return position.quantity
+    return min(position.quantity, max(0, position.sellable_quantity))
 
 
 def _sell_block_reason(market_rule: MarketRuleResponse) -> str:
@@ -1237,6 +1462,100 @@ def _time_in_window(current_time: str, start_time: str, end_time: str) -> bool:
     if start_time <= end_time:
         return start_time <= current_time <= end_time
     return current_time >= start_time or current_time <= end_time
+
+
+def _rsi_value(candles: list[MarketCandle], candle_index: int, period: int) -> float | None:
+    if candle_index - period < 0:
+        return None
+
+    gains = 0.0
+    losses = 0.0
+    for index in range(candle_index - period + 1, candle_index + 1):
+        change = candles[index].close - candles[index - 1].close
+        if change >= 0:
+            gains += change
+        else:
+            losses += abs(change)
+
+    average_gain = gains / period
+    average_loss = losses / period
+    if average_gain == 0 and average_loss == 0:
+        return 50
+    if average_loss == 0:
+        return 100
+    relative_strength = average_gain / average_loss
+    return 100 - (100 / (1 + relative_strength))
+
+
+def _macd_values(
+    candles: list[MarketCandle],
+    candle_index: int,
+    *,
+    fast_period: int,
+    slow_period: int,
+    signal_period: int,
+) -> tuple[float, float, float, float] | None:
+    if slow_period <= fast_period or candle_index < 1:
+        return None
+
+    closes = [candle.close for candle in candles[: candle_index + 1]]
+    if len(closes) < slow_period + signal_period:
+        return None
+
+    fast_ema = _ema_series(closes, fast_period)
+    slow_ema = _ema_series(closes, slow_period)
+    macd_series = [fast - slow for fast, slow in zip(fast_ema, slow_ema, strict=True)]
+    signal_series = _ema_series(macd_series, signal_period)
+    return (
+        macd_series[-1],
+        signal_series[-1],
+        macd_series[-2],
+        signal_series[-2],
+    )
+
+
+def _ema_series(values: list[float], period: int) -> list[float]:
+    smoothing = 2 / (period + 1)
+    ema_values = [values[0]]
+    for value in values[1:]:
+        ema_values.append(value * smoothing + ema_values[-1] * (1 - smoothing))
+    return ema_values
+
+
+def _bollinger_bands(
+    candles: list[MarketCandle],
+    candle_index: int,
+    *,
+    period: int,
+    stddev_multiplier: float,
+) -> tuple[float, float, float] | None:
+    if candle_index - period + 1 < 0:
+        return None
+
+    closes = [candle.close for candle in candles[candle_index - period + 1 : candle_index + 1]]
+    middle_band = sum(closes) / period
+    variance = sum((close - middle_band) ** 2 for close in closes) / period
+    stddev = variance**0.5
+    lower_band = middle_band - stddev_multiplier * stddev
+    upper_band = middle_band + stddev_multiplier * stddev
+    return lower_band, middle_band, upper_band
+
+
+def _vwap_value(candles: list[MarketCandle], candle_index: int, period: int) -> float | None:
+    if candle_index - period + 1 < 0:
+        return None
+
+    window = candles[candle_index - period + 1 : candle_index + 1]
+    total_volume = sum(candle.volume for candle in window)
+    if total_volume <= 0:
+        return None
+
+    total_value = sum(_typical_price(candle) * candle.volume for candle in window)
+    return total_value / total_volume
+
+
+def _typical_price(candle: MarketCandle) -> float:
+    return (candle.high_price + candle.low_price + candle.close) / 3
 
 
 def _max_drawdown_percent(equity_curve: list[EquityPoint]) -> float:
