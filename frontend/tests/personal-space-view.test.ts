@@ -190,6 +190,19 @@ const savedForumComment = {
   updatedAt: '2026-06-07T10:30:00'
 }
 
+const savedFile = {
+  id: 51,
+  ownerId: 1,
+  originalName: '策略说明.json',
+  contentType: 'application/json',
+  size: 2048,
+  businessType: 'strategy',
+  businessId: null,
+  visibility: 'private',
+  createdAt: '2026-06-08T09:00:00',
+  downloadUrl: '/api/files/51/download'
+}
+
 const backtestDetail = {
   ...savedBacktest,
   strategy: savedStrategy.strategy,
@@ -268,8 +281,14 @@ const backtestDetail = {
   ]
 }
 
-function mockPersonalSpaceRequests(options: { customBlocks?: Array<typeof savedCustomBlock> } = {}) {
+function mockPersonalSpaceRequests(
+  options: {
+    customBlocks?: Array<typeof savedCustomBlock>
+    files?: Array<typeof savedFile>
+  } = {}
+) {
   const customBlockItems = options.customBlocks ?? [savedCustomBlock]
+  const fileItems = options.files ?? [savedFile]
 
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
     if (url === '/strategies') {
@@ -310,6 +329,16 @@ function mockPersonalSpaceRequests(options: { customBlocks?: Array<typeof savedC
         data: {
           items: customBlockItems,
           total: customBlockItems.length,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
+    if (url === '/files') {
+      return Promise.resolve({
+        data: {
+          items: fileItems,
+          total: fileItems.length,
           page: 1,
           pageSize: 10
         }
@@ -389,6 +418,16 @@ function mockPersonalSpaceRequestsWithDelayedBacktestDetail() {
         }
       })
     }
+    if (url === '/files') {
+      return Promise.resolve({
+        data: {
+          items: [savedFile],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
     if (url === '/forum/my-posts') {
       return Promise.resolve({
         data: { items: [savedForumPost, rejectedForumPost], total: 2, page: 1, pageSize: 10 }
@@ -438,6 +477,9 @@ describe('personal space view', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/custom-blocks', {
       params: { keyword: '', page: 1, pageSize: 10 }
     })
+    expect(apiClient.get).toHaveBeenCalledWith('/files', {
+      params: { keyword: '', page: 1, pageSize: 10 }
+    })
     expect(apiClient.get).toHaveBeenCalledWith('/forum/my-posts', {
       params: { page: 1, pageSize: 10 }
     })
@@ -449,15 +491,18 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('我的积木')
     expect(wrapper.text()).toContain('模拟账户')
     expect(wrapper.text()).toContain('我的回测')
+    expect(wrapper.text()).toContain('文件管理')
     expect(wrapper.text()).toContain('我的论坛')
     expect(wrapper.text()).toContain('策略总数')
     expect(wrapper.text()).toContain('账户总数')
     expect(wrapper.text()).toContain('回测总数')
     expect(wrapper.text()).toContain('论坛内容')
+    expect(wrapper.text()).toContain('文件总数')
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('突破止盈模板')
     expect(wrapper.text()).toContain('A股日内账户')
     expect(wrapper.text()).toContain('000001.SZ')
+    expect(wrapper.text()).toContain('策略说明.json')
 
     await wrapper.find('.strategy-open-button').trigger('click')
 
@@ -472,7 +517,7 @@ describe('personal space view', () => {
     const wrapper = mount(PersonalSpaceView)
 
     await flushPromises()
-    expect(apiClient.get).toHaveBeenCalledTimes(7)
+    expect(apiClient.get).toHaveBeenCalledTimes(8)
 
     mockPersonalSpaceRequests()
     const authStore = useAuthStore()
@@ -488,10 +533,53 @@ describe('personal space view', () => {
     await nextTick()
     await flushPromises()
 
-    expect(apiClient.get).toHaveBeenCalledTimes(14)
+    expect(apiClient.get).toHaveBeenCalledTimes(16)
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('A股日内账户')
     expect(wrapper.text()).toContain('000001.SZ')
+  })
+
+  it('uploads, searches and deletes personal files', async () => {
+    mockPersonalSpaceRequests()
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: { ...savedFile, id: 52, originalName: '新策略说明.json' }
+    })
+    vi.mocked(apiClient.delete).mockResolvedValueOnce({ data: null })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="files"]').trigger('click')
+
+    expect(wrapper.text()).toContain('策略说明.json')
+    expect(wrapper.text()).toContain('策略附件')
+    expect(wrapper.text()).toContain('2 KB')
+
+    const file = new File(['{}'], '新策略说明.json', { type: 'application/json' })
+    const input = wrapper.find('.file-upload-input')
+    Object.defineProperty(input.element, 'files', {
+      value: [file],
+      configurable: true
+    })
+    await input.trigger('change')
+    await wrapper.find('.file-upload-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/files/upload', expect.any(FormData))
+    expect(wrapper.text()).toContain('已上传文件：新策略说明.json')
+
+    await wrapper.find('.space-search input').setValue('策略')
+    await wrapper.find('.space-search').trigger('submit')
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenCalledWith('/files', {
+      params: { keyword: '策略', page: 1, pageSize: 10 }
+    })
+
+    await wrapper.find('.file-delete-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/files/51')
+    expect(wrapper.text()).toContain('已删除文件：策略说明.json')
   })
 
   it('shows own forum posts and comments with review status', async () => {

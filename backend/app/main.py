@@ -11,6 +11,7 @@ from app.api import (
     auth,
     backtests,
     custom_blocks,
+    files,
     forum,
     health,
     market_data,
@@ -52,6 +53,7 @@ app.include_router(admin_forum.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(backtests.router, prefix="/api")
 app.include_router(custom_blocks.router, prefix="/api")
+app.include_router(files.router, prefix="/api")
 app.include_router(forum.router, prefix="/api")
 app.include_router(shared_blocks.router, prefix="/api")
 app.include_router(simulation_accounts.router, prefix="/api")

@@ -194,6 +194,7 @@ button {
 .strategy-item p,
 .account-item p,
 .strategy-item small,
+.file-item small,
 .account-item small,
 .space-footer {
   color: #a89bc1;
@@ -218,6 +219,7 @@ button {
 .strategy-rename-actions button,
 .space-tabs button,
 .account-form-actions button,
+.file-upload-form button,
 .custom-block-edit-actions button,
 .custom-block-delete-confirm button,
 .backtest-open-button,
@@ -263,6 +265,7 @@ button {
 .space-metric,
 .space-lane,
 .account-form,
+.file-upload-form,
 .space-detail-panel {
   border: 1px solid rgba(58, 49, 80, 0.82);
   border-radius: 8px;
@@ -317,6 +320,7 @@ button {
 .strategy-list,
 .custom-block-list,
 .account-list,
+.file-list,
 .space-forum-list {
   display: grid;
   gap: 10px;
@@ -325,6 +329,7 @@ button {
 .strategy-item,
 .custom-block-item,
 .account-item,
+.file-item,
 .backtest-item,
 .forum-space-item {
   display: flex;
@@ -346,6 +351,7 @@ button {
 .strategy-item h2,
 .custom-block-item h2,
 .account-item h2,
+.file-item h2,
 .backtest-item h2,
 .forum-space-item h2 {
   margin: 0 0 6px;
@@ -355,6 +361,7 @@ button {
 .strategy-item p,
 .custom-block-item p,
 .account-item p,
+.file-item p,
 .backtest-item p,
 .forum-space-item p {
   margin: 0 0 8px;
@@ -1731,6 +1738,53 @@ button {
 .account-submit-button {
   border-color: rgba(94, 230, 200, 0.44) !important;
   background: rgba(21, 57, 53, 0.76) !important;
+}
+
+.file-upload-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(260px, 420px) auto;
+  gap: 14px;
+  align-items: end;
+  padding: 14px;
+}
+
+.file-upload-form strong {
+  font-size: 17px;
+}
+
+.file-upload-form p {
+  margin: 6px 0 0;
+  color: #a89bc1;
+}
+
+.file-upload-form label {
+  display: grid;
+  gap: 6px;
+}
+
+.file-upload-form label span {
+  color: #a89bc1;
+  font-size: 13px;
+}
+
+.file-upload-form input {
+  width: 100%;
+  border: 1px solid #3a3150;
+  border-radius: 6px;
+  padding: 9px 10px;
+  color: #f7f2ff;
+  background: #09080d;
+}
+
+.file-upload-button,
+.file-download-button {
+  border-color: rgba(94, 230, 200, 0.44) !important;
+  background: rgba(21, 57, 53, 0.76) !important;
+}
+
+.file-upload-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.66;
 }
 
 .space-pagination {
@@ -3816,6 +3870,7 @@ button {
   .strategy-item,
   .custom-block-item,
   .account-item,
+  .file-item,
   .backtest-item {
     align-items: stretch;
     flex-direction: column;
@@ -3838,6 +3893,7 @@ button {
   .space-overview-lanes,
   .custom-block-edit-form,
   .account-layout,
+  .file-upload-form,
   .backtest-layout,
   .backtest-chart-grid,
   .snapshot-grid,

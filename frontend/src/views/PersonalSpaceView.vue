@@ -17,6 +17,7 @@ type SpaceTab =
   | 'custom-blocks'
   | 'accounts'
   | 'backtests'
+  | 'files'
   | 'forum'
 
 type ForumReviewStatus = 'pending_review' | 'approved' | 'rejected'
@@ -160,6 +161,26 @@ interface ForumCommentListResponse {
   pageSize: number
 }
 
+interface UploadedFileItem {
+  id: number
+  ownerId: number
+  originalName: string
+  contentType: string
+  size: number
+  businessType: string
+  businessId: number | null
+  visibility: string
+  createdAt: string
+  downloadUrl: string
+}
+
+interface UploadedFileListResponse {
+  items: UploadedFileItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 interface BacktestTrade {
   time: string
   side: 'BUY' | 'SELL'
@@ -247,16 +268,19 @@ const marketRules = ref<MarketRule[]>([])
 const backtests = ref<BacktestListItem[]>([])
 const forumPosts = ref<ForumPostItem[]>([])
 const forumComments = ref<ForumCommentItem[]>([])
+const uploadedFiles = ref<UploadedFileItem[]>([])
 const selectedBacktest = ref<BacktestDetail | null>(null)
 const strategyKeyword = ref('')
 const customBlockKeyword = ref('')
 const accountKeyword = ref('')
 const backtestKeyword = ref('')
+const fileKeyword = ref('')
 const activeForumTab = ref<ForumContentTab>('posts')
 const strategyPage = ref(1)
 const customBlockPage = ref(1)
 const accountPage = ref(1)
 const backtestPage = ref(1)
+const filePage = ref(1)
 const forumPostPage = ref(1)
 const forumCommentPage = ref(1)
 const pageSize = 10
@@ -264,12 +288,14 @@ const strategyTotal = ref(0)
 const customBlockTotal = ref(0)
 const accountTotal = ref(0)
 const backtestTotal = ref(0)
+const fileTotal = ref(0)
 const forumPostTotal = ref(0)
 const forumCommentTotal = ref(0)
 const strategyLoading = ref(false)
 const customBlockLoading = ref(false)
 const accountLoading = ref(false)
 const backtestLoading = ref(false)
+const fileLoading = ref(false)
 const forumPostLoading = ref(false)
 const forumCommentLoading = ref(false)
 const backtestDetailLoading = ref(false)
@@ -282,8 +308,14 @@ const customBlockActionMessage = ref('')
 const accountError = ref('')
 const marketRuleError = ref('')
 const backtestError = ref('')
+const fileError = ref('')
+const fileActionError = ref('')
+const fileActionMessage = ref('')
 const forumPostError = ref('')
 const forumCommentError = ref('')
+const selectedUploadFile = ref<File | null>(null)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const isUploadingFile = ref(false)
 const editingStrategyId = ref<number | null>(null)
 const strategyNameForm = ref('')
 const isSavingStrategyName = ref(false)
@@ -310,6 +342,7 @@ function spaceTabFromQuery(tab: unknown): SpaceTab {
     value === 'custom-blocks' ||
     value === 'accounts' ||
     value === 'backtests' ||
+    value === 'files' ||
     value === 'forum'
   ) {
     return value
@@ -340,6 +373,7 @@ const latestCustomBlock = computed(() => customBlocks.value[0] ?? null)
 const latestAccount = computed(() => accounts.value[0] ?? null)
 const latestBacktest = computed(() => backtests.value[0] ?? null)
 const latestForumPost = computed(() => forumPosts.value[0] ?? null)
+const latestFile = computed(() => uploadedFiles.value[0] ?? null)
 const forumContentTotal = computed(() => forumPostTotal.value + forumCommentTotal.value)
 const strategyTotalPages = computed(() => Math.max(1, Math.ceil(strategyTotal.value / pageSize)))
 const customBlockTotalPages = computed(() =>
@@ -347,6 +381,7 @@ const customBlockTotalPages = computed(() =>
 )
 const accountTotalPages = computed(() => Math.max(1, Math.ceil(accountTotal.value / pageSize)))
 const backtestTotalPages = computed(() => Math.max(1, Math.ceil(backtestTotal.value / pageSize)))
+const fileTotalPages = computed(() => Math.max(1, Math.ceil(fileTotal.value / pageSize)))
 const forumPostTotalPages = computed(() => Math.max(1, Math.ceil(forumPostTotal.value / pageSize)))
 const forumCommentTotalPages = computed(() =>
   Math.max(1, Math.ceil(forumCommentTotal.value / pageSize))
@@ -504,6 +539,26 @@ async function loadBacktests() {
   }
 }
 
+async function loadFiles() {
+  fileLoading.value = true
+  fileError.value = ''
+  try {
+    const response = await apiClient.get<UploadedFileListResponse>('/files', {
+      params: {
+        keyword: fileKeyword.value.trim(),
+        page: filePage.value,
+        pageSize
+      }
+    })
+    uploadedFiles.value = response.data.items
+    fileTotal.value = response.data.total
+  } catch {
+    fileError.value = '文件列表加载失败，请确认已登录'
+  } finally {
+    fileLoading.value = false
+  }
+}
+
 async function loadForumPosts() {
   forumPostLoading.value = true
   forumPostError.value = ''
@@ -549,6 +604,7 @@ async function loadSpaceData() {
     loadAccounts(),
     loadMarketRules(),
     loadBacktests(),
+    loadFiles(),
     loadForumPosts(),
     loadForumComments()
   ])
@@ -558,6 +614,11 @@ async function searchBacktests() {
   backtestPage.value = 1
   selectedBacktest.value = null
   await loadBacktests()
+}
+
+async function searchFiles() {
+  filePage.value = 1
+  await loadFiles()
 }
 
 async function searchActiveTab() {
@@ -575,6 +636,10 @@ async function searchActiveTab() {
   }
   if (activeTab.value === 'backtests') {
     await searchBacktests()
+    return
+  }
+  if (activeTab.value === 'files') {
+    await searchFiles()
   }
 }
 
@@ -721,6 +786,93 @@ function responseStatusFromError(error: unknown) {
   }
 
   return (error as { response?: { status?: number } }).response?.status ?? null
+}
+
+function responseDetailFromError(error: unknown) {
+  if (typeof error !== 'object' || error === null || !('response' in error)) {
+    return null
+  }
+
+  const detail = (error as { response?: { data?: { detail?: unknown } } }).response?.data?.detail
+  return typeof detail === 'string' ? detail : null
+}
+
+function handleFileSelection(event: Event) {
+  const input = event.target as HTMLInputElement
+  selectedUploadFile.value = input.files?.[0] ?? null
+  fileActionError.value = ''
+  fileActionMessage.value = ''
+}
+
+async function uploadSelectedFile() {
+  fileActionError.value = ''
+  fileActionMessage.value = ''
+
+  if (!selectedUploadFile.value) {
+    fileActionError.value = '请先选择要上传的文件'
+    return
+  }
+
+  if (isUploadingFile.value) {
+    return
+  }
+
+  isUploadingFile.value = true
+  const formData = new FormData()
+  formData.append('file', selectedUploadFile.value)
+  formData.append('businessType', 'general')
+  formData.append('visibility', 'private')
+
+  try {
+    await apiClient.post<UploadedFileItem>('/files/upload', formData)
+    fileActionMessage.value = `已上传文件：${selectedUploadFile.value.name}`
+    selectedUploadFile.value = null
+    if (fileInputRef.value) {
+      fileInputRef.value.value = ''
+    }
+    await loadFiles()
+  } catch (error) {
+    fileActionError.value = responseDetailFromError(error) ?? '文件上传失败，请稍后重试'
+  } finally {
+    isUploadingFile.value = false
+  }
+}
+
+async function downloadFile(file: UploadedFileItem) {
+  fileActionError.value = ''
+  fileActionMessage.value = ''
+
+  try {
+    const response = await apiClient.get<Blob>(`/files/${file.id}/download`, {
+      responseType: 'blob'
+    })
+    const blob = response.data instanceof Blob
+      ? response.data
+      : new Blob([response.data], { type: file.contentType })
+    const objectUrl = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = file.originalName
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(objectUrl)
+  } catch {
+    fileActionError.value = '文件下载失败，请稍后重试'
+  }
+}
+
+async function deleteFile(file: UploadedFileItem) {
+  fileActionError.value = ''
+  fileActionMessage.value = ''
+
+  try {
+    await apiClient.delete(`/files/${file.id}`)
+    fileActionMessage.value = `已删除文件：${file.originalName}`
+    await loadFiles()
+  } catch {
+    fileActionError.value = '文件删除失败，请稍后重试'
+  }
 }
 
 async function submitCustomBlock(block: CustomBlock) {
@@ -931,6 +1083,14 @@ async function changeBacktestPage(nextPage: number) {
   await loadBacktests()
 }
 
+async function changeFilePage(nextPage: number) {
+  if (nextPage < 1 || nextPage > fileTotalPages.value || nextPage === filePage.value) {
+    return
+  }
+  filePage.value = nextPage
+  await loadFiles()
+}
+
 async function changeForumPostPage(nextPage: number) {
   if (
     nextPage < 1 ||
@@ -996,6 +1156,27 @@ function formatAmount(value: number | undefined) {
 
 function formatDate(value: string | undefined) {
   return value ? value.slice(0, 10) : '-'
+}
+
+function formatFileSize(size: number) {
+  if (size < 1024) {
+    return `${size} B`
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1).replace(/\.0$/, '')} KB`
+  }
+  return `${(size / 1024 / 1024).toFixed(1).replace(/\.0$/, '')} MB`
+}
+
+function formatBusinessType(type: string) {
+  const labels: Record<string, string> = {
+    backtest: '回测附件',
+    custom_block: '积木附件',
+    forum: '论坛附件',
+    general: '普通文件',
+    strategy: '策略附件'
+  }
+  return labels[type] ?? '普通文件'
 }
 
 function formatReviewStatus(status: CustomBlock['reviewStatus']) {
@@ -1082,6 +1263,11 @@ onMounted(() => {
           placeholder="搜索账户、市场"
         />
         <input
+          v-else-if="activeTab === 'files'"
+          v-model="fileKeyword"
+          placeholder="搜索文件名、类型"
+        />
+        <input
           v-else
           v-model="backtestKeyword"
           placeholder="搜索股票、市场、周期"
@@ -1133,6 +1319,14 @@ onMounted(() => {
       </button>
       <button
         type="button"
+        data-space-tab="files"
+        :class="{ 'is-active': activeTab === 'files' }"
+        @click="activeTab = 'files'"
+      >
+        文件管理
+      </button>
+      <button
+        type="button"
         data-space-tab="forum"
         :class="{ 'is-active': activeTab === 'forum' }"
         @click="activeTab = 'forum'"
@@ -1162,6 +1356,10 @@ onMounted(() => {
         <article class="space-metric">
           <small>论坛内容</small>
           <strong>{{ forumContentTotal }}</strong>
+        </article>
+        <article class="space-metric">
+          <small>文件总数</small>
+          <strong>{{ fileTotal }}</strong>
         </article>
         <article class="space-metric">
           <small>最佳收益</small>
@@ -1268,6 +1466,26 @@ onMounted(() => {
             @click="activeTab = 'forum'"
           >
             查看
+          </button>
+        </article>
+        <article class="space-lane">
+          <div>
+            <small>最近文件</small>
+            <h2>{{ latestFile?.originalName || '暂无文件' }}</h2>
+            <p v-if="latestFile">
+              {{ formatBusinessType(latestFile.businessType) }}
+              ·
+              {{ formatFileSize(latestFile.size) }}
+              ·
+              {{ formatDate(latestFile.createdAt) }}
+            </p>
+          </div>
+          <button
+            v-if="latestFile"
+            type="button"
+            @click="activeTab = 'files'"
+          >
+            管理
           </button>
         </article>
       </div>
@@ -1664,6 +1882,91 @@ onMounted(() => {
             data-pagination="accounts-next"
             :disabled="accountPage >= accountTotalPages"
             @click="changeAccountPage(accountPage + 1)"
+          >
+            下一页
+          </button>
+        </div>
+      </footer>
+    </section>
+
+    <section v-else-if="activeTab === 'files'" class="space-section">
+      <p v-if="fileError" class="form-error">{{ fileError }}</p>
+      <p v-if="fileActionError" class="form-error">{{ fileActionError }}</p>
+      <p v-if="fileActionMessage" class="space-muted">{{ fileActionMessage }}</p>
+
+      <form class="file-upload-form" @submit.prevent="uploadSelectedFile">
+        <div>
+          <strong>上传文件</strong>
+          <p>保存策略说明、回测记录、截图或表格等个人附件。</p>
+        </div>
+        <label>
+          <span>选择文件</span>
+          <input
+            ref="fileInputRef"
+            class="file-upload-input"
+            type="file"
+            @change="handleFileSelection"
+          />
+        </label>
+        <button
+          class="file-upload-button"
+          type="submit"
+          :disabled="isUploadingFile"
+          @click.prevent="uploadSelectedFile"
+        >
+          {{ isUploadingFile ? '上传中' : '上传文件' }}
+        </button>
+      </form>
+
+      <p v-if="fileLoading" class="space-muted">正在加载文件</p>
+      <p v-else-if="!fileError && uploadedFiles.length === 0" class="space-muted">暂无文件</p>
+
+      <div
+        v-if="!fileError && !fileLoading && uploadedFiles.length > 0"
+        class="file-list"
+      >
+        <article v-for="file in uploadedFiles" :key="file.id" class="file-item">
+          <div>
+            <h2>{{ file.originalName }}</h2>
+            <p>
+              {{ formatBusinessType(file.businessType) }}
+              ·
+              {{ file.contentType }}
+            </p>
+            <small>
+              {{ formatFileSize(file.size) }}
+              ·
+              上传于 {{ formatDate(file.createdAt) }}
+            </small>
+          </div>
+          <div class="strategy-item-actions">
+            <button class="file-download-button" type="button" @click="downloadFile(file)">
+              下载
+            </button>
+            <button class="file-delete-button" type="button" @click="deleteFile(file)">
+              删除
+            </button>
+          </div>
+        </article>
+      </div>
+
+      <footer class="space-footer">
+        <span>共 {{ fileTotal }} 个文件</span>
+        <div class="space-pagination">
+          <button
+            type="button"
+            data-pagination="files-prev"
+            :disabled="filePage <= 1"
+            @click="changeFilePage(filePage - 1)"
+          >
+            上一页
+          </button>
+          <span>第 {{ filePage }} / {{ fileTotalPages }} 页</span>
+          <button
+            type="button"
+            data-pagination="files-next"
+            :disabled="filePage >= fileTotalPages"
+            @click="changeFilePage(filePage + 1)"
           >
             下一页
           </button>

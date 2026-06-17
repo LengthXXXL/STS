@@ -23,6 +23,14 @@ class Settings(BaseSettings):
         default="disabled",
         description="US minute data provider. Use 'disabled' or 'yahoo'.",
     )
+    upload_dir: str = Field(
+        default="uploads",
+        description="Local directory under backend/ used for uploaded files.",
+    )
+    upload_max_size_mb: int = Field(
+        default=10,
+        description="Maximum upload size per file in megabytes.",
+    )
 
     model_config = SettingsConfigDict(env_file=ENV_FILE, env_file_encoding="utf-8")
 

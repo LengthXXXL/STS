@@ -93,3 +93,8 @@ def ensure_development_schema(engine: Engine) -> None:
         from app.models.market_data import MarketDataDownloadRange
 
         MarketDataDownloadRange.__table__.create(bind=engine, checkfirst=True)
+
+    if not inspect(engine).has_table("uploaded_files"):
+        from app.models.uploaded_file import UploadedFile
+
+        UploadedFile.__table__.create(bind=engine, checkfirst=True)

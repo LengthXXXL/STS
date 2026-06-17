@@ -16,6 +16,7 @@ from app.models.shared_block import (
 )
 from app.models.simulation_account import SimulationAccount
 from app.models.strategy import Strategy
+from app.models.uploaded_file import UploadedFile
 from app.models.user import Role, User, user_roles
 
 __all__ = [
@@ -36,6 +37,7 @@ __all__ = [
     "SharedBlockStats",
     "SimulationAccount",
     "Strategy",
+    "UploadedFile",
     "User",
     "user_roles",
 ]

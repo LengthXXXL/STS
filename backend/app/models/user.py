@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     )
     from app.models.simulation_account import SimulationAccount
     from app.models.strategy import Strategy
+    from app.models.uploaded_file import UploadedFile
 
 user_roles = Table(
     "user_roles",
@@ -88,6 +89,10 @@ class User(Base):
     )
     forum_comments: Mapped[list["ForumComment"]] = relationship(
         back_populates="author",
+        cascade="all, delete-orphan",
+    )
+    uploaded_files: Mapped[list["UploadedFile"]] = relationship(
+        back_populates="owner",
         cascade="all, delete-orphan",
     )
 
