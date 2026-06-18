@@ -378,6 +378,8 @@ const forumPostError = ref('')
 const forumCommentError = ref('')
 const favoriteForumPostError = ref('')
 const favoriteSharedBlockError = ref('')
+const favoriteActionError = ref('')
+const favoriteActionMessage = ref('')
 const selectedUploadFile = ref<File | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const isUploadingFile = ref(false)
@@ -1279,6 +1281,36 @@ async function changeFavoriteSharedBlockPage(nextPage: number) {
   await loadFavoriteSharedBlocks()
 }
 
+async function removeFavoriteForumPost(post: ForumPostItem) {
+  favoriteActionError.value = ''
+  favoriteActionMessage.value = ''
+  try {
+    await apiClient.delete(`/forum/posts/${post.id}/favorite`)
+    favoriteActionMessage.value = `已取消收藏帖子：${post.title}`
+    if (favoriteForumPosts.value.length === 1 && favoriteForumPostPage.value > 1) {
+      favoriteForumPostPage.value -= 1
+    }
+    await loadFavoriteForumPosts()
+  } catch {
+    favoriteActionError.value = '取消收藏帖子失败，请稍后重试'
+  }
+}
+
+async function removeFavoriteSharedBlock(block: SharedBlockFavoriteItem) {
+  favoriteActionError.value = ''
+  favoriteActionMessage.value = ''
+  try {
+    await apiClient.delete(`/shared-blocks/${block.id}/favorite`)
+    favoriteActionMessage.value = `已取消收藏积木：${block.name}`
+    if (favoriteSharedBlocks.value.length === 1 && favoriteSharedBlockPage.value > 1) {
+      favoriteSharedBlockPage.value -= 1
+    }
+    await loadFavoriteSharedBlocks()
+  } catch {
+    favoriteActionError.value = '取消收藏积木失败，请稍后重试'
+  }
+}
+
 function formatMarket(market: BacktestListItem['market'] | undefined) {
   if (market === 'US_STOCK') {
     return '美股'
@@ -2151,6 +2183,9 @@ onMounted(() => {
     </section>
 
     <section v-else-if="activeTab === 'favorites'" class="space-section space-favorites">
+      <p v-if="favoriteActionError" class="form-error">{{ favoriteActionError }}</p>
+      <p v-if="favoriteActionMessage" class="space-muted">{{ favoriteActionMessage }}</p>
+
       <div class="space-forum-tabs" role="tablist" aria-label="我的收藏内容">
         <button
           class="space-favorite-forum-tab"
@@ -2197,6 +2232,13 @@ onMounted(() => {
           </div>
           <div class="strategy-item-actions">
             <a :href="`/forum?postId=${post.id}`">查看帖子</a>
+            <button
+              class="favorite-forum-remove-button"
+              type="button"
+              @click="removeFavoriteForumPost(post)"
+            >
+              取消收藏
+            </button>
           </div>
         </article>
 
@@ -2249,6 +2291,13 @@ onMounted(() => {
           </div>
           <div class="strategy-item-actions">
             <a :href="`/blocks?blockId=${block.id}`">查看积木</a>
+            <button
+              class="favorite-block-remove-button"
+              type="button"
+              @click="removeFavoriteSharedBlock(block)"
+            >
+              取消收藏
+            </button>
           </div>
         </article>
 

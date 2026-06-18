@@ -339,10 +339,14 @@ function mockPersonalSpaceRequests(
   options: {
     customBlocks?: Array<typeof savedCustomBlock>
     files?: Array<typeof savedFile>
+    favoriteForumPosts?: Array<typeof favoriteForumPost>
+    favoriteSharedBlocks?: Array<typeof favoriteSharedBlock>
   } = {}
 ) {
   const customBlockItems = options.customBlocks ?? [savedCustomBlock]
   const fileItems = options.files ?? [savedFile]
+  const favoriteForumPostItems = options.favoriteForumPosts ?? [favoriteForumPost]
+  const favoriteSharedBlockItems = options.favoriteSharedBlocks ?? [favoriteSharedBlock]
 
   vi.mocked(apiClient.get).mockImplementation((url: string) => {
     if (url === '/strategies') {
@@ -421,8 +425,8 @@ function mockPersonalSpaceRequests(
     if (url === '/forum/my-favorites') {
       return Promise.resolve({
         data: {
-          items: [favoriteForumPost],
-          total: 1,
+          items: favoriteForumPostItems,
+          total: favoriteForumPostItems.length,
           page: 1,
           pageSize: 10
         }
@@ -431,8 +435,8 @@ function mockPersonalSpaceRequests(
     if (url === '/shared-blocks/my-favorites') {
       return Promise.resolve({
         data: {
-          items: [favoriteSharedBlock],
-          total: 1,
+          items: favoriteSharedBlockItems,
+          total: favoriteSharedBlockItems.length,
           page: 1,
           pageSize: 10
         }
@@ -714,6 +718,44 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('适合收藏后复用的公开积木。')
     expect(wrapper.text()).toContain('2 个积木')
     expect(wrapper.find('a[href="/blocks?blockId=61"]').exists()).toBe(true)
+  })
+
+  it('removes favorite forum posts and shared blocks from personal space', async () => {
+    const favoriteForumItems = [favoriteForumPost]
+    const favoriteBlockItems = [favoriteSharedBlock]
+    mockPersonalSpaceRequests({
+      favoriteForumPosts: favoriteForumItems,
+      favoriteSharedBlocks: favoriteBlockItems
+    })
+    vi.mocked(apiClient.delete).mockImplementation((url: string) => {
+      if (url === '/forum/posts/33/favorite') {
+        favoriteForumItems.splice(0, favoriteForumItems.length)
+        return Promise.resolve({ data: null })
+      }
+      if (url === '/shared-blocks/61/favorite') {
+        favoriteBlockItems.splice(0, favoriteBlockItems.length)
+        return Promise.resolve({ data: null })
+      }
+      return Promise.reject(new Error(`Unhandled DELETE ${url}`))
+    })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="favorites"]').trigger('click')
+    await wrapper.find('.favorite-forum-remove-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/forum/posts/33/favorite')
+    expect(wrapper.text()).toContain('已取消收藏帖子：收藏的公开帖子')
+    expect(wrapper.text()).toContain('暂无收藏帖子')
+
+    await wrapper.find('.space-favorite-blocks-tab').trigger('click')
+    await wrapper.find('.favorite-block-remove-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/shared-blocks/61/favorite')
+    expect(wrapper.text()).toContain('已取消收藏积木：公开止盈收藏模板')
+    expect(wrapper.text()).toContain('暂无收藏积木')
   })
 
   it('opens the backtest tab from the route query', async () => {
