@@ -177,11 +177,30 @@ const savedForumPost = {
   content: '这是一条等待管理员审核的论坛帖子。',
   topic: '策略复盘',
   sharedBlockId: null,
+  relatedType: null,
+  relatedId: null,
+  relatedTitle: null,
+  relatedSummary: null,
   reviewStatus: 'pending_review',
   reviewReason: null,
   commentCount: 0,
+  likeCount: 0,
+  favoriteCount: 0,
+  isLiked: false,
+  isFavorited: false,
   createdAt: '2026-06-07T09:00:00',
   updatedAt: '2026-06-07T09:30:00'
+}
+
+const favoriteForumPost = {
+  ...savedForumPost,
+  id: 33,
+  title: '收藏的公开帖子',
+  content: '这是一条用户收藏过的公开论坛帖子。',
+  reviewStatus: 'approved',
+  likeCount: 4,
+  favoriteCount: 2,
+  isFavorited: true
 }
 
 const rejectedForumPost = {
@@ -217,6 +236,25 @@ const savedFile = {
   visibility: 'private',
   createdAt: '2026-06-08T09:00:00',
   downloadUrl: '/api/files/51/download'
+}
+
+const favoriteSharedBlock = {
+  id: 61,
+  ownerId: 2,
+  authorName: 'bob',
+  name: '公开止盈收藏模板',
+  description: '适合收藏后复用的公开积木。',
+  category: '风控',
+  tags: ['止盈'],
+  reviewStatus: 'approved',
+  nodeCount: 2,
+  connectionCount: 1,
+  viewCount: 9,
+  favoriteCount: 3,
+  importCount: 1,
+  isFavorited: true,
+  createdAt: '2026-06-08T10:00:00',
+  updatedAt: '2026-06-08T10:30:00'
 }
 
 const backtestDetail = {
@@ -380,6 +418,26 @@ function mockPersonalSpaceRequests(
         }
       })
     }
+    if (url === '/forum/my-favorites') {
+      return Promise.resolve({
+        data: {
+          items: [favoriteForumPost],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
+    if (url === '/shared-blocks/my-favorites') {
+      return Promise.resolve({
+        data: {
+          items: [favoriteSharedBlock],
+          total: 1,
+          page: 1,
+          pageSize: 10
+        }
+      })
+    }
     if (url === '/backtests/11') {
       return Promise.resolve({ data: backtestDetail })
     }
@@ -454,6 +512,16 @@ function mockPersonalSpaceRequestsWithDelayedBacktestDetail() {
         data: { items: [savedForumComment], total: 1, page: 1, pageSize: 10 }
       })
     }
+    if (url === '/forum/my-favorites') {
+      return Promise.resolve({
+        data: { items: [favoriteForumPost], total: 1, page: 1, pageSize: 10 }
+      })
+    }
+    if (url === '/shared-blocks/my-favorites') {
+      return Promise.resolve({
+        data: { items: [favoriteSharedBlock], total: 1, page: 1, pageSize: 10 }
+      })
+    }
     if (url === '/backtests/11') {
       return new Promise((resolve) => {
         resolveDetail = resolve
@@ -502,17 +570,25 @@ describe('personal space view', () => {
     expect(apiClient.get).toHaveBeenCalledWith('/forum/my-comments', {
       params: { page: 1, pageSize: 10 }
     })
+    expect(apiClient.get).toHaveBeenCalledWith('/forum/my-favorites', {
+      params: { page: 1, pageSize: 10 }
+    })
+    expect(apiClient.get).toHaveBeenCalledWith('/shared-blocks/my-favorites', {
+      params: { page: 1, pageSize: 10 }
+    })
     expect(wrapper.text()).toContain('概览')
     expect(wrapper.text()).toContain('我的策略')
     expect(wrapper.text()).toContain('我的积木')
     expect(wrapper.text()).toContain('模拟账户')
     expect(wrapper.text()).toContain('我的回测')
     expect(wrapper.text()).toContain('文件管理')
+    expect(wrapper.text()).toContain('我的收藏')
     expect(wrapper.text()).toContain('我的论坛')
     expect(wrapper.text()).toContain('策略总数')
     expect(wrapper.text()).toContain('账户总数')
     expect(wrapper.text()).toContain('回测总数')
     expect(wrapper.text()).toContain('论坛内容')
+    expect(wrapper.text()).toContain('收藏内容')
     expect(wrapper.text()).toContain('文件总数')
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('突破止盈模板')
@@ -533,7 +609,7 @@ describe('personal space view', () => {
     const wrapper = mount(PersonalSpaceView)
 
     await flushPromises()
-    expect(apiClient.get).toHaveBeenCalledTimes(8)
+    expect(apiClient.get).toHaveBeenCalledTimes(10)
 
     mockPersonalSpaceRequests()
     const authStore = useAuthStore()
@@ -549,7 +625,7 @@ describe('personal space view', () => {
     await nextTick()
     await flushPromises()
 
-    expect(apiClient.get).toHaveBeenCalledTimes(16)
+    expect(apiClient.get).toHaveBeenCalledTimes(20)
     expect(wrapper.text()).toContain('五分钟突破策略')
     expect(wrapper.text()).toContain('A股日内账户')
     expect(wrapper.text()).toContain('000001.SZ')
@@ -618,6 +694,26 @@ describe('personal space view', () => {
     expect(wrapper.text()).toContain('未通过审核')
     expect(wrapper.text()).toContain('未通过原因：评论不够具体，无法帮助其他用户。')
     expect(wrapper.text()).toContain('关联帖子：公开止盈讨论帖')
+  })
+
+  it('shows favorite forum posts and shared blocks in personal space', async () => {
+    mockPersonalSpaceRequests()
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="favorites"]').trigger('click')
+
+    expect(wrapper.text()).toContain('收藏帖子')
+    expect(wrapper.text()).toContain('收藏的公开帖子')
+    expect(wrapper.text()).toContain('这是一条用户收藏过的公开论坛帖子。')
+    expect(wrapper.find('a[href="/forum?postId=33"]').exists()).toBe(true)
+
+    await wrapper.find('.space-favorite-blocks-tab').trigger('click')
+
+    expect(wrapper.text()).toContain('公开止盈收藏模板')
+    expect(wrapper.text()).toContain('适合收藏后复用的公开积木。')
+    expect(wrapper.text()).toContain('2 个积木')
+    expect(wrapper.find('a[href="/blocks?blockId=61"]').exists()).toBe(true)
   })
 
   it('opens the backtest tab from the route query', async () => {

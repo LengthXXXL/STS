@@ -294,6 +294,39 @@ def test_favorite_and_unfavorite_shared_block(client, db_session):
     assert favorite_event_count == 1
 
 
+def test_user_can_list_favorite_shared_blocks(client, db_session):
+    owner_token = register_user_token(client, "alice", "alice@example.com")
+    viewer_token = register_user_token(client, "bob", "bob@example.com")
+    favorite_block = create_custom_block(client, owner_token, "收藏夹公开模板")
+    other_block = create_custom_block(client, owner_token, "未收藏公开模板")
+    private_block = create_custom_block(client, owner_token, "未公开模板")
+    approve_block_directly(db_session, favorite_block["id"])
+    approve_block_directly(db_session, other_block["id"])
+
+    visitor_response = client.get("/api/shared-blocks/my-favorites")
+    assert visitor_response.status_code == 401
+
+    favorite_response = client.post(
+        f"/api/shared-blocks/{favorite_block['id']}/favorite",
+        headers=auth_headers(viewer_token),
+    )
+    assert favorite_response.status_code == 200
+
+    response = client.get(
+        "/api/shared-blocks/my-favorites?page=1&pageSize=10",
+        headers=auth_headers(viewer_token),
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["id"] == favorite_block["id"]
+    assert payload["items"][0]["name"] == "收藏夹公开模板"
+    assert payload["items"][0]["isFavorited"] is True
+    listed_names = {item["name"] for item in payload["items"]}
+    assert "未收藏公开模板" not in listed_names
+    assert private_block["name"] not in listed_names
+
+
 def test_unfavorite_without_existing_favorite_records_event(client, db_session):
     owner_token = register_user_token(client, "alice", "alice@example.com")
     viewer_token = register_user_token(client, "bob", "bob@example.com")

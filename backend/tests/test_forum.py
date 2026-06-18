@@ -509,6 +509,61 @@ def test_user_can_like_and_favorite_public_forum_posts(client, db_session):
     assert remaining_reaction is None
 
 
+def test_user_can_list_favorite_forum_posts(client, db_session):
+    author_token = register_and_token(client, "alice", "alice@example.com")
+    viewer_token = register_and_token(client, "bob", "bob@example.com")
+    admin_token = register_and_token(client, "admin", "admin@example.com")
+    grant_admin_role(db_session, "admin@example.com")
+
+    favorite_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("收藏夹里的帖子", "这条公开帖子会出现在我的收藏里。"),
+        headers=auth_headers(author_token),
+    )
+    other_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("未收藏帖子", "这条帖子不会出现在我的收藏里。"),
+        headers=auth_headers(author_token),
+    )
+    pending_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("未公开帖子", "未审核帖子不能进入公开收藏列表。"),
+        headers=auth_headers(author_token),
+    )
+    assert favorite_post.status_code == 201
+    assert other_post.status_code == 201
+    assert pending_post.status_code == 201
+    for post_id in (favorite_post.json()["id"], other_post.json()["id"]):
+        assert (
+            client.post(
+                f"/api/admin/forum-posts/{post_id}/approve",
+                headers=auth_headers(admin_token),
+            ).status_code
+            == 200
+        )
+
+    assert (
+        client.post(
+            f"/api/forum/posts/{favorite_post.json()['id']}/favorite",
+            headers=auth_headers(viewer_token),
+        ).status_code
+        == 200
+    )
+
+    visitor_response = client.get("/api/forum/my-favorites")
+    assert visitor_response.status_code == 401
+
+    response = client.get(
+        "/api/forum/my-favorites?page=1&pageSize=10",
+        headers=auth_headers(viewer_token),
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["title"] == "收藏夹里的帖子"
+    assert payload["items"][0]["isFavorited"] is True
+
+
 def test_admin_can_reject_forum_posts_and_comments(client, db_session):
     user_token = register_and_token(client, "alice", "alice@example.com")
     admin_token = register_and_token(client, "admin", "admin@example.com")

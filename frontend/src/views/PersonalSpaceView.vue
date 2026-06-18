@@ -18,10 +18,12 @@ type SpaceTab =
   | 'accounts'
   | 'backtests'
   | 'files'
+  | 'favorites'
   | 'forum'
 
 type ForumReviewStatus = 'pending_review' | 'approved' | 'rejected'
 type ForumContentTab = 'posts' | 'comments'
+type FavoriteContentTab = 'forum-posts' | 'shared-blocks'
 
 interface StrategyListResponse {
   items: SavedStrategy[]
@@ -143,9 +145,17 @@ interface ForumPostItem {
   content: string
   topic: string
   sharedBlockId: number | null
+  relatedType?: 'strategy' | 'backtest' | 'custom_block' | 'shared_block' | null
+  relatedId?: number | null
+  relatedTitle?: string | null
+  relatedSummary?: string | null
   reviewStatus: ForumReviewStatus
   reviewReason: string | null
   commentCount: number
+  likeCount?: number
+  favoriteCount?: number
+  isLiked?: boolean
+  isFavorited?: boolean
   createdAt: string
   updatedAt: string
 }
@@ -172,6 +182,32 @@ interface ForumCommentItem {
 
 interface ForumCommentListResponse {
   items: ForumCommentItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+interface SharedBlockFavoriteItem {
+  id: number
+  ownerId: number
+  authorName: string
+  name: string
+  description: string | null
+  category: string
+  tags: string[]
+  reviewStatus: string
+  nodeCount: number
+  connectionCount: number
+  viewCount: number
+  favoriteCount: number
+  importCount: number
+  isFavorited: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+interface SharedBlockFavoriteListResponse {
+  items: SharedBlockFavoriteItem[]
   total: number
   page: number
   pageSize: number
@@ -284,6 +320,8 @@ const marketRules = ref<MarketRule[]>([])
 const backtests = ref<BacktestListItem[]>([])
 const forumPosts = ref<ForumPostItem[]>([])
 const forumComments = ref<ForumCommentItem[]>([])
+const favoriteForumPosts = ref<ForumPostItem[]>([])
+const favoriteSharedBlocks = ref<SharedBlockFavoriteItem[]>([])
 const uploadedFiles = ref<UploadedFileItem[]>([])
 const selectedBacktest = ref<BacktestDetail | null>(null)
 const strategyKeyword = ref('')
@@ -292,6 +330,7 @@ const accountKeyword = ref('')
 const backtestKeyword = ref('')
 const fileKeyword = ref('')
 const activeForumTab = ref<ForumContentTab>('posts')
+const activeFavoriteTab = ref<FavoriteContentTab>('forum-posts')
 const strategyPage = ref(1)
 const customBlockPage = ref(1)
 const accountPage = ref(1)
@@ -299,6 +338,8 @@ const backtestPage = ref(1)
 const filePage = ref(1)
 const forumPostPage = ref(1)
 const forumCommentPage = ref(1)
+const favoriteForumPostPage = ref(1)
+const favoriteSharedBlockPage = ref(1)
 const pageSize = 10
 const strategyTotal = ref(0)
 const customBlockTotal = ref(0)
@@ -307,6 +348,8 @@ const backtestTotal = ref(0)
 const fileTotal = ref(0)
 const forumPostTotal = ref(0)
 const forumCommentTotal = ref(0)
+const favoriteForumPostTotal = ref(0)
+const favoriteSharedBlockTotal = ref(0)
 const strategyLoading = ref(false)
 const customBlockLoading = ref(false)
 const accountLoading = ref(false)
@@ -314,6 +357,8 @@ const backtestLoading = ref(false)
 const fileLoading = ref(false)
 const forumPostLoading = ref(false)
 const forumCommentLoading = ref(false)
+const favoriteForumPostLoading = ref(false)
+const favoriteSharedBlockLoading = ref(false)
 const backtestDetailLoading = ref(false)
 const strategyError = ref('')
 const strategyActionError = ref('')
@@ -331,6 +376,8 @@ const fileActionError = ref('')
 const fileActionMessage = ref('')
 const forumPostError = ref('')
 const forumCommentError = ref('')
+const favoriteForumPostError = ref('')
+const favoriteSharedBlockError = ref('')
 const selectedUploadFile = ref<File | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const isUploadingFile = ref(false)
@@ -362,6 +409,7 @@ function spaceTabFromQuery(tab: unknown): SpaceTab {
     value === 'accounts' ||
     value === 'backtests' ||
     value === 'files' ||
+    value === 'favorites' ||
     value === 'forum'
   ) {
     return value
@@ -394,6 +442,9 @@ const latestBacktest = computed(() => backtests.value[0] ?? null)
 const latestForumPost = computed(() => forumPosts.value[0] ?? null)
 const latestFile = computed(() => uploadedFiles.value[0] ?? null)
 const forumContentTotal = computed(() => forumPostTotal.value + forumCommentTotal.value)
+const favoriteContentTotal = computed(
+  () => favoriteForumPostTotal.value + favoriteSharedBlockTotal.value
+)
 const strategyTotalPages = computed(() => Math.max(1, Math.ceil(strategyTotal.value / pageSize)))
 const customBlockTotalPages = computed(() =>
   Math.max(1, Math.ceil(customBlockTotal.value / pageSize))
@@ -404,6 +455,12 @@ const fileTotalPages = computed(() => Math.max(1, Math.ceil(fileTotal.value / pa
 const forumPostTotalPages = computed(() => Math.max(1, Math.ceil(forumPostTotal.value / pageSize)))
 const forumCommentTotalPages = computed(() =>
   Math.max(1, Math.ceil(forumCommentTotal.value / pageSize))
+)
+const favoriteForumPostTotalPages = computed(() =>
+  Math.max(1, Math.ceil(favoriteForumPostTotal.value / pageSize))
+)
+const favoriteSharedBlockTotalPages = computed(() =>
+  Math.max(1, Math.ceil(favoriteSharedBlockTotal.value / pageSize))
 )
 const customBlockNameCounts = computed(() => {
   const counts = new Map<string, number>()
@@ -616,6 +673,47 @@ async function loadForumComments() {
   }
 }
 
+async function loadFavoriteForumPosts() {
+  favoriteForumPostLoading.value = true
+  favoriteForumPostError.value = ''
+  try {
+    const response = await apiClient.get<ForumPostListResponse>('/forum/my-favorites', {
+      params: {
+        page: favoriteForumPostPage.value,
+        pageSize
+      }
+    })
+    favoriteForumPosts.value = response.data.items
+    favoriteForumPostTotal.value = response.data.total
+  } catch {
+    favoriteForumPostError.value = '收藏帖子加载失败，请确认已登录'
+  } finally {
+    favoriteForumPostLoading.value = false
+  }
+}
+
+async function loadFavoriteSharedBlocks() {
+  favoriteSharedBlockLoading.value = true
+  favoriteSharedBlockError.value = ''
+  try {
+    const response = await apiClient.get<SharedBlockFavoriteListResponse>(
+      '/shared-blocks/my-favorites',
+      {
+        params: {
+          page: favoriteSharedBlockPage.value,
+          pageSize
+        }
+      }
+    )
+    favoriteSharedBlocks.value = response.data.items
+    favoriteSharedBlockTotal.value = response.data.total
+  } catch {
+    favoriteSharedBlockError.value = '收藏积木加载失败，请确认已登录'
+  } finally {
+    favoriteSharedBlockLoading.value = false
+  }
+}
+
 async function loadSpaceData() {
   await Promise.all([
     loadStrategies(),
@@ -625,7 +723,9 @@ async function loadSpaceData() {
     loadBacktests(),
     loadFiles(),
     loadForumPosts(),
-    loadForumComments()
+    loadForumComments(),
+    loadFavoriteForumPosts(),
+    loadFavoriteSharedBlocks()
   ])
 }
 
@@ -1155,6 +1255,30 @@ async function changeForumCommentPage(nextPage: number) {
   await loadForumComments()
 }
 
+async function changeFavoriteForumPostPage(nextPage: number) {
+  if (
+    nextPage < 1 ||
+    nextPage > favoriteForumPostTotalPages.value ||
+    nextPage === favoriteForumPostPage.value
+  ) {
+    return
+  }
+  favoriteForumPostPage.value = nextPage
+  await loadFavoriteForumPosts()
+}
+
+async function changeFavoriteSharedBlockPage(nextPage: number) {
+  if (
+    nextPage < 1 ||
+    nextPage > favoriteSharedBlockTotalPages.value ||
+    nextPage === favoriteSharedBlockPage.value
+  ) {
+    return
+  }
+  favoriteSharedBlockPage.value = nextPage
+  await loadFavoriteSharedBlocks()
+}
+
 function formatMarket(market: BacktestListItem['market'] | undefined) {
   if (market === 'US_STOCK') {
     return '美股'
@@ -1283,7 +1407,7 @@ onMounted(() => {
         <p>策略资产、回测记录与个人沉淀</p>
       </div>
       <form
-        v-if="activeTab !== 'overview' && activeTab !== 'forum'"
+        v-if="activeTab !== 'overview' && activeTab !== 'forum' && activeTab !== 'favorites'"
         class="space-search"
         @submit.prevent="searchActiveTab"
       >
@@ -1367,6 +1491,14 @@ onMounted(() => {
       </button>
       <button
         type="button"
+        data-space-tab="favorites"
+        :class="{ 'is-active': activeTab === 'favorites' }"
+        @click="activeTab = 'favorites'"
+      >
+        我的收藏
+      </button>
+      <button
+        type="button"
         data-space-tab="forum"
         :class="{ 'is-active': activeTab === 'forum' }"
         @click="activeTab = 'forum'"
@@ -1396,6 +1528,10 @@ onMounted(() => {
         <article class="space-metric">
           <small>论坛内容</small>
           <strong>{{ forumContentTotal }}</strong>
+        </article>
+        <article class="space-metric">
+          <small>收藏内容</small>
+          <strong>{{ favoriteContentTotal }}</strong>
         </article>
         <article class="space-metric">
           <small>文件总数</small>
@@ -2012,6 +2148,133 @@ onMounted(() => {
           </button>
         </div>
       </footer>
+    </section>
+
+    <section v-else-if="activeTab === 'favorites'" class="space-section space-favorites">
+      <div class="space-forum-tabs" role="tablist" aria-label="我的收藏内容">
+        <button
+          class="space-favorite-forum-tab"
+          :class="{ 'is-active': activeFavoriteTab === 'forum-posts' }"
+          type="button"
+          @click="activeFavoriteTab = 'forum-posts'"
+        >
+          收藏帖子
+          <span>{{ favoriteForumPostTotal }}</span>
+        </button>
+        <button
+          class="space-favorite-blocks-tab"
+          :class="{ 'is-active': activeFavoriteTab === 'shared-blocks' }"
+          type="button"
+          @click="activeFavoriteTab = 'shared-blocks'"
+        >
+          收藏积木
+          <span>{{ favoriteSharedBlockTotal }}</span>
+        </button>
+      </div>
+
+      <div v-if="activeFavoriteTab === 'forum-posts'" class="space-forum-list">
+        <p v-if="favoriteForumPostError" class="form-error">{{ favoriteForumPostError }}</p>
+        <p v-else-if="favoriteForumPostLoading" class="space-muted">正在加载收藏帖子</p>
+        <p v-else-if="favoriteForumPosts.length === 0" class="space-muted">暂无收藏帖子</p>
+        <article
+          v-for="post in favoriteForumPosts"
+          v-else
+          :key="post.id"
+          class="strategy-item forum-space-item"
+        >
+          <div>
+            <div class="forum-space-meta">
+              <span>{{ post.topic }}</span>
+              <span>作者 {{ post.authorName }}</span>
+              <span>{{ formatDate(post.updatedAt) }}</span>
+            </div>
+            <h2>{{ post.title }}</h2>
+            <p>{{ post.content }}</p>
+            <small>
+              评论 {{ post.commentCount }} · 点赞 {{ post.likeCount ?? 0 }} · 收藏
+              {{ post.favoriteCount ?? 0 }}
+            </small>
+          </div>
+          <div class="strategy-item-actions">
+            <a :href="`/forum?postId=${post.id}`">查看帖子</a>
+          </div>
+        </article>
+
+        <footer class="space-footer">
+          <span>共 {{ favoriteForumPostTotal }} 条收藏帖子</span>
+          <div class="space-pagination">
+            <button
+              type="button"
+              data-pagination="favorite-forum-prev"
+              :disabled="favoriteForumPostPage <= 1"
+              @click="changeFavoriteForumPostPage(favoriteForumPostPage - 1)"
+            >
+              上一页
+            </button>
+            <span>第 {{ favoriteForumPostPage }} / {{ favoriteForumPostTotalPages }} 页</span>
+            <button
+              type="button"
+              data-pagination="favorite-forum-next"
+              :disabled="favoriteForumPostPage >= favoriteForumPostTotalPages"
+              @click="changeFavoriteForumPostPage(favoriteForumPostPage + 1)"
+            >
+              下一页
+            </button>
+          </div>
+        </footer>
+      </div>
+
+      <div v-else class="space-forum-list">
+        <p v-if="favoriteSharedBlockError" class="form-error">{{ favoriteSharedBlockError }}</p>
+        <p v-else-if="favoriteSharedBlockLoading" class="space-muted">正在加载收藏积木</p>
+        <p v-else-if="favoriteSharedBlocks.length === 0" class="space-muted">暂无收藏积木</p>
+        <article
+          v-for="block in favoriteSharedBlocks"
+          v-else
+          :key="block.id"
+          class="strategy-item forum-space-item"
+        >
+          <div>
+            <div class="forum-space-meta">
+              <span>{{ block.category }}</span>
+              <span>作者 {{ block.authorName }}</span>
+              <span>{{ formatDate(block.updatedAt) }}</span>
+            </div>
+            <h2>{{ block.name }}</h2>
+            <p>{{ block.description || '暂无描述' }}</p>
+            <small>
+              {{ block.nodeCount }} 个积木 · {{ block.connectionCount }} 条连接 · 导入
+              {{ block.importCount }}
+            </small>
+          </div>
+          <div class="strategy-item-actions">
+            <a :href="`/blocks?blockId=${block.id}`">查看积木</a>
+          </div>
+        </article>
+
+        <footer class="space-footer">
+          <span>共 {{ favoriteSharedBlockTotal }} 个收藏积木</span>
+          <div class="space-pagination">
+            <button
+              type="button"
+              data-pagination="favorite-blocks-prev"
+              :disabled="favoriteSharedBlockPage <= 1"
+              @click="changeFavoriteSharedBlockPage(favoriteSharedBlockPage - 1)"
+            >
+              上一页
+            </button>
+            <span>第 {{ favoriteSharedBlockPage }} / {{ favoriteSharedBlockTotalPages }} 页</span>
+            <button
+              type="button"
+              data-pagination="favorite-blocks-next"
+              :disabled="favoriteSharedBlockPage >= favoriteSharedBlockTotalPages"
+              @click="changeFavoriteSharedBlockPage(favoriteSharedBlockPage + 1)"
+            >
+              下一页
+            </button>
+          </div>
+        </footer>
+      </div>
     </section>
 
     <section v-else-if="activeTab === 'forum'" class="space-section space-forum">

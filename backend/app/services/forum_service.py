@@ -192,6 +192,30 @@ def list_my_forum_posts(
     return [forum_post_to_response(db, post, author) for post in posts], total
 
 
+def list_my_favorite_forum_posts(
+    db: Session,
+    user: User,
+    *,
+    page: int = 1,
+    page_size: int = 10,
+) -> tuple[list[ForumPostItemResponse], int]:
+    statement = (
+        _approved_post_statement()
+        .join(
+            ForumPostReaction,
+            ForumPostReaction.post_id == ForumPost.id,
+        )
+        .where(
+            ForumPostReaction.user_id == user.id,
+            ForumPostReaction.reaction_type == "favorite",
+        )
+        .order_by(ForumPostReaction.created_at.desc(), ForumPost.id.desc())
+    )
+    total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    posts = db.scalars(statement.offset((page - 1) * page_size).limit(page_size)).all()
+    return [forum_post_to_response(db, post, user) for post in posts], total
+
+
 def list_forum_post_reviews(
     db: Session,
     *,

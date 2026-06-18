@@ -10,6 +10,7 @@ from app.services.shared_block_service import (
     favorite_shared_block,
     get_shared_block_detail,
     import_shared_block,
+    list_my_favorite_shared_blocks,
     list_shared_blocks,
     unfavorite_shared_block,
 )
@@ -35,6 +36,22 @@ def list_public_shared_blocks(
         category=category,
         tag=tag,
         sort=sort,
+        page=page,
+        page_size=page_size,
+    )
+    return SharedBlockListResponse(items=items, total=total, page=page, pageSize=page_size)
+
+
+@router.get("/my-favorites", response_model=SharedBlockListResponse)
+def list_my_favorites(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, alias="pageSize", ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> SharedBlockListResponse:
+    items, total = list_my_favorite_shared_blocks(
+        db,
+        current_user,
         page=page,
         page_size=page_size,
     )

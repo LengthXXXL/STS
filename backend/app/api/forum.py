@@ -25,6 +25,7 @@ from app.services.forum_service import (
     get_forum_post_detail,
     get_public_forum_attachment,
     list_forum_posts,
+    list_my_favorite_forum_posts,
     list_my_forum_comments,
     list_my_forum_posts,
     react_to_forum_post,
@@ -99,6 +100,22 @@ def list_my_comments(
 ) -> ForumCommentReviewListResponse:
     items, total = list_my_forum_comments(db, current_user, page=page, page_size=page_size)
     return ForumCommentReviewListResponse(items=items, total=total, page=page, pageSize=page_size)
+
+
+@router.get("/my-favorites", response_model=ForumPostListResponse)
+def list_my_favorites(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=10, alias="pageSize", ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ForumPostListResponse:
+    items, total = list_my_favorite_forum_posts(
+        db,
+        current_user,
+        page=page,
+        page_size=page_size,
+    )
+    return ForumPostListResponse(items=items, total=total, page=page, pageSize=page_size)
 
 
 @router.get("/posts/{post_id}", response_model=ForumPostDetailResponse)

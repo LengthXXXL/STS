@@ -245,6 +245,27 @@ def list_shared_blocks(
     return items, total
 
 
+def list_my_favorite_shared_blocks(
+    db: Session,
+    current_user: User,
+    *,
+    page: int = 1,
+    page_size: int = 10,
+) -> tuple[list[SharedBlockItemResponse], int]:
+    statement = (
+        _approved_statement()
+        .join(
+            SharedBlockFavorite,
+            SharedBlockFavorite.custom_block_id == CustomBlock.id,
+        )
+        .where(SharedBlockFavorite.user_id == current_user.id)
+        .order_by(SharedBlockFavorite.created_at.desc(), CustomBlock.id.desc())
+    )
+    total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
+    blocks = db.scalars(statement.offset((page - 1) * page_size).limit(page_size)).all()
+    return [_to_item(db, block, current_user) for block in blocks], total
+
+
 def get_shared_block_detail(
     db: Session,
     current_user: User | None,
