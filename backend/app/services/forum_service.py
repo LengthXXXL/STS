@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.backtest import BacktestTask
 from app.models.custom_block import CustomBlock
-from app.models.forum import ForumComment, ForumPost, ForumPostAttachment
+from app.models.forum import ForumComment, ForumPost, ForumPostAttachment, ForumPostReaction
 from app.models.strategy import Strategy
 from app.models.uploaded_file import UploadedFile
 from app.models.user import User
@@ -23,6 +23,7 @@ APPROVED = "approved"
 PENDING_REVIEW = "pending_review"
 REJECTED = "rejected"
 ForumPostSort = Literal["latest_reply", "newest", "most_commented"]
+ForumPostReactionType = Literal["like", "favorite"]
 
 
 class ForumRelatedContentNotFound(ValueError):
@@ -33,7 +34,11 @@ class ForumAttachmentNotFound(ValueError):
     pass
 
 
-def forum_post_to_response(db: Session, post: ForumPost) -> ForumPostItemResponse:
+def forum_post_to_response(
+    db: Session,
+    post: ForumPost,
+    viewer: User | None = None,
+) -> ForumPostItemResponse:
     related_title, related_summary = _related_content_summary(db, post)
     return ForumPostItemResponse(
         id=post.id,
@@ -51,6 +56,10 @@ def forum_post_to_response(db: Session, post: ForumPost) -> ForumPostItemRespons
         reviewReason=post.review_reason,
         attachments=[forum_attachment_to_response(attachment) for attachment in post.attachments],
         commentCount=_approved_comment_count(db, post.id),
+        likeCount=_reaction_count(db, post.id, "like"),
+        favoriteCount=_reaction_count(db, post.id, "favorite"),
+        isLiked=_has_reaction(db, viewer, post.id, "like"),
+        isFavorited=_has_reaction(db, viewer, post.id, "favorite"),
         createdAt=post.created_at,
         updatedAt=post.updated_at,
     )
@@ -121,11 +130,12 @@ def create_forum_post(
         db.add(ForumPostAttachment(post_id=post.id, file_id=file.id))
     db.commit()
     db.refresh(post)
-    return forum_post_to_response(db, post)
+    return forum_post_to_response(db, post, author)
 
 
 def list_forum_posts(
     db: Session,
+    viewer: User | None = None,
     *,
     keyword: str = "",
     sort: ForumPostSort = "latest_reply",
@@ -150,7 +160,7 @@ def list_forum_posts(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
-    return [forum_post_to_response(db, post) for post in posts], total
+    return [forum_post_to_response(db, post, viewer) for post in posts], total
 
 
 def list_my_forum_posts(
@@ -167,7 +177,7 @@ def list_my_forum_posts(
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
-    return [forum_post_to_response(db, post) for post in posts], total
+    return [forum_post_to_response(db, post, author) for post in posts], total
 
 
 def list_forum_post_reviews(
@@ -242,7 +252,11 @@ def list_my_forum_comments(
     return [forum_comment_to_review_response(comment) for comment in comments], total
 
 
-def get_forum_post_detail(db: Session, post_id: int) -> ForumPostDetailResponse | None:
+def get_forum_post_detail(
+    db: Session,
+    post_id: int,
+    viewer: User | None = None,
+) -> ForumPostDetailResponse | None:
     post = db.scalar(_approved_post_statement().where(ForumPost.id == post_id))
     if post is None:
         return None
@@ -255,7 +269,7 @@ def get_forum_post_detail(db: Session, post_id: int) -> ForumPostDetailResponse 
         )
         .order_by(ForumComment.created_at.asc(), ForumComment.id.asc())
     ).all()
-    base = forum_post_to_response(db, post)
+    base = forum_post_to_response(db, post, viewer)
     return ForumPostDetailResponse(
         **base.model_dump(by_alias=True),
         comments=[forum_comment_to_response(comment) for comment in comments],
@@ -301,6 +315,59 @@ def create_forum_comment(
     db.commit()
     db.refresh(comment)
     return forum_comment_to_response(comment)
+
+
+def react_to_forum_post(
+    db: Session,
+    user: User,
+    post_id: int,
+    reaction_type: ForumPostReactionType,
+) -> ForumPostDetailResponse | None:
+    post = db.scalar(_approved_post_statement().where(ForumPost.id == post_id))
+    if post is None:
+        return None
+
+    existing = db.scalar(
+        select(ForumPostReaction).where(
+            ForumPostReaction.user_id == user.id,
+            ForumPostReaction.post_id == post.id,
+            ForumPostReaction.reaction_type == reaction_type,
+        )
+    )
+    if existing is None:
+        db.add(
+            ForumPostReaction(
+                user_id=user.id,
+                post_id=post.id,
+                reaction_type=reaction_type,
+            )
+        )
+        db.commit()
+        db.refresh(post)
+    return get_forum_post_detail(db, post.id, user)
+
+
+def unreact_to_forum_post(
+    db: Session,
+    user: User,
+    post_id: int,
+    reaction_type: ForumPostReactionType,
+) -> bool:
+    post = db.scalar(_approved_post_statement().where(ForumPost.id == post_id))
+    if post is None:
+        return False
+
+    existing = db.scalar(
+        select(ForumPostReaction).where(
+            ForumPostReaction.user_id == user.id,
+            ForumPostReaction.post_id == post.id,
+            ForumPostReaction.reaction_type == reaction_type,
+        )
+    )
+    if existing is not None:
+        db.delete(existing)
+        db.commit()
+    return True
 
 
 def review_forum_post(
@@ -502,4 +569,35 @@ def _approved_comment_count(db: Session, post_id: int) -> int:
             )
         )
         or 0
+    )
+
+
+def _reaction_count(db: Session, post_id: int, reaction_type: str) -> int:
+    return (
+        db.scalar(
+            select(func.count()).where(
+                ForumPostReaction.post_id == post_id,
+                ForumPostReaction.reaction_type == reaction_type,
+            )
+        )
+        or 0
+    )
+
+
+def _has_reaction(
+    db: Session,
+    user: User | None,
+    post_id: int,
+    reaction_type: str,
+) -> bool:
+    if user is None:
+        return False
+    return bool(
+        db.scalar(
+            select(func.count()).where(
+                ForumPostReaction.user_id == user.id,
+                ForumPostReaction.post_id == post_id,
+                ForumPostReaction.reaction_type == reaction_type,
+            )
+        )
     )

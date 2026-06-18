@@ -109,3 +109,8 @@ def ensure_development_schema(engine: Engine) -> None:
         from app.models.forum import ForumPostAttachment
 
         ForumPostAttachment.__table__.create(bind=engine, checkfirst=True)
+
+    if not inspect(engine).has_table("forum_post_reactions"):
+        from app.models.forum import ForumPostReaction
+
+        ForumPostReaction.__table__.create(bind=engine, checkfirst=True)

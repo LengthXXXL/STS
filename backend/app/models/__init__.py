@@ -6,7 +6,7 @@ from app.models.backtest import (
     BacktestTradeRecord,
 )
 from app.models.custom_block import CustomBlock
-from app.models.forum import ForumComment, ForumPost, ForumPostAttachment
+from app.models.forum import ForumComment, ForumPost, ForumPostAttachment, ForumPostReaction
 from app.models.market_data import MarketDataDownloadRange, MarketKlineCache
 from app.models.shared_block import (
     RecommendationEvent,
@@ -29,6 +29,7 @@ __all__ = [
     "ForumComment",
     "ForumPost",
     "ForumPostAttachment",
+    "ForumPostReaction",
     "MarketDataDownloadRange",
     "MarketKlineCache",
     "RecommendationEvent",

@@ -75,6 +75,10 @@ class ForumPostItemResponse(BaseModel):
     review_reason: str | None = Field(default=None, alias="reviewReason")
     attachments: list[ForumAttachmentResponse] = Field(default_factory=list)
     comment_count: int = Field(alias="commentCount")
+    like_count: int = Field(alias="likeCount")
+    favorite_count: int = Field(alias="favoriteCount")
+    is_liked: bool = Field(default=False, alias="isLiked")
+    is_favorited: bool = Field(default=False, alias="isFavorited")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 

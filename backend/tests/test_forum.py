@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
-from app.models.forum import ForumComment, ForumPost
+from app.models.forum import ForumComment, ForumPost, ForumPostReaction
 from app.models.user import Role, User
 from tests.test_strategies import auth_headers, register_and_token, strategy_payload
 
@@ -352,6 +352,94 @@ def test_public_forum_posts_support_reply_publish_and_comment_sorting(client, db
     assert most_commented.status_code == 200
     assert most_commented.json()["items"][0]["title"] == "早发布但有新回复"
     assert most_commented.json()["items"][0]["commentCount"] == 2
+
+
+def test_user_can_like_and_favorite_public_forum_posts(client, db_session):
+    author_token = register_and_token(client, "alice", "alice@example.com")
+    viewer_token = register_and_token(client, "bob", "bob@example.com")
+    admin_token = register_and_token(client, "admin", "admin@example.com")
+    grant_admin_role(db_session, "admin@example.com")
+
+    post_response = client.post(
+        "/api/forum/posts",
+        json=post_payload("互动测试帖子", "这条帖子用于验证点赞和收藏。"),
+        headers=auth_headers(author_token),
+    )
+    assert post_response.status_code == 201
+    post_id = post_response.json()["id"]
+
+    pending_like = client.post(
+        f"/api/forum/posts/{post_id}/like",
+        headers=auth_headers(viewer_token),
+    )
+    assert pending_like.status_code == 404
+
+    assert (
+        client.post(
+            f"/api/admin/forum-posts/{post_id}/approve",
+            headers=auth_headers(admin_token),
+        ).status_code
+        == 200
+    )
+
+    visitor_list = client.get("/api/forum/posts")
+    assert visitor_list.status_code == 200
+    assert visitor_list.json()["items"][0]["likeCount"] == 0
+    assert visitor_list.json()["items"][0]["favoriteCount"] == 0
+    assert visitor_list.json()["items"][0]["isLiked"] is False
+    assert visitor_list.json()["items"][0]["isFavorited"] is False
+
+    like_response = client.post(
+        f"/api/forum/posts/{post_id}/like",
+        headers=auth_headers(viewer_token),
+    )
+    favorite_response = client.post(
+        f"/api/forum/posts/{post_id}/favorite",
+        headers=auth_headers(viewer_token),
+    )
+    duplicate_like = client.post(
+        f"/api/forum/posts/{post_id}/like",
+        headers=auth_headers(viewer_token),
+    )
+
+    assert like_response.status_code == 200
+    assert like_response.json()["likeCount"] == 1
+    assert like_response.json()["isLiked"] is True
+    assert favorite_response.status_code == 200
+    assert favorite_response.json()["favoriteCount"] == 1
+    assert favorite_response.json()["isFavorited"] is True
+    assert duplicate_like.status_code == 200
+    assert duplicate_like.json()["likeCount"] == 1
+
+    viewer_list = client.get("/api/forum/posts", headers=auth_headers(viewer_token))
+    assert viewer_list.status_code == 200
+    item = viewer_list.json()["items"][0]
+    assert item["likeCount"] == 1
+    assert item["favoriteCount"] == 1
+    assert item["isLiked"] is True
+    assert item["isFavorited"] is True
+
+    unlike_response = client.delete(
+        f"/api/forum/posts/{post_id}/like",
+        headers=auth_headers(viewer_token),
+    )
+    unfavorite_response = client.delete(
+        f"/api/forum/posts/{post_id}/favorite",
+        headers=auth_headers(viewer_token),
+    )
+    assert unlike_response.status_code == 204
+    assert unfavorite_response.status_code == 204
+
+    final_list = client.get("/api/forum/posts", headers=auth_headers(viewer_token))
+    final_item = final_list.json()["items"][0]
+    assert final_item["likeCount"] == 0
+    assert final_item["favoriteCount"] == 0
+    assert final_item["isLiked"] is False
+    assert final_item["isFavorited"] is False
+    remaining_reaction = db_session.scalar(
+        select(ForumPostReaction).where(ForumPostReaction.post_id == post_id)
+    )
+    assert remaining_reaction is None
 
 
 def test_admin_can_reject_forum_posts_and_comments(client, db_session):

@@ -1404,6 +1404,7 @@ button {
 .forum-search button,
 .forum-composer button,
 .forum-post-detail-button,
+.forum-post-actions button,
 .forum-comment-form button {
   border: 1px solid #3a3150;
   border-radius: 8px;
@@ -1577,6 +1578,28 @@ button {
   background: rgba(21, 57, 53, 0.34);
   font-size: 12px;
   font-weight: 700;
+}
+
+.forum-post-actions {
+  display: grid;
+  gap: 8px;
+  justify-items: stretch;
+}
+
+.forum-post-actions button {
+  min-width: 82px;
+  border-color: rgba(58, 49, 80, 0.86);
+  color: #d7c8ff;
+  background: rgba(25, 21, 34, 0.82);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.forum-post-actions button.is-active {
+  border-color: rgba(124, 77, 255, 0.7);
+  color: #f8f4ff;
+  background: rgba(78, 45, 160, 0.72);
+  box-shadow: 0 10px 24px rgba(109, 61, 242, 0.16);
 }
 
 .forum-post-detail-button {

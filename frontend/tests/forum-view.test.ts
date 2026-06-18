@@ -24,7 +24,8 @@ vi.mock('vue-router', () => ({
 vi.mock('../src/api/http', () => ({
   apiClient: {
     get: vi.fn(),
-    post: vi.fn()
+    post: vi.fn(),
+    delete: vi.fn()
   }
 }))
 
@@ -45,6 +46,10 @@ const forumPost = {
   reviewStatus: 'approved',
   attachments: [],
   commentCount: 1,
+  likeCount: 2,
+  favoriteCount: 1,
+  isLiked: false,
+  isFavorited: false,
   createdAt: '2026-06-07T10:00:00',
   updatedAt: '2026-06-07T10:00:00'
 }
@@ -182,6 +187,8 @@ describe('forum view', () => {
     expect(wrapper.text()).toContain('止盈积木复盘')
     expect(wrapper.text()).toContain('alice')
     expect(wrapper.text()).toContain('评论 1')
+    expect(wrapper.text()).toContain('点赞 2')
+    expect(wrapper.text()).toContain('收藏 1')
     expect(wrapper.text()).toContain('第 1 / 1 页 · 每页 10 条')
 
     await wrapper.find('.forum-post-detail-button').trigger('click')
@@ -212,6 +219,61 @@ describe('forum view', () => {
     })
     expect(wrapper.text()).toContain('最多评论')
     expect(wrapper.text()).toContain('第 1 / 1 页 · 每页 10 条')
+  })
+
+  it('likes, favorites, unlikes, and unfavorites a forum post when logged in', async () => {
+    mockForum()
+    vi.mocked(apiClient.post)
+      .mockResolvedValueOnce({ data: { ...forumDetail, isLiked: true, likeCount: 3 } })
+      .mockResolvedValueOnce({
+        data: { ...forumDetail, isLiked: true, likeCount: 3, isFavorited: true, favoriteCount: 2 }
+      })
+    vi.mocked(apiClient.delete).mockResolvedValue({ data: undefined })
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 2, username: 'bob', email: 'bob@example.com', roles: ['user'] }
+    })
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    await wrapper.find('.forum-post-like-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/forum/posts/12/like')
+    expect(wrapper.text()).toContain('已赞 3')
+
+    await wrapper.find('.forum-post-favorite-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/forum/posts/12/favorite')
+    expect(wrapper.text()).toContain('已收藏 2')
+
+    await wrapper.find('.forum-post-like-button').trigger('click')
+    await wrapper.find('.forum-post-favorite-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.delete).toHaveBeenCalledWith('/forum/posts/12/like')
+    expect(apiClient.delete).toHaveBeenCalledWith('/forum/posts/12/favorite')
+    expect(wrapper.text()).toContain('点赞 2')
+    expect(wrapper.text()).toContain('收藏 1')
+  })
+
+  it('asks visitors to log in before liking or favoriting', async () => {
+    mockForum()
+    const authRequired = vi.fn()
+    window.addEventListener('sts:auth-required', authRequired)
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    await wrapper.find('.forum-post-like-button').trigger('click')
+    await wrapper.find('.forum-post-favorite-button').trigger('click')
+    await nextTick()
+
+    expect(authRequired).toHaveBeenCalledTimes(2)
+    expect(apiClient.post).not.toHaveBeenCalled()
+    expect(apiClient.delete).not.toHaveBeenCalled()
+    window.removeEventListener('sts:auth-required', authRequired)
   })
 
   it('opens a forum detail from the postId route query', async () => {

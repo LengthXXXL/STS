@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -50,6 +50,10 @@ class ForumPost(Base):
         back_populates="post",
         cascade="all, delete-orphan",
     )
+    reactions: Mapped[list["ForumPostReaction"]] = relationship(
+        back_populates="post",
+        cascade="all, delete-orphan",
+    )
 
 
 class ForumComment(Base):
@@ -92,3 +96,24 @@ class ForumPostAttachment(Base):
 
     post: Mapped[ForumPost] = relationship(back_populates="attachments")
     file: Mapped["UploadedFile"] = relationship()
+
+
+class ForumPostReaction(Base):
+    __tablename__ = "forum_post_reactions"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "post_id",
+            "reaction_type",
+            name="uq_forum_post_reactions_user_post_type",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    post_id: Mapped[int] = mapped_column(ForeignKey("forum_posts.id"), nullable=False, index=True)
+    reaction_type: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    post: Mapped[ForumPost] = relationship(back_populates="reactions")
+    user: Mapped["User"] = relationship(back_populates="forum_post_reactions")

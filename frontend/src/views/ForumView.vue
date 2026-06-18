@@ -20,6 +20,10 @@ interface ForumPostItem {
   reviewStatus: 'approved' | 'pending_review' | 'rejected'
   attachments?: ForumAttachment[]
   commentCount: number
+  likeCount: number
+  favoriteCount: number
+  isLiked: boolean
+  isFavorited: boolean
   createdAt: string
   updatedAt: string
 }
@@ -376,6 +380,73 @@ async function submitComment() {
   status.value = '评论已提交审核，可在个人空间-我的论坛查看进度'
 }
 
+async function togglePostReaction(post: ForumPostItem, reactionType: 'like' | 'favorite') {
+  if (!authStore.isAuthenticated) {
+    requireLogin()
+    return
+  }
+
+  const isActive = reactionType === 'like' ? post.isLiked : post.isFavorited
+  const endpoint = `/forum/posts/${post.id}/${reactionType}`
+  error.value = ''
+  try {
+    if (isActive) {
+      await apiClient.delete(endpoint)
+      applyPostReactionState(post.id, reactionType, false)
+      return
+    }
+    const response = await apiClient.post<ForumPostDetail>(endpoint)
+    applyForumPostUpdate(response.data)
+  } catch {
+    error.value = reactionType === 'like' ? '点赞操作失败，请稍后重试' : '收藏操作失败，请稍后重试'
+  }
+}
+
+function applyPostReactionState(
+  postId: number,
+  reactionType: 'like' | 'favorite',
+  isActive: boolean
+) {
+  posts.value = posts.value.map((item) =>
+    updatePostReactionState(item, postId, reactionType, isActive)
+  )
+  if (selectedPost.value?.id === postId) {
+    selectedPost.value = updatePostReactionState(
+      selectedPost.value,
+      postId,
+      reactionType,
+      isActive
+    ) as ForumPostDetail
+  }
+}
+
+function updatePostReactionState(
+  post: ForumPostItem,
+  postId: number,
+  reactionType: 'like' | 'favorite',
+  isActive: boolean
+): ForumPostItem {
+  if (post.id !== postId) {
+    return post
+  }
+  if (reactionType === 'like') {
+    const likeCount = Math.max(0, post.likeCount + (isActive ? 1 : -1))
+    return { ...post, isLiked: isActive, likeCount }
+  }
+  const favoriteCount = Math.max(0, post.favoriteCount + (isActive ? 1 : -1))
+  return { ...post, isFavorited: isActive, favoriteCount }
+}
+
+function applyForumPostUpdate(updatedPost: ForumPostDetail) {
+  posts.value = posts.value.map((item) => (item.id === updatedPost.id ? { ...item, ...updatedPost } : item))
+  if (!posts.value.some((item) => item.id === updatedPost.id)) {
+    posts.value = [updatedPost, ...posts.value]
+  }
+  if (selectedPost.value?.id === updatedPost.id) {
+    selectedPost.value = updatedPost
+  }
+}
+
 async function openRelatedContent() {
   const post = selectedPost.value
   if (!post?.relatedType || !post.relatedId) {
@@ -631,9 +702,27 @@ watch(
             {{ formatDate(post.updatedAt) }}
           </small>
         </div>
-        <button class="forum-post-detail-button" type="button" @click="togglePost(post)">
-          {{ selectedPost?.id === post.id ? '收起' : '查看' }}
-        </button>
+        <div class="forum-post-actions">
+          <button
+            class="forum-post-like-button"
+            type="button"
+            :class="{ 'is-active': post.isLiked }"
+            @click="togglePostReaction(post, 'like')"
+          >
+            {{ post.isLiked ? '已赞' : '点赞' }} {{ post.likeCount }}
+          </button>
+          <button
+            class="forum-post-favorite-button"
+            type="button"
+            :class="{ 'is-active': post.isFavorited }"
+            @click="togglePostReaction(post, 'favorite')"
+          >
+            {{ post.isFavorited ? '已收藏' : '收藏' }} {{ post.favoriteCount }}
+          </button>
+          <button class="forum-post-detail-button" type="button" @click="togglePost(post)">
+            {{ selectedPost?.id === post.id ? '收起' : '查看' }}
+          </button>
+        </div>
 
         <div v-if="detailLoading && detailLoadingPostId === post.id" class="forum-inline-thread-panel">
           <p class="space-muted">正在加载帖子详情</p>
@@ -671,7 +760,8 @@ watch(
               </button>
             </section>
             <small>
-              作者 {{ selectedPost.authorName }} · {{ formatDate(selectedPost.updatedAt) }}
+              作者 {{ selectedPost.authorName }} · 点赞 {{ selectedPost.likeCount }} · 收藏
+              {{ selectedPost.favoriteCount }} · {{ formatDate(selectedPost.updatedAt) }}
             </small>
           </div>
           <div class="forum-comments">
