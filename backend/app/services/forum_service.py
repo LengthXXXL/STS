@@ -1,6 +1,6 @@
 from typing import Literal
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.backtest import BacktestTask
@@ -22,7 +22,14 @@ from app.schemas.forum import (
 APPROVED = "approved"
 PENDING_REVIEW = "pending_review"
 REJECTED = "rejected"
-ForumPostSort = Literal["latest_reply", "newest", "most_commented"]
+ForumPostSort = Literal[
+    "latest_reply",
+    "newest",
+    "most_commented",
+    "most_liked",
+    "most_favorited",
+    "hot",
+]
 ForumPostReactionType = Literal["like", "favorite"]
 
 
@@ -146,7 +153,12 @@ def list_forum_posts(
     page_size: int = 10,
 ) -> tuple[list[ForumPostItemResponse], int]:
     activity = _approved_comment_activity_subquery()
-    statement = _approved_post_statement().outerjoin(activity, ForumPost.id == activity.c.post_id)
+    reactions = _post_reaction_activity_subquery()
+    statement = (
+        _approved_post_statement()
+        .outerjoin(activity, ForumPost.id == activity.c.post_id)
+        .outerjoin(reactions, ForumPost.id == reactions.c.post_id)
+    )
     keyword = keyword.strip()
     if keyword:
         statement = statement.where(
@@ -168,7 +180,7 @@ def list_forum_posts(
 
     total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
     posts = db.scalars(
-        statement.order_by(*_public_post_order_by(sort, activity))
+        statement.order_by(*_public_post_order_by(sort, activity, reactions))
         .offset((page - 1) * page_size)
         .limit(page_size)
     ).all()
@@ -457,14 +469,39 @@ def _approved_comment_activity_subquery():
     )
 
 
-def _public_post_order_by(sort: ForumPostSort, activity):
+def _public_post_order_by(sort: ForumPostSort, activity, reactions):
     latest_reply_at = func.coalesce(activity.c.latest_comment_at, ForumPost.updated_at)
     approved_comment_count = func.coalesce(activity.c.approved_comment_count, 0)
+    like_count = func.coalesce(reactions.c.like_count, 0)
+    favorite_count = func.coalesce(reactions.c.favorite_count, 0)
+    hot_score = favorite_count * 4 + approved_comment_count * 3 + like_count * 2
     if sort == "newest":
         return (ForumPost.created_at.desc(), ForumPost.id.desc())
     if sort == "most_commented":
         return (approved_comment_count.desc(), latest_reply_at.desc(), ForumPost.id.desc())
+    if sort == "most_liked":
+        return (like_count.desc(), latest_reply_at.desc(), ForumPost.id.desc())
+    if sort == "most_favorited":
+        return (favorite_count.desc(), latest_reply_at.desc(), ForumPost.id.desc())
+    if sort == "hot":
+        return (hot_score.desc(), latest_reply_at.desc(), ForumPost.id.desc())
     return (latest_reply_at.desc(), ForumPost.id.desc())
+
+
+def _post_reaction_activity_subquery():
+    return (
+        select(
+            ForumPostReaction.post_id.label("post_id"),
+            func.sum(case((ForumPostReaction.reaction_type == "like", 1), else_=0)).label(
+                "like_count"
+            ),
+            func.sum(case((ForumPostReaction.reaction_type == "favorite", 1), else_=0)).label(
+                "favorite_count"
+            ),
+        )
+        .group_by(ForumPostReaction.post_id)
+        .subquery()
+    )
 
 
 def _ensure_related_content_access(

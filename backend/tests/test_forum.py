@@ -509,6 +509,77 @@ def test_user_can_like_and_favorite_public_forum_posts(client, db_session):
     assert remaining_reaction is None
 
 
+def test_public_forum_posts_support_reaction_based_sorting(client, db_session):
+    author_token = register_and_token(client, "alice", "alice@example.com")
+    viewer_tokens = [
+        register_and_token(client, "bob", "bob@example.com"),
+        register_and_token(client, "carol", "carol@example.com"),
+        register_and_token(client, "dave", "dave@example.com"),
+    ]
+    admin_token = register_and_token(client, "admin", "admin@example.com")
+    grant_admin_role(db_session, "admin@example.com")
+
+    favorite_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("收藏权重更高的帖子", "这条帖子收藏更多。"),
+        headers=auth_headers(author_token),
+    )
+    liked_post = client.post(
+        "/api/forum/posts",
+        json=post_payload("点赞更多的帖子", "这条帖子点赞更多。"),
+        headers=auth_headers(author_token),
+    )
+    assert favorite_post.status_code == 201
+    assert liked_post.status_code == 201
+    favorite_post_id = favorite_post.json()["id"]
+    liked_post_id = liked_post.json()["id"]
+    for post_id in (favorite_post_id, liked_post_id):
+        assert (
+            client.post(
+                f"/api/admin/forum-posts/{post_id}/approve",
+                headers=auth_headers(admin_token),
+            ).status_code
+            == 200
+        )
+
+    for token in viewer_tokens[:2]:
+        assert (
+            client.post(
+                f"/api/forum/posts/{favorite_post_id}/favorite",
+                headers=auth_headers(token),
+            ).status_code
+            == 200
+        )
+    assert (
+        client.post(
+            f"/api/forum/posts/{favorite_post_id}/like",
+            headers=auth_headers(viewer_tokens[0]),
+        ).status_code
+        == 200
+    )
+    for token in viewer_tokens:
+        assert (
+            client.post(
+                f"/api/forum/posts/{liked_post_id}/like",
+                headers=auth_headers(token),
+            ).status_code
+            == 200
+        )
+
+    most_liked = client.get("/api/forum/posts?sort=most_liked&page=1&pageSize=10")
+    most_favorited = client.get("/api/forum/posts?sort=most_favorited&page=1&pageSize=10")
+    hot = client.get("/api/forum/posts?sort=hot&page=1&pageSize=10")
+
+    assert most_liked.status_code == 200
+    assert most_liked.json()["items"][0]["title"] == "点赞更多的帖子"
+    assert most_liked.json()["items"][0]["likeCount"] == 3
+    assert most_favorited.status_code == 200
+    assert most_favorited.json()["items"][0]["title"] == "收藏权重更高的帖子"
+    assert most_favorited.json()["items"][0]["favoriteCount"] == 2
+    assert hot.status_code == 200
+    assert hot.json()["items"][0]["title"] == "收藏权重更高的帖子"
+
+
 def test_user_can_list_favorite_forum_posts(client, db_session):
     author_token = register_and_token(client, "alice", "alice@example.com")
     viewer_token = register_and_token(client, "bob", "bob@example.com")

@@ -155,7 +155,9 @@ const keyword = ref('')
 const topicFilter = ref('')
 const authorFilter = ref('')
 const relatedTypeFilter = ref<ForumRelatedTypeSelection>('')
-const sort = ref<'latest_reply' | 'newest' | 'most_commented'>('latest_reply')
+const sort = ref<
+  'latest_reply' | 'newest' | 'most_commented' | 'most_liked' | 'most_favorited' | 'hot'
+>('latest_reply')
 const page = ref(1)
 const pageSize = 10
 const total = ref(0)
@@ -611,6 +613,9 @@ watch(
             <option value="latest_reply">最新回复</option>
             <option value="newest">最新发布</option>
             <option value="most_commented">最多评论</option>
+            <option value="most_liked">最多点赞</option>
+            <option value="most_favorited">最多收藏</option>
+            <option value="hot">综合热度</option>
           </select>
         </label>
         <input v-model="keyword" class="forum-search-input" placeholder="搜索帖子" />

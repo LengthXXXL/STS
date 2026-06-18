@@ -235,6 +235,22 @@ describe('forum view', () => {
     })
     expect(wrapper.text()).toContain('最多评论')
     expect(wrapper.text()).toContain('第 1 / 1 页 · 每页 10 条')
+
+    await wrapper.find('.forum-sort-select').setValue('hot')
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenLastCalledWith('/forum/posts', {
+      params: {
+        keyword: '',
+        topic: '',
+        author: '',
+        relatedType: '',
+        sort: 'hot',
+        page: 1,
+        pageSize: 10
+      }
+    })
+    expect(wrapper.text()).toContain('综合热度')
   })
 
   it('filters public forum posts by topic author and related type', async () => {
