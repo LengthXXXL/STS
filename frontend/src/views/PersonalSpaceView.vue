@@ -308,6 +308,8 @@ const customBlockActionMessage = ref('')
 const accountError = ref('')
 const marketRuleError = ref('')
 const backtestError = ref('')
+const backtestActionError = ref('')
+const backtestActionMessage = ref('')
 const fileError = ref('')
 const fileActionError = ref('')
 const fileActionMessage = ref('')
@@ -316,6 +318,7 @@ const forumCommentError = ref('')
 const selectedUploadFile = ref<File | null>(null)
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const isUploadingFile = ref(false)
+const exportingBacktestId = ref<number | null>(null)
 const editingStrategyId = ref<number | null>(null)
 const strategyNameForm = ref('')
 const isSavingStrategyName = ref(false)
@@ -872,6 +875,26 @@ async function deleteFile(file: UploadedFileItem) {
     await loadFiles()
   } catch {
     fileActionError.value = '文件删除失败，请稍后重试'
+  }
+}
+
+async function exportBacktest(backtest: BacktestListItem) {
+  backtestActionError.value = ''
+  backtestActionMessage.value = ''
+
+  if (exportingBacktestId.value !== null) {
+    return
+  }
+
+  exportingBacktestId.value = backtest.id
+  try {
+    const response = await apiClient.post<UploadedFileItem>(`/backtests/${backtest.id}/export`)
+    backtestActionMessage.value = `已导出报告：${response.data.originalName}，可在文件管理下载`
+    await loadFiles()
+  } catch {
+    backtestActionError.value = '回测报告导出失败，请稍后重试'
+  } finally {
+    exportingBacktestId.value = null
   }
 }
 
@@ -2104,10 +2127,12 @@ onMounted(() => {
 
     <section v-else class="space-section space-backtests">
       <p v-if="backtestError" class="form-error">{{ backtestError }}</p>
-      <p v-else-if="backtestLoading" class="space-muted">正在加载回测</p>
-      <p v-else-if="backtests.length === 0" class="space-muted">暂无回测记录</p>
+      <p v-if="backtestActionError" class="form-error">{{ backtestActionError }}</p>
+      <p v-if="backtestActionMessage" class="space-muted">{{ backtestActionMessage }}</p>
+      <p v-if="!backtestError && backtestLoading" class="space-muted">正在加载回测</p>
+      <p v-else-if="!backtestError && backtests.length === 0" class="space-muted">暂无回测记录</p>
 
-      <div v-else class="backtest-layout">
+      <div v-else-if="!backtestError" class="backtest-layout">
         <div class="backtest-list">
           <article
             v-for="backtest in backtests"
@@ -2136,9 +2161,19 @@ onMounted(() => {
                 </template>
               </small>
             </div>
-            <button class="backtest-open-button" type="button" @click="openBacktest(backtest)">
-              {{ isSelectedBacktest(backtest) ? '收起' : '查看' }}
-            </button>
+            <div class="backtest-item-actions">
+              <button
+                class="backtest-export-button"
+                type="button"
+                :disabled="exportingBacktestId === backtest.id"
+                @click="exportBacktest(backtest)"
+              >
+                {{ exportingBacktestId === backtest.id ? '导出中' : '导出报告' }}
+              </button>
+              <button class="backtest-open-button" type="button" @click="openBacktest(backtest)">
+                {{ isSelectedBacktest(backtest) ? '收起' : '查看' }}
+              </button>
+            </div>
           </article>
         </div>
 

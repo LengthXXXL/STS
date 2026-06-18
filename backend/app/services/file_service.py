@@ -58,16 +58,40 @@ def create_uploaded_file(
     visibility: str = "private",
 ) -> UploadedFileResponse:
     filename = sanitize_filename(upload.filename or "")
+    content_type = upload.content_type or "application/octet-stream"
+    content = upload.file.read()
+    return create_uploaded_file_from_bytes(
+        db,
+        owner,
+        filename=filename,
+        content=content,
+        content_type=content_type,
+        business_type=business_type,
+        business_id=business_id,
+        visibility=visibility,
+    )
+
+
+def create_uploaded_file_from_bytes(
+    db: Session,
+    owner: User,
+    *,
+    filename: str,
+    content: bytes,
+    content_type: str,
+    business_type: str = "general",
+    business_id: int | None = None,
+    visibility: str = "private",
+) -> UploadedFileResponse:
+    filename = sanitize_filename(filename)
     if not filename:
         raise ValueError("文件名不能为空")
 
     business_type = normalize_choice(business_type, ALLOWED_BUSINESS_TYPES, "general")
     visibility = normalize_choice(visibility, ALLOWED_VISIBILITIES, "private")
-    content_type = upload.content_type or "application/octet-stream"
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise ValueError("暂不支持这种文件类型")
 
-    content = upload.file.read()
     max_size = get_settings().upload_max_size_mb * 1024 * 1024
     if len(content) <= 0:
         raise ValueError("不能上传空文件")

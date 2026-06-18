@@ -11,11 +11,13 @@ from app.schemas.backtest import (
     BacktestRunRequest,
     BacktestRunResponse,
 )
+from app.schemas.uploaded_file import UploadedFileResponse
 from app.services.backtest_record_service import (
     get_backtest_record,
     list_backtest_records,
     save_backtest_result,
 )
+from app.services.backtest_report_service import export_backtest_report
 from app.services.backtest_service import run_backtest as run_backtest_service
 from app.services.market_data_download_service import NoTradingDaysError, ensure_market_data_ready
 from app.services.market_data_service import LocalOnlyMarketDataProvider, MarketDataUnavailableError
@@ -52,6 +54,22 @@ def backtest_detail(
     if record is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest not found")
     return record
+
+
+@router.post(
+    "/{task_id}/export",
+    response_model=UploadedFileResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def export_backtest(
+    task_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> UploadedFileResponse:
+    report_file = export_backtest_report(db, current_user, task_id)
+    if report_file is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Backtest not found")
+    return report_file
 
 
 @router.post("/run", response_model=BacktestRunResponse)

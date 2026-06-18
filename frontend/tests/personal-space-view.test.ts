@@ -897,6 +897,33 @@ describe('personal space view', () => {
     expect(pushMock).toHaveBeenCalledWith('/')
   })
 
+  it('exports a saved backtest report into file management', async () => {
+    mockPersonalSpaceRequests()
+    vi.mocked(apiClient.post).mockResolvedValueOnce({
+      data: {
+        ...savedFile,
+        id: 52,
+        originalName: '回测报告_000001.SZ_5m_2026-01-01_2026-03-01_11.xlsx',
+        contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        businessType: 'backtest',
+        businessId: 11
+      }
+    })
+    const wrapper = mount(PersonalSpaceView)
+
+    await flushPromises()
+    await wrapper.find('[data-space-tab="backtests"]').trigger('click')
+    await wrapper.find('.backtest-export-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.post).toHaveBeenCalledWith('/backtests/11/export')
+    expect(wrapper.text()).toContain('已导出报告')
+    expect(wrapper.text()).toContain('可在文件管理下载')
+    expect(apiClient.get).toHaveBeenCalledWith('/files', {
+      params: { keyword: '', page: 1, pageSize: 10 }
+    })
+  })
+
   it('closes an opened backtest detail from the panel or selected list item', async () => {
     mockPersonalSpaceRequests()
     const wrapper = mount(PersonalSpaceView)

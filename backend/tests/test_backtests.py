@@ -1,3 +1,6 @@
+from io import BytesIO
+from zipfile import ZipFile
+
 import pytest
 from sqlalchemy import select
 
@@ -9,6 +12,7 @@ from app.models import (
     BacktestTradeRecord,
     MarketDataDownloadRange,
     MarketKlineCache,
+    UploadedFile,
 )
 from app.services.market_data_service import MarketDataUnavailableError
 
@@ -303,6 +307,78 @@ def test_run_backtest_persists_owned_task_trades_and_equity_curve(client, db_ses
     assert detail_payload["trades"][0]["slippageAmount"] == payload["trades"][0]["slippageAmount"]
     assert detail_payload["trades"][0]["netCashChange"] == payload["trades"][0]["netCashChange"]
     assert detail_payload["trades"][0]["costBreakdown"] == payload["trades"][0]["costBreakdown"]
+
+
+def test_export_backtest_report_creates_private_xlsx_file(client, db_session):
+    _seed_market_cache(db_session)
+
+    alice_token = register_and_token(client, "report-owner", "report-owner@example.com")
+    bob_token = register_and_token(client, "report-intruder", "report-intruder@example.com")
+
+    run_response = client.post(
+        "/api/backtests/run",
+        json=_backtest_payload(),
+        headers=auth_headers(alice_token),
+    )
+    assert run_response.status_code == 200
+
+    backtest_list = client.get("/api/backtests", headers=auth_headers(alice_token))
+    assert backtest_list.status_code == 200
+    task_id = backtest_list.json()["items"][0]["id"]
+
+    export_response = client.post(
+        f"/api/backtests/{task_id}/export",
+        headers=auth_headers(alice_token),
+    )
+    bob_export = client.post(
+        f"/api/backtests/{task_id}/export",
+        headers=auth_headers(bob_token),
+    )
+
+    assert export_response.status_code == 201
+    assert bob_export.status_code == 404
+    exported = export_response.json()
+    assert exported["originalName"].startswith("回测报告_000001.SZ_5m_")
+    assert exported["originalName"].endswith(f"_{task_id}.xlsx")
+    assert exported["contentType"] == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert exported["businessType"] == "backtest"
+    assert exported["businessId"] == task_id
+    assert exported["visibility"] == "private"
+    assert exported["downloadUrl"] == f"/api/files/{exported['id']}/download"
+
+    stored_file = db_session.scalar(select(UploadedFile).where(UploadedFile.id == exported["id"]))
+    assert stored_file is not None
+    assert stored_file.business_type == "backtest"
+    assert stored_file.business_id == task_id
+
+    file_list = client.get("/api/files?keyword=回测报告", headers=auth_headers(alice_token))
+    assert file_list.status_code == 200
+    assert file_list.json()["total"] == 1
+
+    download_response = client.get(
+        f"/api/files/{exported['id']}/download",
+        headers=auth_headers(alice_token),
+    )
+    assert download_response.status_code == 200
+    assert ".xlsx" in download_response.headers["content-disposition"]
+
+    with ZipFile(BytesIO(download_response.content)) as workbook:
+        names = set(workbook.namelist())
+        assert "xl/workbook.xml" in names
+        assert "xl/worksheets/sheet1.xml" in names
+        assert "xl/worksheets/sheet2.xml" in names
+        root_rels_xml = workbook.read("_rels/.rels").decode()
+        workbook_xml = workbook.read("xl/workbook.xml").decode()
+        summary_sheet = workbook.read("xl/worksheets/sheet1.xml").decode()
+        trades_sheet = workbook.read("xl/worksheets/sheet2.xml").decode()
+
+    assert "relationships/officeDocument" in root_rels_xml
+    assert "STS 回测报告" in summary_sheet
+    assert "000001.SZ" in summary_sheet
+    assert "交易明细" in workbook_xml
+    assert "BUY" in trades_sheet
 
 
 def test_list_backtests_only_returns_current_user_records(client, db_session):

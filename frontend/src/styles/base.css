@@ -222,6 +222,7 @@ button {
 .file-upload-form button,
 .custom-block-edit-actions button,
 .custom-block-delete-confirm button,
+.backtest-export-button,
 .backtest-open-button,
 .space-lane button {
   border: 1px solid #3a3150;
@@ -462,6 +463,23 @@ button {
 .backtest-open-button {
   border-color: rgba(94, 230, 200, 0.42);
   background: rgba(21, 57, 53, 0.76);
+}
+
+.backtest-item-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.backtest-export-button {
+  border-color: rgba(124, 77, 255, 0.58);
+  background: rgba(48, 33, 87, 0.82);
+}
+
+.backtest-export-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
 }
 
 .strategy-delete-button,
@@ -3812,6 +3830,10 @@ button {
   .backtest-item {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .backtest-item-actions {
+    justify-content: flex-start;
   }
 
   .shared-block-toolbar {
