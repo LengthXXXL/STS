@@ -179,6 +179,73 @@ def test_forum_post_can_attach_owned_strategy_summary(client, db_session):
     assert "000001.SZ" in detail["relatedSummary"]
 
 
+def test_public_forum_posts_support_topic_author_and_related_type_filters(client, db_session):
+    alice_token = register_and_token(client, "alice", "alice@example.com")
+    bob_token = register_and_token(client, "bob", "bob@example.com")
+    admin_token = register_and_token(client, "admin", "admin@example.com")
+    grant_admin_role(db_session, "admin@example.com")
+
+    strategy_response = client.post(
+        "/api/strategies",
+        json=strategy_payload("Alice 关联策略"),
+        headers=auth_headers(alice_token),
+    )
+    assert strategy_response.status_code == 201
+
+    related_post = client.post(
+        "/api/forum/posts",
+        json={
+            **post_payload("Alice 策略复盘", "这条帖子带有关联策略。"),
+            "topic": "策略复盘",
+            "relatedType": "strategy",
+            "relatedId": strategy_response.json()["id"],
+        },
+        headers=auth_headers(alice_token),
+    )
+    bob_post = client.post(
+        "/api/forum/posts",
+        json={**post_payload("Bob 策略复盘", "同分类但作者不同。"), "topic": "策略复盘"},
+        headers=auth_headers(bob_token),
+    )
+    alice_plain_post = client.post(
+        "/api/forum/posts",
+        json={**post_payload("Alice 积木经验", "同作者但分类和关联不同。"), "topic": "积木经验"},
+        headers=auth_headers(alice_token),
+    )
+    assert related_post.status_code == 201
+    assert bob_post.status_code == 201
+    assert alice_plain_post.status_code == 201
+    for post_id in (
+        related_post.json()["id"],
+        bob_post.json()["id"],
+        alice_plain_post.json()["id"],
+    ):
+        assert (
+            client.post(
+                f"/api/admin/forum-posts/{post_id}/approve",
+                headers=auth_headers(admin_token),
+            ).status_code
+            == 200
+        )
+
+    filtered = client.get(
+        "/api/forum/posts?topic=策略&author=alice&relatedType=strategy&page=1&pageSize=10"
+    )
+    assert filtered.status_code == 200
+    assert filtered.json()["total"] == 1
+    assert filtered.json()["items"][0]["title"] == "Alice 策略复盘"
+    assert filtered.json()["items"][0]["relatedType"] == "strategy"
+
+    author_filtered = client.get("/api/forum/posts?author=bob&page=1&pageSize=10")
+    assert author_filtered.status_code == 200
+    assert author_filtered.json()["total"] == 1
+    assert author_filtered.json()["items"][0]["authorName"] == "bob"
+
+    missing_related_type = client.get("/api/forum/posts?relatedType=backtest")
+    assert missing_related_type.status_code == 200
+    assert missing_related_type.json()["total"] == 0
+
+
 def test_forum_post_cannot_attach_another_users_private_strategy(client):
     alice_token = register_and_token(client, "alice", "alice@example.com")
     bob_token = register_and_token(client, "bob", "bob@example.com")

@@ -37,6 +37,12 @@ router = APIRouter(prefix="/forum", tags=["forum"])
 @router.get("/posts", response_model=ForumPostListResponse)
 def list_posts(
     keyword: str = "",
+    topic: str = "",
+    author: str = "",
+    related_type: Literal["", "strategy", "backtest", "custom_block", "shared_block"] = Query(
+        default="",
+        alias="relatedType",
+    ),
     sort: Literal["latest_reply", "newest", "most_commented"] = Query(default="latest_reply"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=10, alias="pageSize", ge=1, le=50),
@@ -47,6 +53,9 @@ def list_posts(
         db,
         current_user,
         keyword=keyword,
+        topic=topic,
+        author=author,
+        related_type=related_type,
         sort=sort,
         page=page,
         page_size=page_size,

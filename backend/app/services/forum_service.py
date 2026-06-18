@@ -138,6 +138,9 @@ def list_forum_posts(
     viewer: User | None = None,
     *,
     keyword: str = "",
+    topic: str = "",
+    author: str = "",
+    related_type: str = "",
     sort: ForumPostSort = "latest_reply",
     page: int = 1,
     page_size: int = 10,
@@ -153,6 +156,15 @@ def list_forum_posts(
                 ForumPost.topic.like(f"%{keyword}%"),
             )
         )
+    topic = topic.strip()
+    if topic:
+        statement = statement.where(ForumPost.topic.like(f"%{topic}%"))
+    author = author.strip()
+    if author:
+        statement = statement.where(ForumPost.author.has(User.username.like(f"%{author}%")))
+    related_type = related_type.strip()
+    if related_type:
+        statement = statement.where(ForumPost.related_type == related_type)
 
     total = db.scalar(select(func.count()).select_from(statement.subquery())) or 0
     posts = db.scalars(

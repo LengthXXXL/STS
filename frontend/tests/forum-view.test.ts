@@ -182,7 +182,15 @@ describe('forum view', () => {
     await flushPromises()
 
     expect(apiClient.get).toHaveBeenCalledWith('/forum/posts', {
-      params: { keyword: '', sort: 'latest_reply', page: 1, pageSize: 10 }
+      params: {
+        keyword: '',
+        topic: '',
+        author: '',
+        relatedType: '',
+        sort: 'latest_reply',
+        page: 1,
+        pageSize: 10
+      }
     })
     expect(wrapper.text()).toContain('止盈积木复盘')
     expect(wrapper.text()).toContain('alice')
@@ -215,10 +223,43 @@ describe('forum view', () => {
     await flushPromises()
 
     expect(apiClient.get).toHaveBeenLastCalledWith('/forum/posts', {
-      params: { keyword: '', sort: 'most_commented', page: 1, pageSize: 10 }
+      params: {
+        keyword: '',
+        topic: '',
+        author: '',
+        relatedType: '',
+        sort: 'most_commented',
+        page: 1,
+        pageSize: 10
+      }
     })
     expect(wrapper.text()).toContain('最多评论')
     expect(wrapper.text()).toContain('第 1 / 1 页 · 每页 10 条')
+  })
+
+  it('filters public forum posts by topic author and related type', async () => {
+    mockForum()
+    const wrapper = mount(ForumView)
+    await flushPromises()
+
+    await wrapper.find('.forum-search-input').setValue('复盘')
+    await wrapper.find('.forum-topic-filter-input').setValue('策略')
+    await wrapper.find('.forum-author-filter-input').setValue('alice')
+    await wrapper.find('.forum-related-filter-select').setValue('strategy')
+    await wrapper.find('.forum-search-button').trigger('click')
+    await flushPromises()
+
+    expect(apiClient.get).toHaveBeenLastCalledWith('/forum/posts', {
+      params: {
+        keyword: '复盘',
+        topic: '策略',
+        author: 'alice',
+        relatedType: 'strategy',
+        sort: 'latest_reply',
+        page: 1,
+        pageSize: 10
+      }
+    })
   })
 
   it('likes, favorites, unlikes, and unfavorites a forum post when logged in', async () => {

@@ -152,6 +152,9 @@ const router = useRouter()
 const posts = ref<ForumPostItem[]>([])
 const selectedPost = ref<ForumPostDetail | null>(null)
 const keyword = ref('')
+const topicFilter = ref('')
+const authorFilter = ref('')
+const relatedTypeFilter = ref<ForumRelatedTypeSelection>('')
 const sort = ref<'latest_reply' | 'newest' | 'most_commented'>('latest_reply')
 const page = ref(1)
 const pageSize = 10
@@ -195,6 +198,9 @@ async function loadPosts() {
     const response = await apiClient.get<ForumPostListResponse>('/forum/posts', {
       params: {
         keyword: keyword.value.trim(),
+        topic: topicFilter.value.trim(),
+        author: authorFilter.value.trim(),
+        relatedType: relatedTypeFilter.value,
         sort: sort.value,
         page: page.value,
         pageSize
@@ -608,6 +614,15 @@ watch(
           </select>
         </label>
         <input v-model="keyword" class="forum-search-input" placeholder="搜索帖子" />
+        <input v-model="topicFilter" class="forum-topic-filter-input" placeholder="分类/标签" />
+        <input v-model="authorFilter" class="forum-author-filter-input" placeholder="作者" />
+        <select v-model="relatedTypeFilter" class="forum-related-filter-select">
+          <option value="">全部关联</option>
+          <option value="strategy">策略</option>
+          <option value="backtest">回测</option>
+          <option value="custom_block">我的积木</option>
+          <option value="shared_block">公开积木</option>
+        </select>
         <button class="forum-search-button" type="button" @click="searchPosts">搜索</button>
       </form>
     </header>

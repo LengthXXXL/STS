@@ -1339,9 +1339,12 @@ button {
 }
 
 .forum-search {
-  display: flex;
+  display: grid;
+  grid-template-columns:
+    auto minmax(150px, 1fr) minmax(112px, 0.7fr) minmax(96px, 0.6fr)
+    minmax(122px, 0.7fr) auto;
   gap: 8px;
-  min-width: min(420px, 100%);
+  width: min(860px, 100%);
 }
 
 .forum-sort-control {
@@ -1373,6 +1376,7 @@ button {
 }
 
 .forum-search input,
+.forum-search select,
 .forum-composer input,
 .forum-composer textarea,
 .forum-related-picker select,
@@ -1385,6 +1389,11 @@ button {
   color: #f7f2ff;
   background: rgba(6, 5, 10, 0.74);
   outline: none;
+}
+
+.forum-search select option {
+  color: #f7f2ff;
+  background: #111019;
 }
 
 .forum-composer .forum-attachment-option input {
@@ -3933,6 +3942,17 @@ button {
 
   .forum-header {
     flex-direction: column;
+  }
+
+  .forum-search {
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
+  }
+
+  .forum-sort-control,
+  .forum-search-input,
+  .forum-search-button {
+    grid-column: span 2;
   }
 
   .forum-composer {
