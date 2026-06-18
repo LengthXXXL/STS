@@ -6,6 +6,7 @@ from app.models.custom_block import CustomBlock
 from app.models.user import User
 from app.schemas.custom_block import (
     CustomBlockCreate,
+    CustomBlockExposedParam,
     CustomBlockResponse,
     CustomBlockUpdate,
 )
@@ -22,6 +23,7 @@ def custom_block_to_response(block: CustomBlock) -> CustomBlockResponse:
         category=block.category,
         tags=block.tags,
         template=block.template,
+        exposedParams=block.exposed_params or [],
         reviewStatus=block.review_status,
         createdAt=block.created_at,
         updatedAt=block.updated_at,
@@ -44,6 +46,7 @@ def create_custom_block(
         category=request.category.strip(),
         tags=_normalize_tags(request.tags),
         template=request.template.model_dump(by_alias=True),
+        exposed_params=_normalize_exposed_params(request.exposed_params, request),
         review_status="private",
     )
     db.add(block)
@@ -120,6 +123,7 @@ def update_custom_block(
     block.category = request.category.strip()
     block.tags = _normalize_tags(request.tags)
     block.template = request.template.model_dump(by_alias=True)
+    block.exposed_params = _normalize_exposed_params(request.exposed_params, request)
     _commit_custom_block_change(db)
     db.refresh(block)
     return custom_block_to_response(block)
@@ -169,3 +173,21 @@ def _normalize_tags(tags: list[str]) -> list[str]:
         if value and value not in normalized:
             normalized.append(value[:24])
     return normalized[:12]
+
+
+def _normalize_exposed_params(
+    params: list[CustomBlockExposedParam],
+    request: CustomBlockCreate | CustomBlockUpdate,
+) -> list[dict]:
+    template_node_ids = {node.id for node in request.template.nodes}
+    normalized: list[dict] = []
+    seen: set[tuple[str, str]] = set()
+
+    for param in params:
+        key = (param.node_id, param.param_key)
+        if param.node_id not in template_node_ids or key in seen:
+            continue
+        seen.add(key)
+        normalized.append(param.model_dump(by_alias=True))
+
+    return normalized[:24]

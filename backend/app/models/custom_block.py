@@ -26,6 +26,7 @@ class CustomBlock(Base):
     category: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     tags: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False)
     template: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    exposed_params: Mapped[list[dict[str, Any]]] = mapped_column(JSON, default=list, nullable=False)
     review_status: Mapped[str] = mapped_column(String(30), default="private", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(

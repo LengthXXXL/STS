@@ -3,6 +3,7 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.backtest import StrategyDraft
+from app.schemas.custom_block import CustomBlockExposedParam
 
 
 class SharedBlockItemResponse(BaseModel):
@@ -28,6 +29,10 @@ class SharedBlockItemResponse(BaseModel):
 
 class SharedBlockDetailResponse(SharedBlockItemResponse):
     template: StrategyDraft
+    exposed_params: list[CustomBlockExposedParam] = Field(
+        default_factory=list,
+        alias="exposedParams",
+    )
 
 
 class SharedBlockListResponse(BaseModel):

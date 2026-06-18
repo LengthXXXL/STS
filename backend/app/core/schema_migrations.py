@@ -89,6 +89,12 @@ def ensure_development_schema(engine: Engine) -> None:
                     text("ALTER TABLE market_kline_cache ADD COLUMN previous_close FLOAT")
                 )
 
+    if inspector.has_table("custom_blocks"):
+        column_names = {column["name"] for column in inspector.get_columns("custom_blocks")}
+        if "exposed_params" not in column_names:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE custom_blocks ADD COLUMN exposed_params JSON"))
+
     if not inspector.has_table("market_data_download_ranges"):
         from app.models.market_data import MarketDataDownloadRange
 

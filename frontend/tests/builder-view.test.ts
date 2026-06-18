@@ -141,6 +141,36 @@ describe('builder view', () => {
       edges: [{ id: 'template-edge', from: 'template-buy', to: 'template-take-profit' }],
       viewport: { x: 0, y: 0, scale: 1 }
     },
+    exposedParams: [
+      {
+        id: 'template-buy:sizePercent',
+        nodeId: 'template-buy',
+        paramKey: 'sizePercent',
+        label: '买入 - 买入仓位',
+        nodeLabel: '买入',
+        type: 'number',
+        defaultValue: '30',
+        suffix: '%',
+        min: '1',
+        max: '100',
+        step: '1',
+        options: []
+      },
+      {
+        id: 'template-take-profit:profitRate',
+        nodeId: 'template-take-profit',
+        paramKey: 'profitRate',
+        label: '止盈 - 止盈比例',
+        nodeLabel: '止盈',
+        type: 'number',
+        defaultValue: '5',
+        suffix: '%',
+        min: '0.1',
+        max: '100',
+        step: '0.1',
+        options: []
+      }
+    ],
     reviewStatus: 'private',
     createdAt: '2026-06-06T11:00:00',
     updatedAt: '2026-06-06T11:30:00'
@@ -455,6 +485,48 @@ describe('builder view', () => {
     expect(strategy.nodes.map((node: { id: string }) => node.id)).not.toContain('template-buy')
     expect(strategy.edges[0].from).toBe(strategy.nodes[0].id)
     expect(strategy.edges[0].to).toBe(strategy.nodes[1].id)
+  })
+
+  it('applies exposed parameters after inserting a custom block template', async () => {
+    const authStore = useAuthStore()
+    authStore.setSession({
+      token: 'token-123',
+      user: { id: 1, username: 'alice', email: 'alice@example.com', roles: ['user'] }
+    })
+    mockCustomBlockLibrary()
+    const wrapper = mount(BuilderView)
+    mockCanvasRect(wrapper)
+    await flushPromises()
+
+    await wrapper
+      .find('[data-custom-block-id="21"]')
+      .trigger('mousedown', { button: 0, clientX: 410, clientY: 220 })
+    window.dispatchEvent(new MouseEvent('mousemove', { clientX: 260, clientY: 170 }))
+    window.dispatchEvent(new MouseEvent('mouseup', { clientX: 260, clientY: 170 }))
+    await nextTick()
+
+    const parameterModal = wrapper.find('.custom-block-modal--wide')
+    expect(parameterModal.exists()).toBe(true)
+    expect(parameterModal.text()).toContain('买入 - 买入仓位')
+    expect(parameterModal.text()).toContain('止盈 - 止盈比例')
+
+    const parameterInputs = parameterModal.findAll('input[type="number"]')
+    expect(parameterInputs).toHaveLength(2)
+    await parameterInputs[0].setValue('45')
+    await parameterInputs[1].setValue('8')
+    await parameterModal.find('.custom-block-save-button').trigger('click')
+
+    await openReviewModal('publish')
+    const strategy = JSON.parse(wrapper.find('.strategy-json-preview').text())
+
+    expect(strategy.nodes.find((node: { type: string }) => node.type === 'buy').params).toMatchObject({
+      sizePercent: '45'
+    })
+    expect(
+      strategy.nodes.find((node: { type: string }) => node.type === 'take-profit').params
+    ).toMatchObject({
+      profitRate: '8'
+    })
   })
 
   it('adds a block when a library block is pointer-dragged onto the canvas', async () => {
@@ -949,7 +1021,19 @@ describe('builder view', () => {
       template: expect.objectContaining({
         version: 1,
         nodes: expect.arrayContaining([expect.objectContaining({ type: 'buy' })])
-      })
+      }),
+      exposedParams: expect.arrayContaining([
+        expect.objectContaining({
+          paramKey: 'sizePercent',
+          label: '买入 - 买入仓位',
+          defaultValue: '20'
+        }),
+        expect.objectContaining({
+          paramKey: 'orderType',
+          label: '买入 - 委托方式',
+          defaultValue: 'market'
+        })
+      ])
     })
     expect(wrapper.find('.custom-block-status').text()).toContain('已保存到我的积木')
   })

@@ -99,6 +99,21 @@ interface MarketRuleListResponse {
   items: MarketRule[]
 }
 
+interface CustomBlockExposedParam {
+  id: string
+  nodeId: string
+  paramKey: string
+  label: string
+  nodeLabel: string
+  type: 'text' | 'number' | 'select'
+  defaultValue: string
+  suffix?: string | null
+  min?: string | null
+  max?: string | null
+  step?: string | null
+  options?: Array<{ label: string; value: string }>
+}
+
 interface CustomBlock {
   id: number
   ownerId: number
@@ -107,6 +122,7 @@ interface CustomBlock {
   category: string
   tags: string[]
   template: StrategyDraftPayload
+  exposedParams: CustomBlockExposedParam[]
   reviewStatus: 'private' | 'pending_review' | 'approved' | 'rejected'
   createdAt: string
   updatedAt: string
@@ -921,7 +937,8 @@ async function submitCustomBlock(block: CustomBlock) {
       description: customBlockForm.value.description.trim() || null,
       category,
       tags: customBlockFormTags(),
-      template: block.template
+      template: block.template,
+      exposedParams: block.exposedParams ?? []
     })
     editingCustomBlockId.value = null
     customBlockActionMessage.value = `已更新自定义积木：${name}`

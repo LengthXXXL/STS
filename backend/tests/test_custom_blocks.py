@@ -39,6 +39,7 @@ def test_custom_block_crud_flow_for_current_user(client):
     assert created["name"] == "突破后止盈模板"
     assert created["reviewStatus"] == "private"
     assert created["template"]["nodes"][1]["type"] == "take-profit"
+    assert created["exposedParams"] == []
     assert created["tags"] == ["止盈", "模板"]
 
     list_response = client.get(
@@ -162,6 +163,69 @@ def test_custom_block_requires_login(client):
     response = client.post("/api/custom-blocks", json=custom_block_payload())
 
     assert response.status_code == 401
+
+
+def test_custom_block_saves_exposed_parameters(client):
+    token = register_and_token(client, "param-owner", "param-owner@example.com")
+    payload = custom_block_payload("参数化止盈模板")
+    payload["exposedParams"] = [
+        {
+            "id": "take-profit-1:profitRate",
+            "nodeId": "take-profit-1",
+            "paramKey": "profitRate",
+            "label": "止盈 - 止盈比例",
+            "nodeLabel": "止盈",
+            "type": "number",
+            "defaultValue": "5",
+            "suffix": "%",
+            "min": "0.1",
+            "max": "100",
+            "step": "0.1",
+            "options": [],
+        },
+        {
+            "id": "ghost:profitRate",
+            "nodeId": "ghost",
+            "paramKey": "profitRate",
+            "label": "无效参数",
+            "nodeLabel": "幽灵节点",
+            "type": "number",
+            "defaultValue": "5",
+            "options": [],
+        },
+    ]
+
+    create_response = client.post(
+        "/api/custom-blocks",
+        json=payload,
+        headers=auth_headers(token),
+    )
+
+    assert create_response.status_code == 201
+    created = create_response.json()
+    assert len(created["exposedParams"]) == 1
+    assert created["exposedParams"][0]["nodeId"] == "take-profit-1"
+    assert created["exposedParams"][0]["paramKey"] == "profitRate"
+    assert created["exposedParams"][0]["defaultValue"] == "5"
+
+    update_payload = custom_block_payload("参数化止盈模板 v2")
+    update_payload["exposedParams"] = [
+        {
+            **created["exposedParams"][0],
+            "id": "take-profit-1:sellPercent",
+            "paramKey": "sellPercent",
+            "label": "止盈 - 卖出仓位",
+            "defaultValue": "50",
+        }
+    ]
+    update_response = client.put(
+        f"/api/custom-blocks/{created['id']}",
+        json=update_payload,
+        headers=auth_headers(token),
+    )
+
+    assert update_response.status_code == 200
+    assert update_response.json()["exposedParams"][0]["paramKey"] == "sellPercent"
 
 
 def test_custom_block_name_must_be_unique_for_current_user(client):

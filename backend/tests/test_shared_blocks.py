@@ -324,6 +324,22 @@ def test_import_shared_block_auto_renames_duplicate(client, db_session):
     source_payload["description"] = "可复制的导入模板"
     source_payload["category"] = "动作"
     source_payload["tags"] = ["买入", "复制"]
+    source_payload["exposedParams"] = [
+        {
+            "id": "buy-1:sizePercent",
+            "nodeId": "buy-1",
+            "paramKey": "sizePercent",
+            "label": "买入 - 买入仓位",
+            "nodeLabel": "买入",
+            "type": "number",
+            "defaultValue": "20",
+            "suffix": "%",
+            "min": "1",
+            "max": "100",
+            "step": "1",
+            "options": [],
+        }
+    ]
     source_response = client.post(
         "/api/custom-blocks",
         json=source_payload,
@@ -348,6 +364,8 @@ def test_import_shared_block_auto_renames_duplicate(client, db_session):
     assert payload["tags"] == ["买入", "复制"]
     assert payload["reviewStatus"] == "private"
     assert payload["template"]["nodes"][0]["type"] == "buy"
+    assert payload["exposedParams"][0]["nodeId"] == "buy-1"
+    assert payload["exposedParams"][0]["paramKey"] == "sizePercent"
     stats = db_session.scalar(
         select(SharedBlockStats).where(SharedBlockStats.custom_block_id == source["id"])
     )

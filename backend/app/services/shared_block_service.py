@@ -172,6 +172,7 @@ def _to_detail(
     return SharedBlockDetailResponse(
         **item.model_dump(by_alias=True),
         template=block.template,
+        exposedParams=block.exposed_params or [],
     )
 
 
@@ -381,6 +382,7 @@ def import_shared_block(
             category=source.category,
             tags=list(source.tags or []),
             template=deepcopy(source.template),
+            exposed_params=deepcopy(source.exposed_params or []),
             review_status="private",
         )
         db.add(imported)

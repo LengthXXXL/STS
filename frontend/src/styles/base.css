@@ -2927,6 +2927,10 @@ button {
   cursor: default;
 }
 
+.custom-block-modal--wide {
+  width: min(560px, calc(100vw - 48px));
+}
+
 .strategy-review-header,
 .strategy-review-footer,
 .custom-block-modal-header,
@@ -2977,6 +2981,7 @@ button {
 }
 
 .custom-block-form input,
+.custom-block-form select,
 .custom-block-form textarea {
   width: 100%;
   border: 1px solid #3a3150;
@@ -2985,6 +2990,56 @@ button {
   color: #f7f2ff;
   background: #09080d;
   resize: vertical;
+}
+
+.custom-block-param-list {
+  display: grid;
+  gap: 8px;
+  border: 1px solid rgba(58, 49, 80, 0.72);
+  border-radius: 8px;
+  padding: 10px;
+  background: rgba(6, 5, 10, 0.42);
+}
+
+.custom-block-param-list header,
+.custom-block-param-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.custom-block-param-list header span,
+.custom-block-param-toggle strong {
+  color: #f7f2ff;
+  font-size: 13px;
+}
+
+.custom-block-param-toggle {
+  border: 1px solid rgba(58, 49, 80, 0.56);
+  border-radius: 7px;
+  padding: 8px;
+  background: rgba(25, 21, 34, 0.58);
+}
+
+.custom-block-param-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: #7c4dff;
+}
+
+.custom-block-param-toggle > span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.custom-block-param-toggle small,
+.param-suffix {
+  color: #a89bc1;
+  font-size: 12px;
 }
 
 .custom-block-status {

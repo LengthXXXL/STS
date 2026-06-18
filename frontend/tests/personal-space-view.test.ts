@@ -148,6 +148,22 @@ const savedCustomBlock = {
     ...savedStrategy.strategy,
     edges: [{ id: 'custom-edge-1', from: 'buy-1', to: 'stop-loss-1' }]
   },
+  exposedParams: [
+    {
+      id: 'buy-1:sizePercent',
+      nodeId: 'buy-1',
+      paramKey: 'sizePercent',
+      label: '买入 - 买入仓位',
+      nodeLabel: '买入',
+      type: 'number',
+      defaultValue: '20',
+      suffix: '%',
+      min: '1',
+      max: '100',
+      step: '1',
+      options: []
+    }
+  ],
   reviewStatus: 'private',
   createdAt: '2026-06-06T11:00:00',
   updatedAt: '2026-06-06T11:30:00'
@@ -811,7 +827,8 @@ describe('personal space view', () => {
       description: '更新后的说明',
       category: '动作',
       tags: ['突破', '止盈'],
-      template: savedCustomBlock.template
+      template: savedCustomBlock.template,
+      exposedParams: savedCustomBlock.exposedParams
     })
     await flushPromises()
 

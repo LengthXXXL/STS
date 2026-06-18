@@ -204,6 +204,27 @@ interface SavedStrategyResponse {
 interface CustomBlockResponse {
   id: number
   name: string
+  exposedParams: CustomBlockExposedParam[]
+}
+
+interface CustomBlockExposedParamOption {
+  label: string
+  value: string
+}
+
+interface CustomBlockExposedParam {
+  id: string
+  nodeId: string
+  paramKey: string
+  label: string
+  nodeLabel: string
+  type: BlockParamField['type']
+  defaultValue: string
+  suffix?: string | null
+  min?: string | null
+  max?: string | null
+  step?: string | null
+  options?: CustomBlockExposedParamOption[]
 }
 
 interface CustomBlockTemplate {
@@ -214,6 +235,7 @@ interface CustomBlockTemplate {
   category: string
   tags: string[]
   template: StrategyDraft
+  exposedParams: CustomBlockExposedParam[]
   reviewStatus: 'private' | 'pending_review' | 'approved' | 'rejected'
   createdAt: string
   updatedAt: string
@@ -233,6 +255,16 @@ interface CustomBlockForm {
   category: string
   description: string
   tags: string
+}
+
+interface AppliedCustomBlockParam extends CustomBlockExposedParam {
+  placedBlockId: string
+  value: string
+}
+
+interface CustomBlockParamSession {
+  title: string
+  fields: AppliedCustomBlockParam[]
 }
 
 interface Connection {
@@ -892,6 +924,8 @@ const customBlockStatus = ref('')
 const customBlockLibrary = ref<CustomBlockTemplate[]>([])
 const customBlockLibraryLoading = ref(false)
 const customBlockLibraryError = ref('')
+const selectedExposedParamIds = ref<Set<string>>(new Set())
+const customBlockParamSession = ref<CustomBlockParamSession | null>(null)
 const defaultBacktestDateRange = getDefaultBacktestDateRange()
 const backtestSettings = reactive<BacktestSettings>({
   market: 'A_SHARE',
@@ -993,6 +1027,34 @@ const customBlockNameCounts = computed(() => {
   })
   return counts
 })
+
+const customBlockParamCandidates = computed<CustomBlockExposedParam[]>(() =>
+  placedBlocks.value.flatMap((block) => {
+    const definition = blockDefinitions.find((item) => item.id === block.blockId)
+    if (!definition) {
+      return []
+    }
+
+    return definition.fields.map((field) => ({
+      id: customBlockParamCandidateId(block.id, field.key),
+      nodeId: block.id,
+      paramKey: field.key,
+      label: `${block.label} - ${field.label}`,
+      nodeLabel: block.label,
+      type: field.type,
+      defaultValue: blockParamValue(block, field),
+      suffix: field.suffix ?? null,
+      min: field.min ?? null,
+      max: field.max ?? null,
+      step: field.step ?? null,
+      options: field.options ? field.options.map((option) => ({ ...option })) : []
+    }))
+  })
+)
+
+const selectedCustomBlockExposedParams = computed(() =>
+  customBlockParamCandidates.value.filter((param) => selectedExposedParamIds.value.has(param.id))
+)
 
 const strategyDraft = computed<StrategyDraft>(() => ({
   version: 1,
@@ -1262,6 +1324,29 @@ function normalizeBlockParams(block: BlockDefinition, params: unknown) {
 
 function blockParamValue(block: PlacedBlock, field: BlockParamField) {
   return block.params[field.key] ?? field.defaultValue
+}
+
+function customBlockParamCandidateId(nodeId: string, paramKey: string) {
+  return `${nodeId}:${paramKey}`
+}
+
+function resetCustomBlockExposedParamSelection() {
+  selectedExposedParamIds.value = new Set(customBlockParamCandidates.value.map((param) => param.id))
+}
+
+function isCustomBlockParamSelected(param: CustomBlockExposedParam) {
+  return selectedExposedParamIds.value.has(param.id)
+}
+
+function toggleCustomBlockParamSelection(param: CustomBlockExposedParam, event: Event) {
+  const input = event.target as HTMLInputElement
+  const nextSelection = new Set(selectedExposedParamIds.value)
+  if (input.checked) {
+    nextSelection.add(param.id)
+  } else {
+    nextSelection.delete(param.id)
+  }
+  selectedExposedParamIds.value = nextSelection
 }
 
 function updateBlockParam(blockId: string, key: string, event: Event) {
@@ -1677,6 +1762,7 @@ function openCustomBlockModal() {
     validationIssues.value.length > 0
       ? validationIssues.value[0].message
       : '将当前画布保存为可复用的私有积木模板'
+  resetCustomBlockExposedParamSelection()
   isCustomBlockModalOpen.value = true
 }
 
@@ -1750,7 +1836,8 @@ async function saveCustomBlockTemplate() {
       description: customBlockForm.description.trim() || null,
       category,
       tags: customBlockTags(),
-      template: strategyDraft.value
+      template: strategyDraft.value,
+      exposedParams: selectedCustomBlockExposedParams.value
     })
     customBlockStatus.value = `已保存到我的积木：${response.data.name}`
     void loadCustomBlockLibrary()
@@ -1948,6 +2035,76 @@ function addCustomBlockAtClientPoint(block: CustomBlockTemplate, clientX: number
 
   placedBlocks.value.push(...nextBlocks)
   connections.value.push(...nextConnections)
+
+  const appliedParams = buildAppliedCustomBlockParams(block, nodeIdMap)
+  if (appliedParams.length > 0) {
+    customBlockParamSession.value = {
+      title: block.name,
+      fields: appliedParams
+    }
+  }
+}
+
+function buildAppliedCustomBlockParams(
+  block: CustomBlockTemplate,
+  nodeIdMap: Map<string, string>
+): AppliedCustomBlockParam[] {
+  return (block.exposedParams ?? []).reduce<AppliedCustomBlockParam[]>((fields, param) => {
+    const placedBlockId = nodeIdMap.get(param.nodeId)
+    if (!placedBlockId) {
+      return fields
+    }
+
+    fields.push({
+      ...param,
+      placedBlockId,
+      value: param.defaultValue
+    })
+    return fields
+  }, [])
+}
+
+function updateCustomBlockSessionParam(fieldId: string, event: Event) {
+  const session = customBlockParamSession.value
+  if (
+    !session ||
+    !(event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement)
+  ) {
+    return
+  }
+
+  const target = event.target
+  customBlockParamSession.value = {
+    ...session,
+    fields: session.fields.map((field) =>
+      field.id === fieldId ? { ...field, value: target.value } : field
+    )
+  }
+}
+
+function applyCustomBlockParamSession() {
+  const session = customBlockParamSession.value
+  if (!session) {
+    return
+  }
+
+  session.fields.forEach((field) => {
+    const block = findPlacedBlock(field.placedBlockId)
+    if (!block) {
+      return
+    }
+    block.params = {
+      ...block.params,
+      [field.paramKey]: field.value
+    }
+  })
+
+  draftStatus.value = `已应用 ${session.title} 的参数`
+  customBlockParamSession.value = null
+}
+
+function closeCustomBlockParamSession() {
+  customBlockParamSession.value = null
 }
 
 function isPointInsideFloatingLibrary(clientX: number, clientY: number) {
@@ -2623,7 +2780,12 @@ function clearCanvas() {
               @mousedown.stop="startMouseCustomBlockDrag(block, $event)"
             >
               <span>{{ customBlockDisplayName(block) }}</span>
-              <small>{{ block.template.nodes.length }}个</small>
+              <small>
+                {{ block.template.nodes.length }}个
+                <template v-if="(block.exposedParams ?? []).length">
+                  · {{ block.exposedParams.length }}参数
+                </template>
+              </small>
             </button>
           </div>
         </section>
@@ -2724,6 +2886,31 @@ function clearCanvas() {
               placeholder="用逗号分隔，例如：突破, 买入"
             />
           </label>
+          <section
+            v-if="customBlockParamCandidates.length > 0"
+            class="custom-block-param-list"
+            aria-label="可调参数"
+          >
+            <header>
+              <span>可调参数</span>
+              <small>{{ selectedCustomBlockExposedParams.length }} / {{ customBlockParamCandidates.length }}</small>
+            </header>
+            <label
+              v-for="param in customBlockParamCandidates"
+              :key="param.id"
+              class="custom-block-param-toggle"
+            >
+              <input
+                type="checkbox"
+                :checked="isCustomBlockParamSelected(param)"
+                @change="toggleCustomBlockParamSelection(param, $event)"
+              />
+              <span>
+                <strong>{{ param.label }}</strong>
+                <small>{{ param.defaultValue }}{{ param.suffix || '' }}</small>
+              </span>
+            </label>
+          </section>
         </form>
 
         <p class="custom-block-status">{{ customBlockStatus }}</p>
@@ -2743,6 +2930,90 @@ function clearCanvas() {
             @click="saveCustomBlockTemplate"
           >
             {{ isCustomBlockSaving ? '保存中' : '保存到我的积木' }}
+          </button>
+        </footer>
+      </aside>
+    </div>
+
+    <div
+      v-if="customBlockParamSession"
+      class="custom-block-modal-backdrop"
+      @click.self="closeCustomBlockParamSession"
+      @pointerdown.stop
+      @wheel.stop
+    >
+      <aside
+        class="custom-block-modal custom-block-modal--wide"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="custom-block-param-modal-title"
+        @click.stop
+        @pointerdown.stop
+        @contextmenu.stop
+      >
+        <header class="custom-block-modal-header">
+          <div>
+            <small>我的积木</small>
+            <h2 id="custom-block-param-modal-title">{{ customBlockParamSession.title }}</h2>
+          </div>
+          <button
+            class="custom-block-modal-close"
+            type="button"
+            aria-label="关闭参数设置"
+            @click="closeCustomBlockParamSession"
+          >
+            ×
+          </button>
+        </header>
+
+        <form class="custom-block-form" @submit.prevent="applyCustomBlockParamSession">
+          <label
+            v-for="field in customBlockParamSession.fields"
+            :key="field.id"
+          >
+            <span>{{ field.label }}</span>
+            <div class="param-input-row">
+              <select
+                v-if="field.type === 'select'"
+                :value="field.value"
+                @change="updateCustomBlockSessionParam(field.id, $event)"
+              >
+                <option
+                  v-for="option in field.options || []"
+                  :key="option.value"
+                  :value="option.value"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+              <input
+                v-else
+                :type="field.type === 'number' ? 'number' : 'text'"
+                :value="field.value"
+                :min="field.min || undefined"
+                :max="field.max || undefined"
+                :step="field.step || undefined"
+                @input="updateCustomBlockSessionParam(field.id, $event)"
+              />
+              <span v-if="field.suffix" class="param-suffix">{{ field.suffix }}</span>
+            </div>
+          </label>
+        </form>
+
+        <footer class="custom-block-modal-footer">
+          <button
+            class="custom-block-cancel-button"
+            type="button"
+            @click="closeCustomBlockParamSession"
+          >
+            稍后再调
+          </button>
+          <button
+            class="custom-block-save-button"
+            type="button"
+            @click="applyCustomBlockParamSession"
+          >
+            应用参数
           </button>
         </footer>
       </aside>

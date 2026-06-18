@@ -20,6 +20,21 @@ interface SharedBlockTemplate {
   viewport: { x: number; y: number; scale: number }
 }
 
+interface SharedBlockExposedParam {
+  id: string
+  nodeId: string
+  paramKey: string
+  label: string
+  nodeLabel: string
+  type: 'text' | 'number' | 'select'
+  defaultValue: string
+  suffix?: string | null
+  min?: string | null
+  max?: string | null
+  step?: string | null
+  options?: Array<{ label: string; value: string }>
+}
+
 interface SharedBlockItem {
   id: number
   ownerId: number
@@ -41,6 +56,7 @@ interface SharedBlockItem {
 
 interface SharedBlockDetail extends SharedBlockItem {
   template: SharedBlockTemplate
+  exposedParams: SharedBlockExposedParam[]
 }
 
 interface SharedBlockListResponse {
@@ -53,6 +69,7 @@ interface SharedBlockListResponse {
 interface ImportedBlockResponse {
   id: number
   name: string
+  exposedParams?: SharedBlockExposedParam[]
 }
 
 const authStore = useAuthStore()
