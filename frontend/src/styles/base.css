@@ -318,6 +318,37 @@ button {
   gap: 12px;
 }
 
+.space-empty-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid rgba(124, 77, 255, 0.24);
+  border-radius: 8px;
+  padding: 14px;
+  color: #a89bc1;
+  background: rgba(17, 16, 25, 0.78);
+}
+
+.space-empty-action p {
+  margin: 0;
+}
+
+.space-empty-action button {
+  border: 1px solid rgba(94, 230, 200, 0.38);
+  border-radius: 6px;
+  padding: 9px 12px;
+  color: #dbfff8;
+  background: rgba(19, 88, 78, 0.6);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.space-empty-action button:hover {
+  border-color: rgba(128, 255, 230, 0.68);
+  background: rgba(24, 118, 104, 0.76);
+}
+
 .strategy-list,
 .custom-block-list,
 .account-list,
@@ -2699,16 +2730,23 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
+  min-width: 28px;
   height: 28px;
   border: 1px solid rgba(184, 156, 255, 0.54);
   border-radius: 6px;
-  padding: 0;
+  gap: 5px;
+  padding: 0 9px;
   color: #f7f2ff;
   background: rgba(109, 61, 242, 0.76);
   box-shadow: 0 0 18px rgba(124, 77, 255, 0.2);
   cursor: pointer;
-  font-size: 18px;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.custom-block-create-icon {
+  font-size: 16px;
   line-height: 1;
 }
 
@@ -2757,6 +2795,13 @@ button {
   gap: 8px;
 }
 
+.custom-block-library-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .block-library-group h3,
 .custom-block-library-section h3 {
   margin: 0;
@@ -2774,6 +2819,42 @@ button {
   background: rgba(20, 18, 28, 0.66);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.custom-block-library-empty {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  border: 1px solid rgba(124, 77, 255, 0.22);
+  border-radius: 6px;
+  padding: 10px;
+  color: #a89bc1;
+  background: rgba(20, 18, 28, 0.66);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.custom-block-library-empty p {
+  margin: 0;
+}
+
+.custom-block-section-create-button,
+.custom-block-library-empty button {
+  border: 1px solid rgba(94, 230, 200, 0.36);
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: #dbfff8;
+  background: rgba(19, 88, 78, 0.6);
+  box-shadow: 0 0 18px rgba(94, 230, 200, 0.08);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.custom-block-section-create-button:hover,
+.custom-block-library-empty button:hover {
+  border-color: rgba(128, 255, 230, 0.66);
+  background: rgba(24, 118, 104, 0.72);
 }
 
 .block-library-group-items {

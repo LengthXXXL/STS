@@ -2733,7 +2733,8 @@ function clearCanvas() {
             @pointerdown.stop
             @click.stop="openCustomBlockModal"
           >
-            +
+            <span class="custom-block-create-icon">+</span>
+            <span class="custom-block-create-label">新建</span>
           </button>
           <button
             class="block-library-collapse-toggle"
@@ -2753,7 +2754,18 @@ function clearCanvas() {
       />
       <nav v-if="!isLibraryCollapsed" class="block-library-groups">
         <section class="custom-block-library-section" aria-label="我的积木">
-          <h3>我的积木</h3>
+          <header class="custom-block-library-titlebar">
+            <h3>我的积木</h3>
+            <button
+              v-if="authStore.isAuthenticated"
+              class="custom-block-section-create-button"
+              type="button"
+              @pointerdown.stop
+              @click.stop="openCustomBlockModal"
+            >
+              新建积木
+            </button>
+          </header>
           <p v-if="!authStore.isAuthenticated" class="custom-block-library-hint">
             登录后可使用自己的积木
           </p>
@@ -2763,9 +2775,17 @@ function clearCanvas() {
           <p v-else-if="customBlockLibraryError" class="custom-block-library-hint">
             {{ customBlockLibraryError }}
           </p>
-          <p v-else-if="filteredCustomBlocks.length === 0" class="custom-block-library-hint">
-            {{ blockSearchQuery.trim() ? '暂无匹配的自定义积木' : '暂无积木' }}
-          </p>
+          <div
+            v-else-if="filteredCustomBlocks.length === 0"
+            class="custom-block-library-empty"
+          >
+            <p>
+              {{ blockSearchQuery.trim() ? '暂无匹配的自定义积木' : '暂无积木' }}
+            </p>
+            <button type="button" @pointerdown.stop @click.stop="openCustomBlockModal">
+              新建积木
+            </button>
+          </div>
           <div v-else class="block-library-group-items">
             <button
               v-for="block in filteredCustomBlocks"

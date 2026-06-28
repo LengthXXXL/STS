@@ -829,6 +829,10 @@ function openCustomBlock(block: CustomBlock) {
   void router.push('/')
 }
 
+function openCustomBlockBuilder() {
+  void router.push('/')
+}
+
 function customBlockPublishLabel(block: CustomBlock) {
   if (block.reviewStatus === 'pending_review') {
     return '待审核'
@@ -1808,7 +1812,10 @@ onMounted(() => {
     <section v-else-if="activeTab === 'custom-blocks'" class="space-section">
       <p v-if="customBlockError" class="form-error">{{ customBlockError }}</p>
       <p v-else-if="customBlockLoading" class="space-muted">正在加载自定义积木</p>
-      <p v-else-if="customBlocks.length === 0" class="space-muted">暂无自定义积木</p>
+      <div v-else-if="customBlocks.length === 0" class="space-empty-action">
+        <p>暂无自定义积木</p>
+        <button type="button" @click="openCustomBlockBuilder">去搭建页新建</button>
+      </div>
       <p v-if="customBlockActionError" class="form-error">{{ customBlockActionError }}</p>
       <p v-if="customBlockActionMessage" class="space-muted">{{ customBlockActionMessage }}</p>
 
