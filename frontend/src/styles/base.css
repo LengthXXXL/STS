@@ -177,6 +177,158 @@ button {
   gap: 16px;
 }
 
+.space-hero,
+.forum-hero {
+  position: relative;
+  min-height: clamp(250px, 25vw, 340px);
+  display: grid;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(124, 77, 255, 0.28);
+  border-radius: 16px;
+  padding: clamp(24px, 4vw, 46px);
+  background:
+    linear-gradient(104deg, rgba(2, 2, 5, 0.98) 0%, rgba(8, 7, 13, 0.96) 46%, rgba(20, 17, 36, 0.86) 100%),
+    #08070c;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.34);
+  isolation: isolate;
+}
+
+.space-hero::before,
+.forum-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+  background-size: 74px 74px;
+  opacity: 0.42;
+  animation: sharedHeroGrid 16s linear infinite;
+  z-index: -2;
+}
+
+.space-hero::after,
+.forum-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.space-hero::after {
+  background:
+    linear-gradient(110deg, rgba(0, 0, 0, 0.58) 0%, rgba(0, 0, 0, 0.16) 44%, rgba(124, 77, 255, 0.2) 100%),
+    linear-gradient(28deg, transparent 54%, rgba(94, 230, 200, 0.18) 78%, transparent 100%);
+}
+
+.forum-hero::after {
+  background:
+    linear-gradient(110deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.18) 42%, rgba(124, 77, 255, 0.2) 100%),
+    radial-gradient(circle at 74% 32%, rgba(94, 230, 200, 0.16), transparent 28%);
+}
+
+.space-hero-copy,
+.forum-hero-copy {
+  position: relative;
+  z-index: 2;
+  max-width: 640px;
+}
+
+.space-hero-copy > span,
+.forum-hero-copy > span {
+  display: inline-flex;
+  border: 1px solid rgba(124, 77, 255, 0.42);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #d8ceff;
+  background: rgba(27, 20, 42, 0.72);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.space-hero-copy h1,
+.forum-hero-copy h1 {
+  max-width: 720px;
+  margin: 18px 0 12px;
+  color: #fff;
+  font-size: clamp(30px, 4.3vw, 52px);
+  line-height: 1.08;
+}
+
+.space-hero-copy p,
+.forum-hero-copy p {
+  max-width: 600px;
+  margin: 0;
+  color: #c7bfd6;
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.space-hero .shared-block-hero-grid,
+.forum-hero .shared-block-hero-grid {
+  right: 4%;
+  top: 18%;
+  width: min(46vw, 560px);
+  height: 66%;
+  opacity: 0.72;
+}
+
+.space-hero .shared-block-candle,
+.forum-hero .shared-block-candle,
+.space-hero .shared-block-signal,
+.forum-hero .shared-block-signal,
+.space-hero .shared-block-flow,
+.forum-hero .shared-block-flow {
+  opacity: 0.86;
+}
+
+.space-hero-metrics,
+.forum-hero-steps {
+  position: absolute;
+  right: clamp(22px, 4vw, 48px);
+  bottom: clamp(20px, 3vw, 38px);
+  z-index: 2;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: min(420px, 46%);
+}
+
+.space-hero-metrics div,
+.forum-hero-steps span {
+  border: 1px solid rgba(94, 230, 200, 0.28);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(5, 5, 9, 0.48);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.space-hero-metrics div {
+  display: grid;
+  gap: 2px;
+  min-width: 78px;
+}
+
+.space-hero-metrics span,
+.forum-hero-steps span {
+  color: #aeece4;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.space-hero-metrics strong {
+  color: #fff;
+  font-size: 22px;
+  line-height: 1.1;
+}
+
+.forum-hero-steps span {
+  color: #dbfff8;
+}
+
 .space-header {
   display: flex;
   justify-content: space-between;
@@ -4060,10 +4212,22 @@ button {
     justify-content: flex-start;
   }
 
+  .space-hero,
+  .forum-hero,
   .shared-block-hero {
     min-height: 360px;
     height: auto;
     padding: 30px;
+  }
+
+  .space-hero-metrics,
+  .forum-hero-steps {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    margin-top: 26px;
+    justify-content: flex-start;
+    max-width: 100%;
   }
 
   .shared-block-hero-copy {
@@ -4071,9 +4235,17 @@ button {
     padding-bottom: 46px;
   }
 
+  .space-hero .shared-block-hero-grid,
+  .forum-hero .shared-block-hero-grid,
   .shared-block-hero-grid,
+  .space-hero .shared-block-candle,
+  .forum-hero .shared-block-candle,
   .shared-block-candle,
+  .space-hero .shared-block-signal,
+  .forum-hero .shared-block-signal,
   .shared-block-signal,
+  .space-hero .shared-block-flow,
+  .forum-hero .shared-block-flow,
   .shared-block-flow {
     opacity: 0.48;
   }
@@ -4112,6 +4284,26 @@ button {
 
   .shared-blocks {
     padding: 14px;
+  }
+
+  .personal-space {
+    margin: 12px;
+    padding: 14px;
+  }
+
+  .forum-page {
+    padding: 14px;
+  }
+
+  .space-hero,
+  .forum-hero {
+    min-height: 330px;
+    padding: 24px;
+  }
+
+  .space-hero-copy h1,
+  .forum-hero-copy h1 {
+    font-size: 32px;
   }
 
   .shared-block-market-header {

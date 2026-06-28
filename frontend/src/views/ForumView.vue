@@ -601,6 +601,30 @@ watch(
 
 <template>
   <section class="forum-page">
+    <section class="forum-hero">
+      <div class="shared-block-hero-art" aria-hidden="true">
+        <span class="shared-block-hero-grid"></span>
+        <span class="shared-block-candle candle-one"></span>
+        <span class="shared-block-candle candle-two"></span>
+        <span class="shared-block-candle candle-three"></span>
+        <span class="shared-block-candle candle-four"></span>
+        <span class="shared-block-signal signal-one"></span>
+        <span class="shared-block-signal signal-two"></span>
+        <span class="shared-block-flow flow-one"></span>
+        <span class="shared-block-flow flow-two"></span>
+      </div>
+      <div class="forum-hero-copy">
+        <span>STS 策略论坛</span>
+        <h1>交流交易策略与回测结论</h1>
+        <p>把策略思路、回测结果和积木组合经验沉淀成帖子，也可以关联自己的策略、回测或公开积木，方便他人顺着线索继续研究。</p>
+      </div>
+      <div class="forum-hero-steps" aria-label="论坛流程">
+        <span>发帖</span>
+        <span>关联内容</span>
+        <span>审核公开</span>
+      </div>
+    </section>
+
     <header class="forum-header">
       <div>
         <h1>论坛</h1>

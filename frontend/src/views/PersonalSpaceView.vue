@@ -1437,6 +1437,39 @@ onMounted(() => {
 
 <template>
   <section class="page-panel personal-space">
+    <section class="space-hero">
+      <div class="shared-block-hero-art" aria-hidden="true">
+        <span class="shared-block-hero-grid"></span>
+        <span class="shared-block-candle candle-one"></span>
+        <span class="shared-block-candle candle-two"></span>
+        <span class="shared-block-candle candle-three"></span>
+        <span class="shared-block-candle candle-four"></span>
+        <span class="shared-block-signal signal-one"></span>
+        <span class="shared-block-signal signal-two"></span>
+        <span class="shared-block-flow flow-one"></span>
+        <span class="shared-block-flow flow-two"></span>
+      </div>
+      <div class="space-hero-copy">
+        <span>STS 个人空间</span>
+        <h1>管理你的策略资产</h1>
+        <p>集中查看策略、积木、模拟账户和回测记录，把每一次测试结果沉淀成下一次可复用的交易逻辑。</p>
+      </div>
+      <div class="space-hero-metrics" aria-label="个人空间摘要">
+        <div>
+          <span>策略</span>
+          <strong>{{ strategyTotal }}</strong>
+        </div>
+        <div>
+          <span>积木</span>
+          <strong>{{ customBlockTotal }}</strong>
+        </div>
+        <div>
+          <span>回测</span>
+          <strong>{{ backtestTotal }}</strong>
+        </div>
+      </div>
+    </section>
+
     <header class="space-header">
       <div>
         <h1>个人空间</h1>
